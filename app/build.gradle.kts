@@ -297,6 +297,8 @@ dependencies {
     implementation(libs.com.squareup.okhttp3.okhttp)
     implementation(libs.com.squareup.okhttp3.logging.interceptor)
     implementation(libs.com.google.code.gson.gson)
+    // Online search (YouTube Music) via NewPipe Extractor
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.4")
 //    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 //    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
 

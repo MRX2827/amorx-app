@@ -230,6 +230,8 @@ import androidx.compose.ui.res.stringResource
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Search : Screen("search")
+    object Online : Screen("online")
+    object OnlineDownloads : Screen("online_downloads")
     object Library : Screen("library?tab={tab}") {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
     }
@@ -607,7 +609,7 @@ fun LocalNavigation(
             currentRoute != Screen.Player.route &&
             currentRoute != Screen.Search.route
     val showNavBar = remember(currentRoute) {
-        currentRoute == Screen.Home.route ||
+        currentRoute == Screen.Home.route || currentRoute == Screen.Online.route || currentRoute == Screen.OnlineDownloads.route ||
             isLibraryRoute ||
             currentRoute == Screen.Search.route ||
             currentRoute == Screen.Settings.route ||
@@ -615,10 +617,10 @@ fun LocalNavigation(
     }
     val showBottomNav = remember(currentRoute, floatingNavigationBar) {
         if (floatingNavigationBar) {
-            currentRoute == Screen.Home.route || isLibraryRoute
+            currentRoute == Screen.Home.route || isLibraryRoute || currentRoute == Screen.Online.route || currentRoute == Screen.OnlineDownloads.route
         } else {
             currentRoute == Screen.Home.route ||
-                isLibraryRoute ||
+                isLibraryRoute || currentRoute == Screen.Online.route || currentRoute == Screen.OnlineDownloads.route ||
                 currentRoute == Screen.Settings.route
         }
     }
@@ -1489,13 +1491,25 @@ private fun LocalNavigationContent(
                                              Triple(
                                                  libraryRoute, context.getString(R.string.common_library),
                                                  Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
-                                             )
+                                             ),
+ Triple(
+ Screen.Online.route,
+ "Онлайн",
+ Pair(RhythmIcons.Public, RhythmIcons.Public.outlined())
+ ),
+ Triple(
+ Screen.OnlineDownloads.route,
+ "Скачанное",
+ Pair(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("download", filled = true), chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("download"))
+ )
                                          )
 
                                          items.forEachIndexed { index, (route, title, icons) ->
                                              val isSelected = when (route) {
                                                  Screen.Home.route -> currentRoute == Screen.Home.route
                                                  libraryRoute -> currentRoute.startsWith("library")
+                                                 Screen.Online.route -> currentRoute == Screen.Online.route
+ Screen.OnlineDownloads.route -> currentRoute == Screen.OnlineDownloads.route
                                                  else -> false
                                              }
 
@@ -1714,6 +1728,16 @@ private fun LocalNavigationContent(
                                 Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
                             ),
                             Triple(
+                                Screen.Online.route,
+                                "Онлайн",
+                                Pair(RhythmIcons.Public, RhythmIcons.Public.outlined())
+                            ),
+ Triple(
+ Screen.OnlineDownloads.route,
+ "Скачанное",
+ Pair(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("download", filled = true), chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("download"))
+ ),
+                            Triple(
                                 Screen.Search.route,
                                 stringResource(R.string.cd_search),
                                 Pair(RhythmIcons.SearchFilled, RhythmIcons.Search)
@@ -1783,6 +1807,8 @@ private fun LocalNavigationContent(
                                     val isSelected = when (route) {
                                         Screen.Home.route -> currentRoute == Screen.Home.route
                                         libraryRoute -> currentRoute.startsWith("library")
+                                        Screen.Online.route -> currentRoute == Screen.Online.route
+ Screen.OnlineDownloads.route -> currentRoute == Screen.OnlineDownloads.route
                                         Screen.Search.route -> currentRoute == Screen.Search.route
                                         Screen.Settings.route -> currentRoute == Screen.Settings.route
                                         else -> false
@@ -2316,6 +2342,14 @@ private fun LocalNavigationContent(
                         onBackClick = navigateBackOrToSettings,
                         appSettings = appSettings
                     )
+                }
+
+                composable(Screen.OnlineDownloads.route) {
+    chromahub.rhythm.app.features.online.DownloadsScreen(musicViewModel = viewModel)
+ }
+
+                composable(Screen.Online.route) {
+                    chromahub.rhythm.app.features.online.OnlineScreen(musicViewModel = viewModel)
                 }
 
                 composable(Screen.TunerQueue.route) {
