@@ -68,6 +68,12 @@ fun PeopleScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<RemoteProfile?>(null) }
     var playingKey by remember { mutableStateOf<String?>(null) }
+    var chatPeer by remember { mutableStateOf<ChatPeer?>(null) }
+    val openChat = chatPeer
+    if (openChat != null) {
+        ThreadScreen(musicViewModel = musicViewModel, peer = openChat, onBack = { chatPeer = null })
+        return
+    }
 
     LaunchedEffect(query) {
         if (query.isNotEmpty()) delay(400)
@@ -190,6 +196,15 @@ fun PeopleScreen(
                     }
                 }
             }
+            item {
+                if (current.id != myId) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.Button(onClick = {
+                            chatPeer = ChatPeer(current.id, current.username, current.avatarB64)
+                        }) { Text("Написать") }
+                    }
+                }
+            }
             if (current.artists.isNotEmpty()) {
                 item {
                     Text(
@@ -255,7 +270,7 @@ fun PeopleScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
-                        model = song.artwork,
+                        model = ArtworkUtil.forSong(song.id, song.artwork),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp))

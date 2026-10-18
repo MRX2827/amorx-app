@@ -45,7 +45,7 @@ object CloudProfiles {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
-    private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
+    internal val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
     private var prefs: SharedPreferences? = null
 
     @Synchronized
@@ -57,7 +57,7 @@ object CloudProfiles {
 
     fun myId(): String? = prefs?.getString("uid", null)
 
-    private fun exec(req: Request): Pair<Int, String> =
+    internal fun exec(req: Request): Pair<Int, String> =
         client.newCall(req).execute().use { r -> r.code to (r.body?.string() ?: "") }
 
     private fun authPost(path: String, body: String): Pair<Int, String> =
@@ -80,7 +80,7 @@ object CloudProfiles {
     }
 
     /** Возвращает (токен, id пользователя). При первом обращении создаёт анонимный вход. */
-    private fun session(): Pair<String, String> {
+    internal fun session(): Pair<String, String> {
         val p = prefs ?: throw IOException("Профили не запущены")
         val now = System.currentTimeMillis() / 1000
         val access = p.getString("access", null)

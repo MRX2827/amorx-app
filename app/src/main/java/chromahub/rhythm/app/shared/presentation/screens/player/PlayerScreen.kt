@@ -82,6 +82,8 @@ import chromahub.rhythm.app.shared.presentation.components.player.formatDuration
 import chromahub.rhythm.app.features.local.presentation.navigation.Screen
 import chromahub.rhythm.app.features.online.OnlineDownloads
 import chromahub.rhythm.app.features.online.OnlineTrack
+import chromahub.rhythm.app.features.online.ProfileSongs
+import chromahub.rhythm.app.features.online.ChatShare
 import chromahub.rhythm.app.features.local.presentation.screens.LibraryTab
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.shared.data.model.Album
@@ -685,6 +687,11 @@ fun PlayerScreen(
             val dlDone = dlVideoId != null &&
                 (dlItems.any { it.id == dlVideoId } || dlSongId?.startsWith("offline_") == true)
             val dlProgress = dlVideoId?.let { dlPending[it]?.progress }
+            remember { ProfileSongs.init(context); true }
+            val profileSongsNow by ProfileSongs.songs.collectAsState()
+            val curSongForProfile = song
+            val inProfile = curSongForProfile != null &&
+                profileSongsNow.any { it.id == ProfileSongs.normId(curSongForProfile.id) }
 
             ExtraControlBottomSheet(
                 downloadLabel = if (dlVideoId == null) null else when {
@@ -698,6 +705,23 @@ fun PlayerScreen(
                     else -> "Для офлайна"
                 },
                 downloadDone = dlDone,
+                profileLabel = if (curSongForProfile == null) null else if (inProfile) "В профиле" else "Добавить в профиль",
+                profileDescription = if (inProfile) "Нажмите, чтобы убрать" else "Увидят друзья",
+                profileDone = inProfile,
+                onProfile = if (curSongForProfile == null) null else {
+                    {
+                        if (inProfile) {
+                            ProfileSongs.remove(curSongForProfile.id)
+                            android.widget.Toast.makeText(context, "Убрано из профиля", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            ProfileSongs.add(curSongForProfile)
+                            android.widget.Toast.makeText(context, "Добавлено в профиль", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onShareChat = if (curSongForProfile == null) null else {
+                    { ChatShare.request(curSongForProfile) }
+                },
                 onDownload = if (dlVideoId == null) null else {
                     {
                         val cur = song

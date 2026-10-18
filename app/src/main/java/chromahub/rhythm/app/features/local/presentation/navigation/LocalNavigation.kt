@@ -1858,6 +1858,10 @@ private fun LocalNavigationContent(
     }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize()) {
+            chromahub.rhythm.app.features.online.ShareToChatHost()
+        chromahub.rhythm.app.features.online.ChatLiveHost(onOpenChats = {
+            navController.navigate(Screen.Profile.route) { launchSingleTop = true }
+        })
             // Main content
             NavHost(
                 navController = navController,

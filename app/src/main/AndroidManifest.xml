@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Optional permission for auto-update installation from GitHub -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" android:required="false" />
@@ -298,6 +299,14 @@
             android:authorities="${applicationId}.albumart"
             android:exported="true"
             android:grantUriPermissions="true" />
-    </application>
+        <service
+        android:name="chromahub.rhythm.app.features.online.ChatSyncService"
+        android:exported="false"
+        android:foregroundServiceType="specialUse">
+        <property
+            android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+            android:value="chat_message_sync" />
+    </service>
+</application>
 
 </manifest>

@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
@@ -69,8 +71,10 @@ fun ProfileScreen(
     val allSongs by musicViewModel.filteredSongs.collectAsState()
     val recent by musicViewModel.recentlyPlayed.collectAsState()
 
-    val favSongs = remember(favIds, allSongs, recent) {
-        (recent + allSongs).distinctBy { it.id }.filter { it.id in favIds }
+    remember { ProfileSongs.init(context); true }
+    val favSongs by ProfileSongs.songs.collectAsState()
+    LaunchedEffect(favIds, allSongs, recent) {
+        ProfileSongs.migrateFromLikes((recent + allSongs).distinctBy { it.id }.filter { it.id in favIds })
     }
 
     var showEdit by remember { mutableStateOf(false) }
@@ -134,13 +138,7 @@ fun ProfileScreen(
             avatarPath = avatar,
             isPublic = true,
             artists = artists.map { CloudArtist(it.name, it.avatarUrl) },
-            songs = favSongs.map { s ->
-                CloudSong(
-                    s.id, s.title, s.artist,
-                    s.artworkUri?.toString()?.takeIf { u -> u.startsWith("http") },
-                    s.duration
-                )
-            }
+            songs = favSongs
         )
         publishStatus = result.fold(
             onSuccess = { "Профиль опубликован" },
@@ -148,6 +146,19 @@ fun ProfileScreen(
         )
     }
 
+    var showChats by remember { mutableStateOf(false) }
+    val unread by ChatNotifier.unread.collectAsState()
+    val openReq by ChatNotifier.openChats.collectAsState()
+    LaunchedEffect(openReq) {
+        if (openReq) {
+            showChats = true
+            ChatNotifier.openChats.value = false
+        }
+    }
+    if (showChats) {
+        ChatsScreen(musicViewModel = musicViewModel, onBack = { showChats = false })
+        return
+    }
     if (showPeople) {
         PeopleScreen(musicViewModel = musicViewModel, onBack = { showPeople = false })
         return
@@ -233,7 +244,13 @@ fun ProfileScreen(
                         )
                     }
                     Spacer(Modifier.size(12.dp))
-                    FilledTonalButton(onClick = { showPeople = true }) { Text("Найти людей") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilledTonalButton(onClick = { showPeople = true }) { Text("Найти людей") }
+                        FilledTonalButton(onClick = { showChats = true }) {
+                            Text(if (unread > 0) "Сообщения ($unread)" else "Сообщения")
+                        }
+                    }
+                    ChatBackgroundSettings()
                 }
             }
         }
@@ -283,7 +300,7 @@ fun ProfileScreen(
             )
             if (favSongs.isEmpty()) {
                 Text(
-                    "Поставьте лайк песне в плеере, и она появится здесь",
+                    "В плеере откройте «три точки» и нажмите «Добавить в профиль»",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -295,12 +312,12 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .clickable { musicViewModel.playSong(song) }
+                    .clickable { ProfileSongs.play(context, musicViewModel, song) }
                     .padding(vertical = 6.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AsyncImage(
-                    model = song.artworkUri,
+                    model = ArtworkUtil.forSong(song.id, song.artwork),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp))
@@ -320,6 +337,9 @@ fun ProfileScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                IconButton(onClick = { ProfileSongs.remove(song.id) }) {
+                    Icon(imageVector = OnlineIcons.Close, contentDescription = "Убрать", modifier = Modifier.size(20.dp))
                 }
             }
         }

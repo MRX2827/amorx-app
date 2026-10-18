@@ -138,7 +138,12 @@ fun ExtraControlBottomSheet(
     downloadLabel: String? = null,
     downloadDescription: String? = null,
     downloadDone: Boolean = false,
-    onDownload: (() -> Unit)? = null
+    onDownload: (() -> Unit)? = null,
+    profileLabel: String? = null,
+    profileDescription: String? = null,
+    profileDone: Boolean = false,
+    onProfile: (() -> Unit)? = null,
+    onShareChat: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -268,6 +273,33 @@ fun ExtraControlBottomSheet(
                 onClick = {
                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
                     dismissAndDo { onArtist() }
+                }
+            ))
+        }
+
+        if (onProfile != null && profileLabel != null) {
+            add(ControlAction(
+                icon = if (profileDone) MaterialSymbolIcon("person_remove") else MaterialSymbolIcon("person_add"),
+                label = profileLabel,
+                description = profileDescription,
+                containerColor = if (profileDone) tertiary else secondary,
+                iconColor = if (profileDone) onTertiary else onSecondary,
+                onClick = {
+                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                    dismissAndDo { onProfile() }
+                }
+            ))
+        }
+        if (onShareChat != null) {
+            add(ControlAction(
+                icon = MaterialSymbolIcon("send"),
+                label = "Поделиться в чат",
+                description = "Отправить другу",
+                containerColor = secondary,
+                iconColor = onSecondary,
+                onClick = {
+                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                    dismissAndDo { onShareChat() }
                 }
             ))
         }
