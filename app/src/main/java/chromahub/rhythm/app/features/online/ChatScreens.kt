@@ -218,6 +218,24 @@ fun ThreadScreen(
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+
+    // Пока открыт диалог, окно не двигается системой: панель ввода поднимает только imePadding
+    val hostView = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(hostView) {
+        val activity = generateSequence(hostView.context) { c -> (c as? android.content.ContextWrapper)?.baseContext }
+            .firstOrNull { c -> c is android.app.Activity } as? android.app.Activity
+        val window = activity?.window
+        val old = window?.attributes?.softInputMode
+        if (window != null && old != null) {
+            window.setSoftInputMode(
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                    (old and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE)
+            )
+        }
+        onDispose {
+            if (window != null && old != null) window.setSoftInputMode(old)
+        }
+    }
     var pending by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var baseline by remember { mutableStateOf<Set<Long>?>(null) }
     val animatedIds = remember { mutableSetOf<Long>() }
