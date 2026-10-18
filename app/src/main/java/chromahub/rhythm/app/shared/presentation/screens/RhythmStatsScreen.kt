@@ -111,7 +111,14 @@ fun RhythmStatsScreen(
         showBackButton = true,
         onBackClick = {
             HapticUtils.performHapticFeedback(context, hapticFeedback, HapticType.HEAVY)
-            navController.popBackStack()
+            if (navController.previousBackStackEntry != null) {
+                navController.popBackStack()
+            } else {
+                navController.navigate(navController.graph.startDestinationId) {
+                    popUpTo(navController.graph.id) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
         },
         headerContent = {
             RhythmTimeRangeTabs(

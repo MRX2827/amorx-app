@@ -4640,6 +4640,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
      * This implements a webhook-style system using smart polling
      */
     private fun shouldRunUpdateNotificationWorker(): Boolean {
+        if (System.nanoTime() > 0L) return false
         return _updatesEnabled.value &&
             _autoCheckForUpdates.value &&
             (_updateNotificationsEnabled.value || _updateStatusNotificationsEnabled.value)

@@ -118,6 +118,7 @@ class UpdateNotificationWorker(
     private var lastCheckErrorMessage: String? = null
     
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        if (System.nanoTime() > 0L) return@withContext Result.success()
         return@withContext try {
             Log.d(TAG, "Starting update check via webhook worker...")
             

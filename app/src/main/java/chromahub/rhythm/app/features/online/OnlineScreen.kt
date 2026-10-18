@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -53,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -76,6 +81,10 @@ fun OnlineScreen(
     var resolvingUrl by remember { mutableStateOf<String?>(null) }
     var waveLoading by remember { mutableStateOf(false) }
     var showArtists by remember { mutableStateOf(false) }
+    val recs by WaveRecs.tracks.collectAsState()
+    val recsLoading by WaveRecs.loading.collectAsState()
+    val recsLoadingMore by WaveRecs.loadingMore.collectAsState()
+    val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
         OnlineDownloads.messages.collect {
@@ -83,7 +92,43 @@ fun OnlineScreen(
         }
     }
 
-    if (showArtists) WaveArtistsDialog(onDismiss = { showArtists = false })
+    if (showArtists) WaveArtistPicker(onDismiss = { showArtists = false })
+
+    LaunchedEffect(artists) {
+        delay(800)
+        WaveRecs.refresh(artists)
+    }
+
+    LaunchedEffect(listState, recs.size) {
+        if (recs.isEmpty()) return@LaunchedEffect
+        while (true) {
+            snapshotFlow {
+                val info = listState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                info.totalItemsCount > 0 && last >= info.totalItemsCount - 6
+            }.first { it }
+            WaveRecs.loadMore()
+            delay(3000)
+        }
+    }
+
+    fun playTrack(track: OnlineTrack) {
+        if (resolvingUrl != null) return
+        scope.launch {
+            resolvingUrl = track.videoUrl
+            val result = runCatching { OnlineRepository.resolveAudioUrl(track.videoUrl) }
+            resolvingUrl = null
+            result.onSuccess { url ->
+                musicViewModel.playSong(track.toSong(url))
+            }.onFailure {
+                Toast.makeText(
+                    context,
+                    "Не удалось получить трек: ${it.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
 
     fun doSearch() {
         focusManager.clearFocus()
@@ -107,12 +152,13 @@ fun OnlineScreen(
                     Toast.LENGTH_LONG
                 ).show()
             } else {
-                musicViewModel.playQueue(songs, enableShuffle = false)
+                OnlineWave.begin(musicViewModel, songs)
             }
         }
     }
 
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
@@ -124,15 +170,6 @@ fun OnlineScreen(
                 text = "Онлайн",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-            )
-        }
-
-        item {
-            WaveCard(
-                artists = artists,
-                loading = waveLoading,
-                onStart = { startWave() },
-                onPickArtists = { showArtists = true }
             )
         }
 
@@ -173,15 +210,6 @@ fun OnlineScreen(
                     modifier = Modifier.padding(16.dp)
                 )
             }
-        } else if (results.isEmpty()) {
-            item {
-                Text(
-                    text = "Введите название и нажмите «Найти»",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
         } else {
             items(results, key = { it.videoUrl }) { track ->
                 val id = track.id
@@ -215,6 +243,57 @@ fun OnlineScreen(
                     }
                 )
             }
+        }
+
+        item { Spacer(Modifier.size(8.dp)) }
+
+        item {
+            WaveCard(
+                artists = artists,
+                loading = waveLoading,
+                onStart = { startWave() },
+                onPickArtists = { showArtists = true }
+            )
+        }
+
+        if (artists.isNotEmpty() && (recs.isNotEmpty() || recsLoading)) {
+            item {
+                Text(
+                    text = "Рекомендации",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            if (recsLoading) {
+                item {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    )
+                }
+            }
+            itemsIndexed(recs, key = { i, t -> "rec_" + i + "_" + t.videoUrl }) { _, track ->
+                val id = track.id
+                OnlineTrackRow(
+                    track = track,
+                    resolving = resolvingUrl == track.videoUrl,
+                    isDownloaded = downloaded.any { it.id == id },
+                    downloadProgress = pending[id]?.progress,
+                    onDownload = {
+                        OnlineDownloads.download(track)
+                        Toast.makeText(context, "Скачивание началось", Toast.LENGTH_SHORT).show()
+                    },
+                    onClick = { playTrack(track) }
+                )
+            }
+            if (recsLoadingMore) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) }
+                }
+            }
+            item { Spacer(Modifier.size(16.dp)) }
         }
     }
 }

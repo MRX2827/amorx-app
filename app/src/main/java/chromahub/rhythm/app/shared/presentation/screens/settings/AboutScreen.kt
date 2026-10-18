@@ -496,19 +496,6 @@ fun AboutScreen(
                         context = context,
                         hapticFeedback = haptics,
                         item = SettingItem(
-                            icon = RhythmIcons.Download,
-                            title = context.getString(R.string.settings_about_check_updates),
-                            description = context.getString(R.string.updates_check_again),
-                            onClick = {
-                                appUpdaterViewModel.checkForUpdates(force = true)
-                                onNavigateToUpdates?.invoke()
-                            }
-                        )
-                    ),
-                    toMaterial3SettingsItem(
-                        context = context,
-                        hapticFeedback = haptics,
-                        item = SettingItem(
                             icon = RhythmIcons.BugReport,
                             title = context.getString(R.string.settings_about_report_bug),
                             description = "github.com/cromaguy/Rhythm/issues",

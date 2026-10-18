@@ -231,6 +231,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Search : Screen("search")
     object Online : Screen("online")
+    object Profile : Screen("profile")
     object OnlineDownloads : Screen("online_downloads")
     object Library : Screen("library?tab={tab}") {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
@@ -1684,7 +1685,7 @@ private fun LocalNavigationContent(
                                             haptic,
                                             HapticType.HEAVY
                                         )
-                                        navController.navigate(Screen.Search.route) {
+                                        navController.navigate(Screen.Profile.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 saveState = true
                                             }
@@ -1706,8 +1707,8 @@ private fun LocalNavigationContent(
                                         }
                                 ) {
                                     Icon(
-                                        imageVector = RhythmIcons.Search,
-                                        contentDescription = stringResource(R.string.cd_search),
+                                        imageVector = MaterialSymbolIcon("person"),
+                                        contentDescription = "Профиль",
                                         modifier = Modifier.size(25.dp)
                                     )
                                 }
@@ -2344,6 +2345,12 @@ private fun LocalNavigationContent(
                     )
                 }
 
+                composable(Screen.Profile.route) {
+                    chromahub.rhythm.app.features.online.ProfileScreen(
+                        musicViewModel = viewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable(Screen.OnlineDownloads.route) {
     chromahub.rhythm.app.features.online.DownloadsScreen(musicViewModel = viewModel)
  }
@@ -2458,6 +2465,16 @@ private fun LocalNavigationContent(
                     }
                 ) {
                     SlideUpCornerWrapper {
+                        BackHandler {
+                            if (navController.previousBackStackEntry != null) {
+                            navController.popBackStack()
+                        } else {
+                            navController.navigate(navController.graph.startDestinationId) {
+                                popUpTo(navController.graph.id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        }
                         RhythmStatsScreen(navController = navController, viewModel = viewModel)
                     }
                 }

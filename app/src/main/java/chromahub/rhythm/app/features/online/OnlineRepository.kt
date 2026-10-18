@@ -40,7 +40,7 @@ fun OnlineTrack.toSong(streamUrl: String): Song = Song(
     album = "YouTube Music",
     albumId = "",
     duration = durationMs,
-    uri = Uri.parse(streamUrl),
+    uri = Uri.parse(OnlineLinks.mark(streamUrl, id)),
     artworkUri = artworkUrl?.let { Uri.parse(it) }
 )
 

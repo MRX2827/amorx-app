@@ -374,10 +374,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var isCurrentlyPlaying: Boolean = false
 
     // Broadcast receiver for service/widget state changes
+    private var lastLocalFavoriteBroadcastAt = 0L
+
     private val favoriteChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 "chromahub.rhythm.app.action.FAVORITE_CHANGED" -> {
+                    if (android.os.SystemClock.elapsedRealtime() - lastLocalFavoriteBroadcastAt < 2000L) {
+                        Log.d(TAG, "Ignoring echo of our own favorite change")
+                        return
+                    }
                     Log.d(TAG, "Received favorite change notification from service")
                     // Refresh favorite songs and playlists from settings
                     refreshFavoriteSongs()
@@ -6844,6 +6850,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     private fun notifyMediaServiceFavoriteChange() {
+        lastLocalFavoriteBroadcastAt = android.os.SystemClock.elapsedRealtime()
         // Send broadcast to notify MediaPlaybackService about favorite state change
         val intent = Intent("chromahub.rhythm.app.action.FAVORITE_CHANGED").apply {
             setPackage(getApplication<Application>().packageName)
@@ -8649,7 +8656,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Add a song to the queue
      */
-    fun addSongToQueue(song: Song) {
+    fun addSongToQueue(song: Song, silent: Boolean = false) {
         Log.d(TAG, "Adding song to queue: ${song.title}")
         
         // Clear any previous error
@@ -8699,7 +8706,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 saveQueueToPersistence()
                 
                 val toastContext = getApplication<android.app.Application>().applicationContext
-                android.widget.Toast.makeText(toastContext, toastContext.getString(R.string.added_to_queue_simple, song.title), android.widget.Toast.LENGTH_SHORT).show()
+                if (!silent) {
+                    android.widget.Toast.makeText(toastContext, toastContext.getString(R.string.added_to_queue_simple, song.title), android.widget.Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding song to queue", e)
                 val errorMsg = "Failed to add '${song.title}' to queue: ${e.message}"

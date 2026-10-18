@@ -80,6 +80,8 @@ import chromahub.rhythm.app.shared.presentation.components.player.SleepTimerBott
 import chromahub.rhythm.app.shared.presentation.components.lyrics.LyricsEditorBottomSheet
 import chromahub.rhythm.app.shared.presentation.components.player.formatDuration
 import chromahub.rhythm.app.features.local.presentation.navigation.Screen
+import chromahub.rhythm.app.features.online.OnlineDownloads
+import chromahub.rhythm.app.features.online.OnlineTrack
 import chromahub.rhythm.app.features.local.presentation.screens.LibraryTab
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.shared.data.model.Album
@@ -670,7 +672,55 @@ fun PlayerScreen(
             val moreSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
             val haptic = LocalHapticFeedback.current
 
+            remember { OnlineDownloads.init(context); true }
+            val dlPending by OnlineDownloads.pending.collectAsState()
+            val dlItems by OnlineDownloads.items.collectAsState()
+            val dlSongId = song?.id
+            val dlVideoId = when {
+                dlSongId == null -> null
+                dlSongId.startsWith("online_") -> dlSongId.removePrefix("online_")
+                dlSongId.startsWith("offline_") -> dlSongId.removePrefix("offline_")
+                else -> null
+            }
+            val dlDone = dlVideoId != null &&
+                (dlItems.any { it.id == dlVideoId } || dlSongId?.startsWith("offline_") == true)
+            val dlProgress = dlVideoId?.let { dlPending[it]?.progress }
+
             ExtraControlBottomSheet(
+                downloadLabel = if (dlVideoId == null) null else when {
+                    dlDone -> "Скачано"
+                    dlProgress != null -> "Скачивается…"
+                    else -> "Скачать"
+                },
+                downloadDescription = if (dlVideoId == null) null else when {
+                    dlDone -> "Играет офлайн"
+                    dlProgress != null -> "${(dlProgress * 100).toInt()}%"
+                    else -> "Для офлайна"
+                },
+                downloadDone = dlDone,
+                onDownload = if (dlVideoId == null) null else {
+                    {
+                        val cur = song
+                        if (cur != null) {
+                            if (dlDone) {
+                                android.widget.Toast.makeText(context, "Эта песня уже скачана", android.widget.Toast.LENGTH_SHORT).show()
+                            } else if (dlProgress != null) {
+                                android.widget.Toast.makeText(context, "Скачивание уже идёт", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                OnlineDownloads.download(
+                                    OnlineTrack(
+                                        videoUrl = "https://www.youtube.com/watch?v=$dlVideoId",
+                                        title = cur.title,
+                                        artist = cur.artist,
+                                        durationMs = cur.duration,
+                                        artworkUrl = cur.artworkUri?.toString()
+                                    )
+                                )
+                                android.widget.Toast.makeText(context, "Скачивание началось", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                },
                 onDismiss = { showMoreSheet = false },
                 sheetState = moreSheetState,
                 hiddenChips = hiddenChips,

@@ -420,25 +420,6 @@ fun SettingsScreen(
             SettingGroup(
                 title = context.getString(R.string.settings_section_updates_info),
                 items = listOf(
-                    SettingItem(
-                        RhythmIcons.Update,
-                        context.getString(R.string.settings_updates_title),
-                        context.getString(R.string.settings_updates_desc),
-                        palette = SettingsPalettes.SkyBlue,
-                        toggleState = updatesEnabled,
-                        onToggleChange = { enabled ->
-                            if (enabled) {
-                                if (BuildConfig.FLAVOR == "fdroid") {
-                                    showFdroidWarningDialog = true
-                                } else {
-                                    appSettings.setUpdatesEnabled(true)
-                                }
-                            } else {
-                                appSettings.setUpdatesEnabled(false)
-                            }
-                        },
-                        onClick = { onNavigateTo(SettingsRoutes.UPDATES) }
-                    ),
                     SettingItem(RhythmIcons.Info, context.getString(R.string.settings_about_title), context.getString(R.string.settings_about_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.ABOUT) })
                 )
             ),

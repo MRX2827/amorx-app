@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">AmorX</string>
     <!-- Common Labels -->
     <string name="home">Главная страница</string>
     <string name="library">Библиотека</string>
     <string name="search">Поиск</string>
     <!-- Media3 notification configuration -->
-    <string name="media3_notification_channel_name">Rhythm Музыка</string>
+    <string name="media3_notification_channel_name">AmorX Музыка</string>
     <string name="media3_notification_channel_description">Элементы управления воспроизведением мультимедиа</string>
     <!-- Widget strings -->
     <string name="widget_description_glance">Смотрите и управляйте воспроизведением с домашнего экрана.</string>
-    <string name="widget_name_glance">Rhythm Музыка</string>
+    <string name="widget_name_glance">AmorX Музыка</string>
     <string name="unknown_artist">Неизвестный исполнитель</string>
     <string name="play_pause">Воспроизведение/пауза</string>
     <!-- Widget Settings -->
@@ -25,17 +25,17 @@
     <!-- Settings - Notifications -->
     <string name="settings_notifications">Уведомления</string>
     <string name="settings_notifications_updates_group">Обновления приложений</string>
-    <string name="settings_notifications_rhythm_guard_group">Rhythm Guard</string>
-    <string name="settings_notifications_rhythm_pulse_group">Rhythm Советы</string>
-    <string name="settings_update_notifications_merged_desc">Получайте оповещения о новых версиях Rhythm</string>
+    <string name="settings_notifications_rhythm_guard_group">AmorX Guard</string>
+    <string name="settings_notifications_rhythm_pulse_group">AmorX Советы</string>
+    <string name="settings_update_notifications_merged_desc">Получайте оповещения о новых версиях AmorX</string>
     <string name="settings_rhythm_guard_alert_notifications">Уведомления о безопасности</string>
     <string name="settings_rhythm_guard_alert_notifications_desc">Показывать уведомление когда уровень громкости или звука превышает безопасное значение</string>
     <string name="settings_rhythm_guard_timer_notifications">Уведомления таймера перерыва</string>
     <string name="settings_rhythm_guard_timer_notifications_desc">Показывать уведомления о запланированных перерывах и обратном отсчете активного тайм-аута</string>
-    <string name="settings_rhythm_pulse_notifications">Rhythm Советы Уведомления</string>
+    <string name="settings_rhythm_pulse_notifications">AmorX Советы Уведомления</string>
     <string name="settings_rhythm_pulse_notifications_desc">Получайте дружеские напоминания и советы по прослушиванию.</string>
     <string name="settings_rhythm_pulse_interval">Советы по интервалу</string>
-    <string name="settings_rhythm_pulse_interval_dialog_title">Rhythm Интервал подсказок</string>
+    <string name="settings_rhythm_pulse_interval_dialog_title">AmorX Интервал подсказок</string>
     <!-- Settings - Queue & Playback -->
     <!-- Settings - Queue -->
     <string name="settings_queue">Очередь</string>
@@ -116,9 +116,9 @@
     <string name="operation_exporting_playlists">Резервное копирование пользовательских плейлистов…</string>
     <string name="operation_exporting_playlists_location">Резервное копирование плейлистов в хранилище…</string>
     <string name="operation_importing_playlist">Импорт файла списка воспроизведения…</string>
-    <string name="notification_operations_channel_name">Библиотека Rhythm</string>
+    <string name="notification_operations_channel_name">Библиотека AmorX</string>
     <string name="notification_operations_channel_desc">Ход выполнения и результаты сканирования библиотеки и действий со списками воспроизведения</string>
-    <string name="notification_media_scan_title">Rhythm Сканирование библиотеки</string>
+    <string name="notification_media_scan_title">AmorX Сканирование библиотеки</string>
     <string name="notification_media_scan_stage_songs">Сканирование памяти устройства на наличие аудио файлов…</string>
     <string name="notification_media_scan_stage_saving">Оптимизация и сохранение базы данных аудиодорожек…</string>
     <string name="notification_media_scan_stage_finishing">Завершение индексации аудио…</string>
@@ -152,20 +152,20 @@
         <item quantity="other">Успешно импортирован \"%1$s\" с песнями %2$d.</item>
     </plurals>
     <string name="notification_playlist_import_failed">Не удалось импортировать плейлист. Пожалуйста, проверьте формат файла.</string>
-    <string name="notification_updater_channel_name">Средство обновления Rhythm</string>
+    <string name="notification_updater_channel_name">Средство обновления AmorX</string>
     <string name="notification_updater_channel_desc">Статус загрузки обновлений приложения</string>
-    <string name="notification_updater_title">Средство обновления Rhythm</string>
+    <string name="notification_updater_title">Средство обновления AmorX</string>
     <string name="notification_updater_downloading">⬇ Загрузка: %1$d%%</string>
     <string name="notification_updater_download_complete">✓ Готов к установке. Нажмите, чтобы обновить.</string>
     <string name="notification_updater_available_title">Доступно новое обновление</string>
-    <string name="notification_updater_available_text">🆕 Вышла новая версия Rhythm.</string>
-    <string name="notification_sleep_timer_channel_name">Rhythm Таймер сна</string>
+    <string name="notification_updater_available_text">🆕 Вышла новая версия AmorX.</string>
+    <string name="notification_sleep_timer_channel_name">AmorX Таймер сна</string>
     <string name="notification_sleep_timer_channel_desc">Обратный отсчет и статус действий таймера сна</string>
-    <string name="notification_sleep_timer_title">Rhythm Таймер сна</string>
+    <string name="notification_sleep_timer_title">AmorX Таймер сна</string>
     <string name="notification_sleep_timer_pause_in">⏸ Пауза в %1$s</string>
     <string name="notification_sleep_timer_stop_in">⏹ Остановка в %1$s</string>
     <!-- Streaming Notifications -->
-    <string name="notification_streaming_channel_name">Rhythm Go</string>
+    <string name="notification_streaming_channel_name">AmorX Go</string>
     <string name="notification_streaming_channel_desc">Статус службы потоковой передачи и обновления синхронизации</string>
     <!-- Streaming Authentication -->
     <string name="notification_streaming_auth_title">Потоковая передача подключена</string>
@@ -320,7 +320,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">Отключено</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">AmorX</string>
     <string name="home_settings_cd">Настройки</string>
     <string name="home_no_featured_albums">Нет избранных альбомов</string>
     <string name="home_no_featured_albums_desc">Добавьте несколько альбомов в свою библиотеку, чтобы увидеть избранный контент</string>
@@ -349,7 +349,7 @@
     <string name="home_no_recommendations">Нет рекомендаций</string>
     <string name="home_no_recommendations_desc">Послушайте музыку, чтобы получить персональные рекомендации</string>
     <!-- Listening Stats -->
-    <string name="home_listening_stats">Ваша статистика Rhythm</string>
+    <string name="home_listening_stats">Ваша статистика AmorX</string>
     <!-- Mood & Moments -->
     
     <!-- Recently Played -->
@@ -409,7 +409,7 @@
     <string name="sort_song_count">Количество песен</string>
     <!-- Storage Permission -->
     <string name="storage_permission_required">Требуется разрешение на хранение</string>
-    <string name="storage_permission_desc">Чтобы просматривать музыкальные файлы и исследовать память вашего устройства, Rhythm необходимо разрешение на доступ к вашим файлам и мультимедиа.</string>
+    <string name="storage_permission_desc">Чтобы просматривать музыкальные файлы и исследовать память вашего устройства, AmorX необходимо разрешение на доступ к вашим файлам и мультимедиа.</string>
     <string name="storage_permission_audio_only">Это позволяет получить доступ только к аудиофайлам и папкам, содержащим музыку.</string>
     <!-- PlayerScreen -->
     <string name="player_loading_lyrics">Загрузка текста…</string>
@@ -424,11 +424,11 @@
     <!-- Common UI -->
     <string name="ui_dismiss">Отклонить</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">AmorX</string>
     <string name="common_home">Главная страница</string>
     <string name="common_library">Библиотека</string>
     <!-- Splash/Loading -->
-    <string name="splash_tagline">Ваша музыка, ваш Rhythm</string>
+    <string name="splash_tagline">Ваша музыка, ваш AmorX</string>
     <string name="splash_ready">Готовы к работе!</string>
     <!-- Audio Quality -->
     
@@ -456,7 +456,7 @@
     <string name="updates_channel_desc">Выберите, за каким каналом обновлений следить:</string>
     <!-- Onboarding -->
     <string name="onboarding_welcome_to">Добро пожаловать в</string>
-    <string name="onboarding_welcome_subtitle">Ваша музыка, ваш Rhythm</string>
+    <string name="onboarding_welcome_subtitle">Ваша музыка, ваш AmorX</string>
     <string name="onboarding_get_started">Начало работы</string>
     <string name="onboarding_android13_notice">Android 13+ Уведомление</string>
     <string name="onboarding_android13_desc">В более новых версиях Android вы увидите несколько запросов на разрешения. Для удобства предоставьте доступ к аудиофайлам и уведомлениям.</string>
@@ -480,15 +480,15 @@
     <string name="onboarding_library_how_works">Как работает библиотечная организация</string>
     <string name="onboarding_library_1">Настройте порядок вкладок в библиотеке для быстрого доступа к избранному</string>
     <string name="onboarding_library_2">Создавайте плейлисты и управляйте ими прямо с экрана библиотеки</string>
-    <string name="onboarding_theme_title">Сделайте Rhythm своим</string>
-    <string name="onboarding_theme_desc">Настройте внешний вид Rhythm в соответствии со своим стилем. Выберите системную тему, шрифт или динамические цвета Material You (Android 12+).</string>
+    <string name="onboarding_theme_title">Сделайте AmorX своим</string>
+    <string name="onboarding_theme_desc">Настройте внешний вид AmorX в соответствии со своим стилем. Выберите системную тему, шрифт или динамические цвета Material You (Android 12+).</string>
     <string name="onboarding_more_tuner">Дополнительные настройки в настройках</string>
     <string name="onboarding_tuner_1">Пользовательские цветовые схемы и извлечение цвета обложек альбомов</string>
     <string name="onboarding_tuner_2">Кастомизация шрифта и настройки типографики</string>
     <string name="onboarding_rhythm_guard_title">Защитите свой слух</string>
-    <string name="onboarding_rhythm_guard_desc">Настройте Rhythm Guard, чтобы обеспечить безопасность прослушивания благодаря настройкам по умолчанию с учетом возраста и ручному управлению защитой.</string>
-    <string name="onboarding_rhythm_guard_mode_title">Rhythm Режим охраны</string>
-    <string name="onboarding_rhythm_guard_age_hint">Возрастной профиль помогает Rhythm Guard рекомендовать более безопасные ограничения прослушивания.</string>
+    <string name="onboarding_rhythm_guard_desc">Настройте AmorX Guard, чтобы обеспечить безопасность прослушивания благодаря настройкам по умолчанию с учетом возраста и ручному управлению защитой.</string>
+    <string name="onboarding_rhythm_guard_mode_title">AmorX Режим охраны</string>
+    <string name="onboarding_rhythm_guard_age_hint">Возрастной профиль помогает AmorX Guard рекомендовать более безопасные ограничения прослушивания.</string>
     <string name="onboarding_rhythm_guard_tip_1">В автоматическом режиме применяются более безопасные настройки по умолчанию с минимальной настройкой.</string>
     <string name="onboarding_rhythm_guard_tip_3">Ручной режим дает вам полный контроль над предупреждениями и пороговыми значениями.</string>
     <string name="onboarding_full_tour_prompt_title">Продолжить полный тур по установке?</string>
@@ -504,7 +504,7 @@
     <string name="onboarding_media_scan_blacklist">Режим черного списка: скрытие определенных песен и папок (рингтоны, уведомления)</string>
     <string name="onboarding_media_scan_whitelist">Режим белого списка: показывать только песни из выбранных папок</string>
     <string name="onboarding_complete_title">Все готово!</string>
-    <string name="onboarding_complete_desc">Rhythm готов к игре! Ваша музыкальная библиотека сканируется в фоновом режиме. Вот что настроено:</string>
+    <string name="onboarding_complete_desc">AmorX готов к игре! Ваша музыкальная библиотека сканируется в фоновом режиме. Вот что настроено:</string>
     <string name="onboarding_whats_next">Что дальше?</string>
     <string name="onboarding_next_browse">Просмотрите свои песни, альбомы и исполнителей</string>
     <string name="onboarding_next_create">Создайте свой первый плейлист</string>
@@ -525,8 +525,8 @@
     <string name="onboarding_grant_permissions">Предоставление разрешений</string>
     <string name="onboarding_permissions_granted_desc">Все необходимые разрешения предоставлены. Вы готовы продолжить!</string>
     <string name="onboarding_redirect_settings_desc">Чтобы предоставить необходимые разрешения, перейдите к настройкам приложения на вашем устройстве.</string>
-    <string name="onboarding_rationale_desc">Для правильной работы Rhythm требуются определенные разрешения. Пожалуйста, дайте им возможность продолжить.</string>
-    <string name="onboarding_permissions_required_desc">Чтобы в полной мере использовать функции Rhythm, нам необходимо ваше разрешение на доступ к определенным возможностям устройства.</string>
+    <string name="onboarding_rationale_desc">Для правильной работы AmorX требуются определенные разрешения. Пожалуйста, дайте им возможность продолжить.</string>
+    <string name="onboarding_permissions_required_desc">Чтобы в полной мере использовать функции AmorX, нам необходимо ваше разрешение на доступ к определенным возможностям устройства.</string>
     <string name="onboarding_permission_music_title">Доступ к музыкальной библиотеке</string>
     <string name="onboarding_permission_music_desc">Прочитайте локальные музыкальные файлы и отобразите их в приложении</string>
     <string name="onboarding_permission_bluetooth_title">Bluetooth-подключение</string>
@@ -539,9 +539,9 @@
     <string name="onboarding_permission_tip_2">Вы можете изменить разрешения позже в настройках</string>
     <!-- Onboarding Audio &amp; Playback -->
     <string name="onboarding_default_screen_title">Начальный экран по умолчанию</string>
-    <string name="onboarding_default_screen_desc">Выберите, какой экран откроется при запуске Rhythm</string>
+    <string name="onboarding_default_screen_desc">Выберите, какой экран откроется при запуске AmorX</string>
     <string name="onboarding_system_volume_title">Регулятор громкости системы</string>
-    <string name="onboarding_system_volume_desc">Разрешите физическим кнопкам громкости вашего устройства управлять громкостью воспроизведения Rhythm.</string>
+    <string name="onboarding_system_volume_desc">Разрешите физическим кнопкам громкости вашего устройства управлять громкостью воспроизведения AmorX.</string>
     <string name="onboarding_auto_queue_title">Автоматическое добавление в очередь</string>
     <string name="onboarding_auto_queue_desc">Автоматически создавать контекстную очередь из альбома/исполнителя при воспроизведении песни.</string>
     <string name="onboarding_show_lyrics_title">Показать тексты песен</string>
@@ -552,7 +552,7 @@
     
     <!-- Onboarding Theming -->
     <string name="onboarding_player_theme_title">Темы воспроизведения и мини-плеера</string>
-    <string name="onboarding_player_theme_desc">Персонализируйте интерфейсы воспроизведения. Переключайтесь между чистым современным дизайном Rhythm или ярким, плавным выразительным дизайном.</string>
+    <string name="onboarding_player_theme_desc">Персонализируйте интерфейсы воспроизведения. Переключайтесь между чистым современным дизайном AmorX или ярким, плавным выразительным дизайном.</string>
     <!-- Onboarding Updater -->
     <string name="onboarding_update_check_failed">Проверка обновления не удалась</string>
     <string name="onboarding_ready_to_install">Готово к установке</string>
@@ -607,7 +607,7 @@
     <string name="onboarding_gesture_tip_1">Жесты смахивания работают в обоих направлениях</string>
     <!-- Onboarding: Widgets Step -->
     <string name="onboarding_widgets_title">Виджеты запуска</string>
-    <string name="onboarding_widgets_desc">Добавьте виджеты Rhythm в панель запуска для быстрого управления музыкой. Настройте, какая информация будет отображаться и как будет выглядеть виджет.</string>
+    <string name="onboarding_widgets_desc">Добавьте виджеты AmorX в панель запуска для быстрого управления музыкой. Настройте, какая информация будет отображаться и как будет выглядеть виджет.</string>
     <string name="onboarding_widget_artist">Показать имя исполнителя</string>
     <string name="onboarding_widget_artist_desc">Отображение текущего исполнителя в виджете</string>
     <string name="onboarding_widget_album">Показать название альбома</string>
@@ -623,7 +623,7 @@
     <string name="onboarding_integrations_info_title">Примечание о конфиденциальности</string>
     <string name="onboarding_integrations_info_desc">Эти функции отправляют ограниченные данные (названия песен, исполнителей) во внешние службы. Ваши личные данные и музыкальные файлы остаются на вашем устройстве. Вы можете включить или отключить их в любое время в настройках.</string>
     <!-- Onboarding: Rhythm Stats Step -->
-    <string name="onboarding_stats_title">Статистика Rhythm</string>
+    <string name="onboarding_stats_title">Статистика AmorX</string>
     <string name="onboarding_stats_desc">Узнайте больше о своих музыкальных привычках. Отслеживайте время прослушивания, самые популярные песни, любимых исполнителей и многое другое с помощью красивой визуализации.</string>
     <string name="onboarding_stats_show_home">Показать статистику на главной странице</string>
     <string name="onboarding_stats_show_home_desc">Отображение виджета статистики прослушивания на главном экране</string>
@@ -644,9 +644,9 @@
     <string name="settings_tip_gestures_swipe">Проведите пальцем вверх по мини-плееру, чтобы открыть его полностью, затем проведите пальцем вниз, чтобы закрыть его, когда закончите.</string>
     <string name="settings_tip_gestures_artwork">Проведите по обложке для переключения треков и дважды нажмите на обложку альбома для быстрого воспроизведения или паузы.</string>
     <string name="settings_tip_media_scan">Используйте сканирование мультимедиа, чтобы скрыть ненужные файлы из вашей библиотеки</string>
-    <string name="settings_tip_rhythm_guard_off">Защитите свой слух, включив Rhythm Guard</string>
-    <string name="settings_tip_rhythm_guard_auto">Rhythm Guard автоматически управляет безопасными пределами прослушивания</string>
-    <string name="settings_tip_rhythm_guard_manual">Вы вручную управляете пределами Rhythm Guard</string>
+    <string name="settings_tip_rhythm_guard_off">Защитите свой слух, включив AmorX Guard</string>
+    <string name="settings_tip_rhythm_guard_auto">AmorX Guard автоматически управляет безопасными пределами прослушивания</string>
+    <string name="settings_tip_rhythm_guard_manual">Вы вручную управляете пределами AmorX Guard</string>
     <string name="settings_default_screen">Начальный экран по умолчанию</string>
     <string name="settings_default_screen_desc">Выберите стартовый экран</string>
     <string name="settings_home_desc">Откройте для себя новую музыку и рекомендации</string>
@@ -716,7 +716,7 @@
     <string name="lyrics_editor_title">Редактор текстов</string>
     <!-- Components: Song Info -->
     <string name="song_info_title">Информация о песне</string>
-    <string name="rhythm_stats">Статистика Rhythm</string>
+    <string name="rhythm_stats">Статистика AmorX</string>
     <string name="file_info">Информация о файле</string>
     <!-- Components: Add to Playlist -->
     <string name="add_to_playlists">Добавить в плейлисты</string>
@@ -747,7 +747,7 @@
     <string name="updates_disabled_message">Обновления приложения отключены в настройках</string>
     <string name="updates_auto_disabled">Автоматическая проверка обновлений отключена. Вы все равно можете проверить вручную.</string>
     <string name="updates_up_to_date_message">Вы в курсе!</string>
-    <string name="updates_check_frequency">Как часто Rhythm следует проверять наличие обновлений?</string>
+    <string name="updates_check_frequency">Как часто AmorX следует проверять наличие обновлений?</string>
     <string name="updates_experimental_coming">В будущих обновлениях появятся новые экспериментальные функции</string>
     <string name="settings_interval_every_48_hours">Каждые 48 часов</string>
     <string name="settings_interval_every_72_hours">Каждые 72 часа</string>
@@ -890,7 +890,7 @@
     <string name="updates_enable_auto_check">Автопроверка</string>
     <string name="updates_channel_title">Обновление канала</string>
     <string name="updates_source_title">Источник обновления</string>
-    <string name="updates_source_desc">Выберите семейство релизов Rhythm, которое следует использовать для обновлений OTA.</string>
+    <string name="updates_source_desc">Выберите семейство релизов AmorX, которое следует использовать для обновлений OTA.</string>
     <string name="updates_source_installed">Сопоставить установленную сборку</string>
     <string name="updates_source_installed_label">Установленная сборка</string>
     <string name="updates_source_github_label">Сборки GitHub</string>
@@ -938,7 +938,7 @@
     <string name="cd_reorder_chips">Изменение порядка фишек</string>
     <string name="cd_search">Поиск</string>
     <string name="cd_view_all">Посмотреть все</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">AmorX</string>
     <string name="cd_remove_from_playlist">Удалить из плейлиста</string>
     <string name="cd_change_language">Изменить язык</string>
     <string name="cd_open_settings">Открыть</string>
@@ -1011,18 +1011,18 @@
     <!-- Fallback Metadata -->
     
     <!-- Service Notifications -->
-    <string name="service_app_updates">Средство обновления Rhythm</string>
-    <string name="service_update_status">Rhythm Статус программы обновления</string>
-    <string name="service_rhythm_pulse">Rhythm Советы</string>
-    <string name="service_rhythm_guard_alerts">Rhythm Оповещения охраны</string>
-    <string name="service_rhythm_guard_timers">Rhythm Защитные таймеры</string>
-    <string name="service_rhythm_music">Rhythm Музыка</string>
+    <string name="service_app_updates">Средство обновления AmorX</string>
+    <string name="service_update_status">AmorX Статус программы обновления</string>
+    <string name="service_rhythm_pulse">AmorX Советы</string>
+    <string name="service_rhythm_guard_alerts">AmorX Оповещения охраны</string>
+    <string name="service_rhythm_guard_timers">AmorX Защитные таймеры</string>
+    <string name="service_rhythm_music">AmorX Музыка</string>
     <string name="service_update_status_desc">Результаты фоновых проверок обновлений</string>
-    <string name="service_rhythm_pulse_desc">Дружеские напоминания и советы по прослушиванию от Rhythm</string>
-    <string name="service_rhythm_guard_alerts_desc">Предупреждения безопасности от Rhythm Guard</string>
-    <string name="service_rhythm_guard_timers_desc">Rhythm Напоминания о перерыве в защите и тайм-ауте</string>
-    <string name="service_ready">Rhythm готов.</string>
-    <string name="service_init_failed">Rhythm не удалось запустить. Пожалуйста, снова откройте приложение.</string>
+    <string name="service_rhythm_pulse_desc">Дружеские напоминания и советы по прослушиванию от AmorX</string>
+    <string name="service_rhythm_guard_alerts_desc">Предупреждения безопасности от AmorX Guard</string>
+    <string name="service_rhythm_guard_timers_desc">AmorX Напоминания о перерыве в защите и тайм-ауте</string>
+    <string name="service_ready">AmorX готов.</string>
+    <string name="service_init_failed">AmorX не удалось запустить. Пожалуйста, снова откройте приложение.</string>
     <!-- Crash Activity -->
     <string name="crash_bug_report">Отчет об ошибке</string>
     <string name="crash_restart_app">Перезапустить приложение</string>
@@ -1052,12 +1052,12 @@
     <string name="settings_artwork_cache_size">Размер кэша графических изображений</string>
     <string name="settings_artist_parsing">Исполнители</string>
     <string name="settings_artist_parsing_desc">Разделители, отображение</string>
-    <string name="settings_rhythm_stats">Статистика Rhythm</string>
+    <string name="settings_rhythm_stats">Статистика AmorX</string>
     <string name="settings_rhythm_stats_desc">Время прослушивания, популярные треки и тенденции</string>
-    <string name="settings_rhythm_guard">Rhythm Guard</string>
-    <string name="settings_rhythm_guard_list_desc">Охрана здоровья при прослушивании на основе Rhythm Stats</string>
+    <string name="settings_rhythm_guard">AmorX Guard</string>
+    <string name="settings_rhythm_guard_list_desc">Охрана здоровья при прослушивании на основе AmorX Stats</string>
     <string name="settings_rhythm_guard_mode_title">Режим защиты</string>
-    <string name="settings_rhythm_guard_mode_desc">Выберите, как Rhythm Guard управляет состоянием прослушивания</string>
+    <string name="settings_rhythm_guard_mode_desc">Выберите, как AmorX Guard управляет состоянием прослушивания</string>
     <string name="settings_rhythm_guard_mode_auto">Авто</string>
     <string name="settings_rhythm_guard_mode_manual">Руководство</string>
     <string name="settings_rhythm_guard_age_label">Возрастной профиль: %1$d</string>
@@ -1076,10 +1076,10 @@
     <string name="settings_rhythm_guard_manual_warning_toggle">Показать предупреждения по технике безопасности</string>
     <string name="settings_rhythm_guard_manual_warning_toggle_desc">Предупреждать, когда включение прямого контроля громкости или ручных переключателей может быть опасным</string>
     <string name="settings_rhythm_guard_manual_threshold_title">Порог предупреждения о высокой громкости: %1$d%%</string>
-    <string name="settings_rhythm_guard_manual_threshold_desc">Установите, когда Rhythm Guard должен предупреждать о потенциально вредном объеме.</string>
+    <string name="settings_rhythm_guard_manual_threshold_desc">Установите, когда AmorX Guard должен предупреждать о потенциально вредном объеме.</string>
     <string name="settings_rhythm_guard_device_controls_title">Элементы управления выходом</string>
     <string name="settings_rhythm_guard_device_controls_speaker_limit_title">Применение ограничений громкости на динамике телефона</string>
-    <string name="settings_rhythm_guard_device_controls_speaker_limit_desc">Если функция Rhythm Guard отключена, она пропускает ограничение громкости и предупреждения о громкости на выходе встроенного динамика.</string>
+    <string name="settings_rhythm_guard_device_controls_speaker_limit_desc">Если функция AmorX Guard отключена, она пропускает ограничение громкости и предупреждения о громкости на выходе встроенного динамика.</string>
     <string name="settings_rhythm_guard_alert_controls_title">Элементы управления оповещениями о прослушивании</string>
     <string name="settings_rhythm_guard_alert_threshold_title">Порог предупреждения о воздействии: %1$s</string>
     <string name="settings_rhythm_guard_alert_threshold_policy_default">Политика по умолчанию</string>
@@ -1089,7 +1089,7 @@
     <string name="settings_rhythm_guard_warning_title">Предупреждение о безопасности при прослушивании</string>
     <string name="settings_rhythm_guard_warning_high_volume">Текущая громкость превышает порог предупреждения (%1$d%%). Рассмотрите возможность уменьшения громкости.</string>
     <string name="settings_rhythm_guard_warning_daily_exposure">Сегодня вы достигли %1$s, что выше рекомендованного %2$s. Подумайте о том, чтобы сделать перерыв на прослушивание.</string>
-    <string name="settings_rhythm_guard_warning_dialog_title">Rhythm Предупреждение защиты охраны</string>
+    <string name="settings_rhythm_guard_warning_dialog_title">AmorX Предупреждение защиты охраны</string>
     <string name="settings_rhythm_guard_warning_dialog_volume_message">Объем системного носителя в режиме реального времени составляет %1$d%%, что превышает текущий предел защиты в %2$d%%. Уменьшите громкость, чтобы снизить риск нарушения слуха.</string>
     <string name="settings_rhythm_guard_risk_level_label">Степень риска: %1$s</string>
     <string name="settings_rhythm_guard_risk_action_label">Рекомендуемое действие: %1$s</string>
@@ -1119,8 +1119,8 @@
     <string name="settings_rhythm_guard_start_countdown_value">Начало в %1$s</string>
     <string name="settings_rhythm_guard_snapshot_widget_above_limit">Выше рекомендуемого предела</string>
     <string name="settings_rhythm_guard_snapshot_widget_within_limit">В пределах рекомендуемого предела</string>
-    <string name="settings_rhythm_guard_state_active">Rhythm Защита активна</string>
-    <string name="settings_rhythm_guard_state_inactive">Rhythm Guard неактивен</string>
+    <string name="settings_rhythm_guard_state_active">AmorX Защита активна</string>
+    <string name="settings_rhythm_guard_state_inactive">AmorX Guard неактивен</string>
     <string name="settings_rhythm_guard_state_timeout_active">Идет тайм-аут прослушивания</string>
     <string name="settings_rhythm_guard_state_cooldown_active">Льготный период активен</string>
     <string name="settings_rhythm_guard_state_timeout_remaining">Перерыв заканчивается в %1$s</string>
@@ -1132,8 +1132,8 @@
     <string name="settings_rhythm_guard_protection_preset_strict">Строгий</string>
     <string name="settings_rhythm_guard_protection_preset_custom">Пользовательский</string>
     <string name="settings_rhythm_guard_timeout_activity_title">Тайм-аут прослушивания активен</string>
-    <string name="settings_rhythm_guard_timeout_activity_default_reason">Поворот сюжета: ваши уши заключили союз и позвали на перекус. Rhythm Guard приостановил воспроизведение, чтобы все могли остыть.</string>
-    <string name="settings_rhythm_guard_timeout_activity_comic_desc">Поворот сюжета: ваши уши объединились и позвали на перекус. Rhythm Guardприостановил воспроизведение, чтобы все могли остыть.</string>
+    <string name="settings_rhythm_guard_timeout_activity_default_reason">Поворот сюжета: ваши уши заключили союз и позвали на перекус. AmorX Guard приостановил воспроизведение, чтобы все могли остыть.</string>
+    <string name="settings_rhythm_guard_timeout_activity_comic_desc">Поворот сюжета: ваши уши объединились и позвали на перекус. AmorX Guardприостановил воспроизведение, чтобы все могли остыть.</string>
     <string name="settings_rhythm_guard_timeout_activity_extend">Продлить перерыв (+%1$d мин)</string>
     <string name="settings_rhythm_guard_timeout_activity_exit">Закрыть экран тайм-аута</string>
     <string name="settings_rhythm_guard_timeout_activity_close_app">Закрыть приложение</string>
@@ -1144,23 +1144,23 @@
     <string name="settings_rhythm_guard_alert_threshold_search_title">Порог предупреждения о воздействии</string>
     <string name="settings_rhythm_guard_alert_threshold_search_desc">Установите, сколько раз в день прослушивание будет вызывать оповещение о безопасности</string>
     <string name="settings_rhythm_guard_warning_timeout_search_title">Время восстановления оповещения</string>
-    <string name="settings_rhythm_guard_warning_timeout_search_desc">Установите время перезарядки между повторными оповещениями Rhythm Guard</string>
+    <string name="settings_rhythm_guard_warning_timeout_search_desc">Установите время перезарядки между повторными оповещениями AmorX Guard</string>
     <string name="settings_rhythm_guard_post_timeout_cooldown_search_title">Время восстановления после тайм-аута</string>
     <string name="settings_rhythm_guard_post_timeout_cooldown_search_desc">Установите время перезарядки после окончания тайм-аута, прежде чем может сработать следующий тайм-аут воздействия</string>
     <string name="settings_rhythm_guard_protection_presets_search_title">Предварительные настройки защиты</string>
     <string name="settings_rhythm_guard_protection_presets_search_desc">Применяйте комплекты ограждений Gentle, Balanced или Strict в одно касание</string>
     <string name="settings_rhythm_guard_break_resume_search_title">Возобновление перерыва по умолчанию</string>
     <string name="settings_rhythm_guard_break_resume_search_desc">Установите продолжительность запланированных перерывов на прослушивание по умолчанию</string>
-    <string name="settings_rhythm_guard_enable_search_title">Rhythm Защитная сила</string>
-    <string name="settings_rhythm_guard_enable_search_desc">Включение или отключение защиты Rhythm Guard</string>
-    <string name="settings_rhythm_guard_notification_alert_title">Rhythm Предупреждение охраны безопасности</string>
-    <string name="settings_rhythm_guard_notification_timer_active_title">Rhythm Тайм-аут защиты активен</string>
+    <string name="settings_rhythm_guard_enable_search_title">AmorX Защитная сила</string>
+    <string name="settings_rhythm_guard_enable_search_desc">Включение или отключение защиты AmorX Guard</string>
+    <string name="settings_rhythm_guard_notification_alert_title">AmorX Предупреждение охраны безопасности</string>
+    <string name="settings_rhythm_guard_notification_timer_active_title">AmorX Тайм-аут защиты активен</string>
     <string name="settings_rhythm_guard_notification_timer_active_text">Воспроизведение возобновляется через %1$s.</string>
-    <string name="settings_rhythm_guard_notification_timer_scheduled_title">Rhythm Запланирован прорыв охраны</string>
+    <string name="settings_rhythm_guard_notification_timer_scheduled_title">AmorX Запланирован прорыв охраны</string>
     <string name="settings_rhythm_guard_notification_timer_scheduled_text">Перерыв на прослушивание начинается в %1$s.</string>
     <string name="settings_rhythm_guard_notification_tap_open">Нажмите, чтобы просмотреть сведения о тайм-ауте.</string>
     <!-- Rhythm Stats Screen -->
-    <string name="stats_title">Rhythm Статистика</string>
+    <string name="stats_title">AmorX Статистика</string>
     <string name="stats_today">Сегодня</string>
     <string name="stats_this_week">На этой неделе</string>
     <string name="stats_this_month">В этом месяце</string>
@@ -1182,7 +1182,7 @@
     <!-- Content Descriptions (additional) -->
     <string name="cd_reorder_home_sections">Изменение порядка главных разделов</string>
     <string name="cd_remove">Удалить</string>
-    <string name="cd_rhythm_logo">Логотип Rhythm</string>
+    <string name="cd_rhythm_logo">Логотип AmorX</string>
     <string name="cd_telegram_support">Поддержка Telegram</string>
     <!-- Queue &amp; Playlist Dialogs -->
     <!-- Artist Settings -->
@@ -1350,7 +1350,7 @@
     <string name="settings_snowflake_display_area">Область отображения снежинки</string>
     <string name="settings_snowflake_size">Размер снежинки</string>
     <string name="settings_toggle_decoration_elements">Переключение отдельных элементов декора по положению</string>
-    <string name="settings_multi_artist_parsing_info">Если этот параметр включен, Rhythm автоматически разделит теги исполнителей, содержащие несколько исполнителей. Это полезно для песен, загруженных с помощью yt-dlp или других инструментов, в которых для разделения исполнителей используются такие разделители, как «/».\n\nОбратная косая черта (\\) может использоваться для экранирования разделителей.</string>
+    <string name="settings_multi_artist_parsing_info">Если этот параметр включен, AmorX автоматически разделит теги исполнителей, содержащие несколько исполнителей. Это полезно для песен, загруженных с помощью yt-dlp или других инструментов, в которых для разделения исполнителей используются такие разделители, как «/».\n\nОбратная косая черта (\\) может использоваться для экранирования разделителей.</string>
     <!-- Format Strings with Placeholders -->
     <string name="settings_cache_size_2gb">2 ГБ</string>
     <string name="settings_cache_size_64mb">64 МБ</string>
@@ -1436,7 +1436,7 @@
     <string name="settings_cache_info_4">Автоматическая очистка помогает поддерживать оптимальную производительность</string>
     <!-- Updates Settings -->
     <string name="updates_status_error">Ошибка</string>
-    <string name="updates_rhythm_logo_cd">Логотип Rhythm</string>
+    <string name="updates_rhythm_logo_cd">Логотип AmorX</string>
     <string name="updates_version_prefix">В %1$s</string>
     <string name="updates_released_prefix">Выпущено: %1$s</string>
     <string name="updates_unknown_error">Произошла неизвестная ошибка</string>
@@ -1456,7 +1456,7 @@
     <string name="settings_interval_once_a_day">Один раз в день</string>
     <string name="settings_interval_once_a_week">Раз в неделю</string>
     <!-- Experimental Features -->
-    <string name="streaming_integration_title">Rhythm Go</string>
+    <string name="streaming_integration_title">AmorX Go</string>
     <string name="streaming_integration_services">Службы интеграции</string>
     <string name="streaming_integration_services_empty">Сервисы пока не подключены</string>
     <string name="streaming_settings_title">Настройки</string>
@@ -1464,7 +1464,7 @@
     <string name="streaming_settings_group_actions">Действия</string>
     <string name="streaming_settings_preferred_service">Предпочтительная услуга</string>
     <string name="streaming_settings_quality">Качество потоковой передачи</string>
-    <string name="streaming_settings_service_sheet_desc">Выберите, какая подключенная служба Rhythm Go должна иметь приоритет по умолчанию.</string>
+    <string name="streaming_settings_service_sheet_desc">Выберите, какая подключенная служба AmorX Go должна иметь приоритет по умолчанию.</string>
     <string name="streaming_settings_quality_sheet_desc">Выберите предпочитаемое качество звука для потокового воспроизведения.</string>
     <string name="streaming_quality_low">Низкий</string>
     <string name="streaming_quality_normal">Нормальный</string>
@@ -1474,7 +1474,7 @@
     <string name="streaming_quality_normal_desc">Сбалансированное качество и использование данных (~160 Кбит/с).</string>
     <string name="streaming_quality_high_desc">Звук высокого качества (~320 кбит/с).</string>
     <string name="streaming_quality_lossless_desc">Наилучшее качество, если оно поддерживается (FLAC/ALAC).</string>
-    <string name="streaming_settings_group_wellbeing">Rhythm Информация</string>
+    <string name="streaming_settings_group_wellbeing">AmorX Информация</string>
     <string name="streaming_open_full_settings">Открыть полные настройки</string>
     <string name="streaming_open_full_settings_desc">Открыть настройки всего приложения, общие для всех режимов</string>
     <string name="streaming_switch_to_local_mode">Переключение в локальный режим</string>
@@ -1498,7 +1498,7 @@
     <string name="streaming_service_setup_password">Пароль</string>
     <string name="streaming_service_setup_password_hint">Введите пароль вашей учетной записи</string>
     <string name="streaming_service_setup_remember_password">Запомнить пароль на этом устройстве</string>
-    <string name="streaming_service_setup_remember_password_desc">Сохраните учетные данные локально, чтобы Rhythm мог автоматически повторно подключиться позже.</string>
+    <string name="streaming_service_setup_remember_password_desc">Сохраните учетные данные локально, чтобы AmorX мог автоматически повторно подключиться позже.</string>
     <string name="streaming_service_setup_connecting">Подключение…</string>
     <string name="streaming_service_setup_disconnecting">Отключение…</string>
     <string name="streaming_service_setup_action_hint">Заполните необходимые поля для подключения данной услуги.</string>
@@ -1686,7 +1686,7 @@
     <string name="settings_bluetooth_lyrics_enabled">Режим песни Bluetooth</string>
     <string name="settings_bluetooth_lyrics_enabled_desc">Трансляция текущей текстовой строки через метаданные Bluetooth</string>
     <string name="exp_go_mode">Go Mode</string>
-    <string name="exp_go_mode_desc">Переключиться на Rhythm Go streaming mode</string>
+    <string name="exp_go_mode_desc">Переключиться на AmorX Go streaming mode</string>
     <!-- Home Screen Search Strings -->
     <string name="settings_home_section_order">Порядок разделов</string>
     <string name="settings_home_section_order_desc">Изменение порядка главных разделов</string>
@@ -1699,13 +1699,13 @@
     <string name="settings_home_carousel_auto_scroll">Автоматическая прокрутка карусели</string>
     <string name="settings_home_carousel_auto_scroll_desc">Карусель с автоматической прокруткой</string>
     <!-- Notifications Search Strings -->
-    <string name="settings_notifications_rhythm_guard_alerts">Rhythm Предупреждения безопасности охраны</string>
+    <string name="settings_notifications_rhythm_guard_alerts">AmorX Предупреждения безопасности охраны</string>
     <string name="settings_notifications_rhythm_guard_alerts_desc">Уведомлять при срабатывании предупреждений о риске прослушивания</string>
-    <string name="settings_notifications_rhythm_guard_timers">Rhythm Таймеры отключения защиты</string>
+    <string name="settings_notifications_rhythm_guard_timers">AmorX Таймеры отключения защиты</string>
     <string name="settings_notifications_rhythm_guard_timers_desc">Уведомлять о запланированных перерывах и обратном отсчете времени ожидания</string>
-    <string name="settings_notifications_rhythm_pulse">Rhythm Советы</string>
+    <string name="settings_notifications_rhythm_pulse">AmorX Советы</string>
     <string name="settings_notifications_rhythm_pulse_desc">Дружеские напоминания и советы по прослушиванию.</string>
-    <string name="settings_notifications_rhythm_pulse_interval">Rhythm Интервал подсказок</string>
+    <string name="settings_notifications_rhythm_pulse_interval">AmorX Интервал подсказок</string>
     <string name="settings_notifications_rhythm_pulse_interval_desc">Как часто приходят уведомления о чаевых</string>
     <!-- Expressive Shapes Search Strings -->
     <string name="settings_expressive_shapes_enabled">Выразительные формы</string>
@@ -1789,7 +1789,7 @@
     <!-- Library Screen scanning overlay -->
     <string name="settings_scanning">Сканирование</string>
     <!-- Settings Search -->
-    <string name="search_settings_hint">Поиск настроек Rhythm…</string>
+    <string name="search_settings_hint">Поиск настроек AmorX…</string>
     <string name="clear_search">Очистить поиск</string>
     <string name="no_results_found">Результатов не найдено</string>
     <string name="try_different_search">Попробуйте другой поисковый запрос</string>
@@ -1828,14 +1828,14 @@
     <string name="theme_font_imported">Шрифт успешно импортирован</string>
     <string name="theme_font_invalid">Неверный формат файла шрифта</string>
     <string name="ui_apply">Применить</string>
-    <string name="crashactivity_uh_oh_looks_like">Ой-ой! Похоже, Rhythm взял неприятную ноту!</string>
+    <string name="crashactivity_uh_oh_looks_like">Ой-ой! Похоже, AmorX взял неприятную ноту!</string>
     <string name="crashactivity_dont_fret_our_app">Не волнуйтесь! В нашем приложении случилась небольшая «упс». Пожалуйста, поделитесь подробностями сбоя ниже — это как секретное сообщение для наших разработчиков, чтобы они исправили ситуацию! Тогда давай попробуем еще раз, ладно?</string>
     <string name="crashactivity_secret_crash_scrolls">Секретные свитки сбоя</string>
     <string name="crashactivity_share">Поделиться</string>
     <string name="externalplaybackactivity_unable_to_open_audio">Невозможно открыть аудиофайл</string>
     <string name="externalplaybackactivity_unsupported_or_unreadable_audio">Неподдерживаемый или нечитаемый аудиофайл</string>
     <string name="externalplaybackactivity_failed_to_play_audio">Не удалось воспроизвести аудиофайл</string>
-    <string name="externalplaybackactivity_open_rhythm">Открыть Rhythm</string>
+    <string name="externalplaybackactivity_open_rhythm">Открыть AmorX</string>
     <string name="mainactivity_error_opening_file">Ошибка открытия файла</string>
     <string name="mainactivity_unsupported_file_format">Неподдерживаемый формат файла</string>
     <string name="mainactivity_failed_to_initialize_media">Не удалось инициализировать медиаплеер</string>
@@ -1922,7 +1922,7 @@
     <string name="streamingmusicviewmodel_failed_to_play_next">Не удалось начать следующее воспроизведение: невозможно разрешить URL-адрес</string>
     <string name="streamingmusicviewmodel_failed_to_add_to">Не удалось добавить в очередь: невозможно разрешить URL-адрес</string>
     <string name="rhythmmusicwidget_album_art_placeholder">Заполнитель обложки альбома</string>
-    <string name="rhythmwidgetpreview_rhythm_glance_widget_previews">Rhythm Glance Предварительный просмотр виджетов</string>
+    <string name="rhythmwidgetpreview_rhythm_glance_widget_previews">AmorX Glance Предварительный просмотр виджетов</string>
     <string name="rhythmwidgetpreview_str_11_compact_widget">Компактный виджет 1×1</string>
     <string name="rhythmwidgetpreview_str_21_horizontal_strip">Горизонтальная полоса 2×1</string>
     <string name="rhythmwidgetpreview_str_22_small_widget">Маленький виджет 2×2</string>
@@ -1964,7 +1964,7 @@
     <string name="betaprogrampopup_early_access">Ранний доступ</string>
     <string name="betaprogrampopup_shape_the_future">Формируйте будущее</string>
     <string name="betaprogrampopup_direct_feedback">Прямая обратная связь</string>
-    <string name="betaprogrampopup_youre_part_of_an">Вы являетесь частью эксклюзивной группы, которая помогает формировать будущее музыкального плеера Rhythm</string>
+    <string name="betaprogrampopup_youre_part_of_an">Вы являетесь частью эксклюзивной группы, которая помогает формировать будущее музыкального плеера AmorX</string>
     <string name="betaprogrampopup_start_exploring">Начать исследование</string>
     <string name="switchmodedialog_switch_play">Переключайся и играй</string>
     <string name="fullscreenlyricsview_cover_artwork">Обложка</string>
@@ -2030,7 +2030,7 @@
     <string name="lyricssourcesettingsscreen_retry_using_fallbacks">Повторите попытку, используя резервные варианты</string>
     <string name="lyricssourcesettingsscreen_embedded_lyrics_are_stored">• Встроенные тексты хранятся в ваших аудиофайлах</string>
     <string name="miniplayercustomizationsettingsscreen_miniplayer_theme">Тема мини-плеера</string>
-    <string name="miniplayercustomizationsettingsscreen_choose_between_rhythm_default">Выберите между Rhythm по умолчанию или Expressive тему</string>
+    <string name="miniplayercustomizationsettingsscreen_choose_between_rhythm_default">Выберите между AmorX по умолчанию или Expressive тему</string>
     <string name="miniplayercustomizationsettingsscreen_integrated_directly_into_the">Интегрировано непосредственно в фон MiniPlayer</string>
     <string name="performancesettingsscreen_performance">Облегченный режим</string>
     <string name="performancesettingsscreen_disable_haptics">Отключить тактильные ощущения</string>
@@ -2047,7 +2047,7 @@
     <string name="rhythmguardsettingsscreen_none">Нет</string>
     <string name="rhythmguardsettingsscreen_general_settings">Общие настройки</string>
     <string name="rhythmguardsettingsscreen_library_data">Библиотечные данные</string>
-    <string name="rhythmguardsettingsscreen_stats_rhythm_guard">Статистика и Rhythm стража</string>
+    <string name="rhythmguardsettingsscreen_stats_rhythm_guard">Статистика и AmorX стража</string>
     <string name="settingsscreen_audio_offload">Разгрузка аудио</string>
     <string name="settingsscreen_personalization">Персонализация</string>
     <string name="settingsscreen_library_focus">Библиотечный фокус</string>
@@ -2148,7 +2148,7 @@
     <string name="pulse_marathon">Режим марафона</string>
     <!-- Settings Tips Details -->
     <string name="settings_tip_theme_desc_1">Обновите свой музыкальный плеер с помощью яркого черного AMOLED и красивых пастельных тонов.</string>
-    <string name="settings_tip_theme_desc_2">Сделайте Rhythm по-настоящему своим, подобрав акцент приложения к своей системе.</string>
+    <string name="settings_tip_theme_desc_2">Сделайте AmorX по-настоящему своим, подобрав акцент приложения к своей системе.</string>
     <string name="settings_tip_media_scan_desc_1">Избегайте нежелательных аудиоклипов. Явно определите, какие папки мы должны сканировать на наличие музыки.</string>
     <string name="settings_tip_media_scan_desc_2">Храните голосовые заметки и мелодии звонков подальше от своих плейлистов, используя папки фокуса.</string>
     <string name="settings_tip_sleep_timer_desc_1">Засыпайте, пока играет музыка. Мы автоматически приостановим его.</string>
@@ -2157,7 +2157,7 @@
     <string name="settings_tip_equalizer_desc_2">Надежно настройте звук в наушниках с помощью наших усовершенствованных звуковых эффектов.</string>
     <string name="settings_tip_backup_active_desc_1">Автоматическое резервное копирование активно. Проверьте разделы резервной копии, чтобы восстановления оставались чистыми.</string>
     <string name="settings_tip_backup_active_desc_2">Защита включена: расписание выглядит хорошо. Перед серьезными изменениями выполните резервное копирование вручную.</string>
-    <string name="settings_tip_backup_inactive_desc_1">Автоматическое резервное копирование отключено. Включите его, чтобы защитить плейлисты и статистику Rhythm Guard.</string>
+    <string name="settings_tip_backup_inactive_desc_1">Автоматическое резервное копирование отключено. Включите его, чтобы защитить плейлисты и статистику AmorX Guard.</string>
     <string name="settings_tip_backup_inactive_desc_2">Никакой системы безопасности пока нет. Включите резервное копирование, чтобы не потерять настройки.</string>
     <string name="settings_tip_updates_active_desc_1">Обновления включены. Оставьте их включенными для исправлений и улучшения производительности.</string>
     <string name="settings_tip_updates_active_desc_2">Вы настроены на получение обновлений. Проверьте настройки канала на предмет стабильности и свежести.</string>
@@ -2200,7 +2200,7 @@
     <string name="font_jetbrains_desc">Шрифт Monospace идеально подходит для технического контента</string>
     <string name="font_quicksand_desc">Закругленный шрифт, более мягкий и дружелюбный</string>
     <!-- Predefined Color Schemes -->
-    <string name="color_scheme_default_title">Rhythm По умолчанию</string>
+    <string name="color_scheme_default_title">AmorX По умолчанию</string>
     <string name="color_scheme_default_desc">Material 3 базовых фиолетовых цвета с розовыми вставками</string>
     <string name="color_scheme_warm_title">Теплый закат</string>
     <string name="color_scheme_warm_desc">Уютные оранжевые и красные тона для создания теплой атмосферы</string>
@@ -2235,7 +2235,7 @@
     <string name="lyrics_settings_embedded_first">Сначала встраивается</string>
     <string name="lyrics_settings_embedded_first_desc">Предпочитайте тексты песен, встроенные в аудиофайлы, откат к онлайн-API</string>
     <string name="lyrics_settings_online_first">Сначала онлайн</string>
-    <string name="lyrics_settings_online_first_desc">Предпочитаю онлайн-API (Rhythm пословно, LRCLib), переход на встроенные</string>
+    <string name="lyrics_settings_online_first_desc">Предпочитаю онлайн-API (AmorX пословно, LRCLib), переход на встроенные</string>
     <string name="lyrics_settings_local_first">Сначала местный</string>
     <string name="lyrics_settings_local_first_desc">Предпочитайте локальные файлы .lrc, затем встроенные тексты песен, а затем онлайн-API</string>
     <string name="lyrics_settings_lyrically_first">Сначала Lyrically</string>
@@ -2261,7 +2261,7 @@
     <string name="lyrics_settings_disable_animations_desc">Отключить переходы и анимацию в представлении текста песни</string>
     <string name="lyrics_settings_word_by_word_translation">Автоматическая синхронизация слов</string>
     <string name="lyrics_settings_word_by_word_translation_desc">Автоматическое создание синхронизации на уровне слов для текстов с линейной синхронизацией путем пропорционального распределения продолжительности</string>
-    <string name="lyrics_settings_info_bullets">Дополнительные сведения о синхронизации:\n• Онлайн-API обеспечивают высококачественную синхронизацию текстов песен\n• Rhythm обеспечивает пословную синхронизацию\n• LRCLib обеспечивает бесплатную построчную синхронизацию</string>
+    <string name="lyrics_settings_info_bullets">Дополнительные сведения о синхронизации:\n• Онлайн-API обеспечивают высококачественную синхронизацию текстов песен\n• AmorX обеспечивает пословную синхронизацию\n• LRCLib обеспечивает бесплатную построчную синхронизацию</string>
     <!-- AutoEQ Preset Picker additions -->
     <string name="autoeqpresetpickerbottomsheet_search_presets">Поиск предустановок…</string>
     <string name="autoeqpresetpickerbottomsheet_disable">Нет / отключить автоэквалайзер</string>
@@ -2279,7 +2279,7 @@
     <string name="device_configuration_custom_preset">Пользовательская предустановка</string>
     <string name="device_configuration_custom">Пользовательский</string>
     <string name="device_configuration_active_profile_label">Активный профиль: %1$s</string>
-    <string name="device_configuration_share_subject">Rhythm Профиль эквалайзера: %1$s</string>
+    <string name="device_configuration_share_subject">AmorX Профиль эквалайзера: %1$s</string>
     <string name="device_configuration_share_title">Поделиться профилем эквалайзера</string>
     <string name="device_configuration_edit_device">Редактировать устройство</string>
     <string name="device_configuration_add_device">Добавить устройство</string>
@@ -2331,9 +2331,9 @@
         <item quantity="other">Экспортируйте плейлисты %1$d в:</item>
     </plurals>
     <!-- Mode dialog strings -->
-    <string name="dialog_switch_to_go">Переключить на Rhythm Go?</string>
+    <string name="dialog_switch_to_go">Переключить на AmorX Go?</string>
     <string name="dialog_switch_to_local">Переключиться на локальный режим?</string>
-    <string name="dialog_switch_to_go_desc">This item belongs to Rhythm Go. Переключиться в режим потоковой передачи сейчас, чтобы транслировать и воспроизводить ее?</string>
+    <string name="dialog_switch_to_go_desc">This item belongs to AmorX Go. Переключиться в режим потоковой передачи сейчас, чтобы транслировать и воспроизводить ее?</string>
     <string name="dialog_switch_to_local_desc">Этот объект принадлежит вашей местной библиотеке. Переключиться в локальный режим сейчас, чтобы воспроизводить офлайн-треки?</string>
     <!-- Section order content descriptions -->
 
@@ -2514,7 +2514,7 @@
     <string name="carousel_style_hero">Герой</string>
     <string name="carousel_style_hero_desc">1 альбом для просмотра сбоку</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">AmorX</string>
     <string name="theme_expressive">Выразительный</string>
     <string name="settings_managed_by_expressive_shapes">Управляется выразительными формами</string>
     <!-- Shape targets -->
@@ -2560,7 +2560,7 @@
     <string name="backup_restore_section_collection">Коллекция</string>
     <string name="backup_restore_section_collection_desc">Списки воспроизведения, избранное, черный/белый список, закрепленные папки.</string>
     <string name="backup_restore_section_insight">Понимание</string>
-    <string name="backup_restore_section_insight_desc">Количество игр, ежедневная статистика, жанры и конфигурация Rhythm Guard.</string>
+    <string name="backup_restore_section_insight_desc">Количество игр, ежедневная статистика, жанры и конфигурация AmorX Guard.</string>
     <string name="backup_restore_status_included">Включено</string>
     <string name="backup_restore_status_excluded">Исключено</string>
     <plurals name="backup_restore_sections_enabled">
@@ -2617,8 +2617,8 @@
     <string name="settings_album_hide_about">Скрыть раздел об альбоме</string>
     <string name="settings_album_hide_about_desc">Скрыть описание/раздел об альбоме на экране сведений об альбоме</string>
     <string name="settings_rhythm_guard_first_break_dialog_title">О перерывах прослушивания</string>
-    <string name="settings_rhythm_guard_first_break_dialog_message">Rhythm Guard планирует перерывы в прослушивании, чтобы защитить ваш слух, когда достигается допустимая суточная доза воздействия. Перерыв приостанавливает воспроизведение и блокирует элементы управления, чтобы ваши уши могли полноценно отдохнуть.\n\nВо время первого перерыва вы можете отключить Rhythm Guard. Однако во время последующих перерывов вы не сможете отключить Rhythm Guard до окончания времени перерыва. Вы всегда можете отключить его или изменить настройки вне активных перерывов.</string>
-    <string name="settings_rhythm_guard_first_break_dialog_turn_off">Выключить Rhythm Guard</string>
+    <string name="settings_rhythm_guard_first_break_dialog_message">AmorX Guard планирует перерывы в прослушивании, чтобы защитить ваш слух, когда достигается допустимая суточная доза воздействия. Перерыв приостанавливает воспроизведение и блокирует элементы управления, чтобы ваши уши могли полноценно отдохнуть.\n\nВо время первого перерыва вы можете отключить AmorX Guard. Однако во время последующих перерывов вы не сможете отключить AmorX Guard до окончания времени перерыва. Вы всегда можете отключить его или изменить настройки вне активных перерывов.</string>
+    <string name="settings_rhythm_guard_first_break_dialog_turn_off">Выключить AmorX Guard</string>
     <string name="settings_rhythm_guard_first_break_dialog_start">Начать перерыв</string>
     <string name="settings_rhythm_guard_locked_during_break">Заблокировано во время перерыва</string>
     <string name="error_no_document_app">Отсутствует системное приложение для выбора папки.</string>
@@ -2639,4 +2639,620 @@
     <string name="settings_min_duration_minutes">%1$d мин %2$d сек</string>
     <string name="settings_min_duration_seconds">%1$d секунд</string>
     <string name="settings_min_duration_minutes_only">%1$d минут</string>
+
+    <!-- Часть 1: дополнительные переводы -->
+    <string name="widget_tip_cookie_corners">Выберите, что делают нижние углы виджета «Cookie»: пропуск, перемешивание, повтор, избранное или скрытие</string>
+    <string name="widget_tip_stats_widget">Выберите период и нижний значок, которые показывает виджет статистики</string>
+    <string name="widget_tip_resize_settings">Нажмите и удерживайте виджет, чтобы изменить его размер или открыть настройки</string>
+    <string name="settings_notifications_library_group">Библиотека и синхронизация</string>
+    <string name="settings_notifications_system_group">Системные элементы управления</string>
+    <string name="settings_library_operations_notifications">Операции с библиотекой и резервные копии</string>
+    <string name="settings_library_operations_notifications_desc">Показывать уведомления об индексации медиа и операциях с плейлистами</string>
+    <string name="settings_system_notification_channels">Настройки уведомлений Android</string>
+    <string name="settings_system_notification_channels_desc">Настройка системных каналов уведомлений, оповещений и поведения</string>
+    <string name="settings_notification_permission_title">Требуется разрешение на уведомления</string>
+    <string name="settings_notification_permission_desc">Разрешите уведомления для управления воспроизведением и фоновых задач.</string>
+    <string name="settings_notification_permission_grant">Включить уведомления</string>
+    <string name="settings_respect_album_on_play">Играть альбом или исполнителя целиком</string>
+    <string name="settings_respect_album_on_play_desc">Нажмите на песню в альбоме или у исполнителя, чтобы продолжить воспроизведение остальных.</string>
+    <string name="settings_keep_shuffle_on_selection">Сохранять перемешивание при выборе песни</string>
+    <string name="settings_keep_shuffle_on_selection_desc">Не отключать перемешивание при выборе нового трека.</string>
+    <string name="settings_mono_audio">Моно-звук</string>
+    <string name="settings_mono_audio_desc">Свести стереоканалы в моно для прослушивания одним наушником.</string>
+    <string name="device_mono_audio_title">Один наушник (моно-звук)</string>
+    <string name="device_mono_audio_desc">Принудительно сводить в моно, когда это аудиоустройство активно.</string>
+    <string name="settings_crossfade_configuration">Настройка</string>
+    <string name="settings_crossfade_duration_help">Настройте длительность перекрытия между завершающейся и следующей песней.</string>
+    <string name="settings_show_remaining_time">Показывать оставшееся время</string>
+    <string name="settings_show_remaining_time_desc">Показывать оставшуюся длительность воспроизведения на экранах плеера</string>
+    <string name="settings_show_liked_in_playlists">Показывать «Понравившиеся» в плейлистах</string>
+    <string name="settings_show_liked_in_playlists_desc">Показывать понравившиеся песни как плейлист</string>
+    <string name="settings_smart_playlist_recently_added">Недавно добавленные</string>
+    <string name="settings_smart_playlist_recently_added_desc">Последние песни, добавленные в вашу библиотеку</string>
+    <string name="settings_smart_playlist_most_played">Самые прослушиваемые</string>
+    <string name="settings_smart_playlist_most_played_desc">Ваши самые прослушиваемые песни за всё время</string>
+    <string name="settings_smart_playlist_on_repeat">На повторе</string>
+    <string name="settings_smart_playlist_on_repeat_desc">Песни, которые вы чаще всего слушали за последние 14 дней</string>
+    <string name="settings_smart_playlist_forgotten_favorites">Забытые любимые</string>
+    <string name="settings_smart_playlist_forgotten_favorites_desc">Любимые треки, которые вы давно не слушали</string>
+    <string name="settings_smart_playlist_recently_played">Недавно прослушанные</string>
+    <string name="settings_smart_playlist_recently_played_desc">Хронологическая история недавно прослушанных песен</string>
+    <string name="settings_smart_playlists">Умные плейлисты</string>
+    <string name="settings_active_smart_playlists">Активные плейлисты</string>
+    <string name="settings_default_playlists_summary">Настройка и управление автоматически обновляемыми умными плейлистами</string>
+    <string name="settings_save_top_songs_as_playlist">Сохранить как плейлист</string>
+    <string name="settings_saved_top_songs_playlist">Создан плейлист «%1$s», песен: %2$d</string>
+    <string name="playlist_on_repeat">На повторе</string>
+    <string name="playlist_forgotten_favorites">Забытые любимые</string>
+    <string name="playlist_recently_played">Недавно прослушанные</string>
+    <string name="settings_audio_formats">Аудиоформаты</string>
+    <string name="settings_allowed_formats">Разрешённые форматы</string>
+    <string name="settings_allowed_formats_desc">Включено форматов: %1$d из %2$d</string>
+    <string name="settings_allowed_formats_open_desc">Выберите аудиоформаты, которые сканируются в библиотеку. Требуется полное пересканирование.</string>
+    <string name="settings_formats_at_least_one">Должен остаться включённым хотя бы один формат</string>
+    <string name="settings_formats_video_note">MP4 и MKV по умолчанию отключены — включите их, чтобы добавлять аудиодорожки из видеофайлов.</string>
+    <string name="settings_formats_group_common">Распространённые</string>
+    <string name="settings_formats_group_lossless">Без потерь и Hi-Res</string>
+    <string name="settings_formats_group_surround">Объёмный звук и HD Audio</string>
+    <string name="settings_formats_group_containers">Контейнеры</string>
+    <string name="settings_formats_group_legacy">Устаревшие</string>
+    <string name="settings_min_duration">Минимальная длительность песни</string>
+    <string name="settings_min_duration_desc">Отфильтровывать аудиофайлы короче заданной длины</string>
+    <string name="settings_min_duration_none">Без фильтра (все аудиофайлы)</string>
+    <string name="settings_min_duration_tip">Установите 0 с, чтобы включить короткие треки, например фрагменты опер, звуковые эффекты или интерлюдии. Увеличьте значение, чтобы отфильтровать рингтоны и голосовые заметки.</string>
+    <string name="default_playback_speed">Скорость воспроизведения по умолчанию</string>
+    <string name="default_playback_speed_desc">Скорость, автоматически применяемая к новым трекам</string>
+    <string name="use_default_playback_speed">Скорость по умолчанию для новых песен</string>
+    <string name="use_default_playback_speed_desc">Всегда сбрасывать новые треки на скорость по умолчанию, а не запоминать последнюю скорость</string>
+    <string name="onboarding_streaming_setup_later">Настроить сервер позже в настройках</string>
+    <string name="onboardingscreen_choose_streaming_provider">Выберите стриминговый сервис</string>
+    <string name="onboardingscreen_choose_streaming_provider_desc">Выберите поставщика сервера для потоковой передачи вашей удалённой музыкальной библиотеки</string>
+    <string name="onboardingscreen_configure_provider">Настроить %1$s</string>
+    <string name="about_replay_tour">Пройти настройку заново</string>
+    <string name="about_replay_tour_desc">Пройдите обучение снова в любой момент, чтобы изменить предпочтения</string>
+    <string name="onboarding_expressive_shapes_title">Выразительные формы</string>
+    <string name="onboarding_expressive_shapes_desc">Применять выразительные органичные формы Material 3 к альбомам, карточкам и элементам интерфейса</string>
+    <string name="onboarding_autoeq_title">Профили наушников AutoEQ</string>
+    <string name="onboarding_autoeq_desc">Калибровка звука для тысяч моделей наушников</string>
+    <string name="onboarding_replaygain_title">Нормализация ReplayGain</string>
+    <string name="onboarding_replaygain_desc">Автоматически выравнивать громкость между треками</string>
+    <string name="onboarding_gapless_crossfade_title">Без пауз и кроссфейд</string>
+    <string name="onboarding_gapless_crossfade_desc">Плавные переходы и затухание между песнями</string>
+    <string name="onboarding_multi_artist_title">Разбор нескольких исполнителей</string>
+    <string name="onboarding_multi_artist_desc">Разделять совместных исполнителей (feat., ft., &amp;, /) на отдельные страницы</string>
+    <string name="onboarding_lossless_artwork_title">Обложки без потерь</string>
+    <string name="onboarding_lossless_artwork_desc">Предпочитать встроенные обложки высокого разрешения системным миниатюрам</string>
+    <string name="onboarding_library_tab_order_title">Порядок вкладок библиотеки</string>
+    <string name="onboarding_library_tab_order_desc">Настройте и измените порядок вкладок навигации по библиотеке</string>
+    <string name="onboarding_integration_betterlyrics">Better Lyrics</string>
+    <string name="onboarding_integration_wikipedia">Википедия</string>
+    <string name="onboarding_integration_wikipedia_desc">Метаданные альбомов и описания исполнителей</string>
+    <string name="playlist_no_songs_yet_desc">Начните собирать плейлист, добавив несколько песен</string>
+    <string name="playlist_search_no_matches_desc">Попробуйте другой поисковый запрос</string>
+    <string name="playlist_add_songs_button">Добавить песни</string>
+    <string name="queue_section_played">Ранее прослушано</string>
+    <string name="lyrics_editor_short">Редактор</string>
+    <string name="lyrics_settings_short">Настройки</string>
+    <string name="action_pause">Пауза</string>
+    <string name="action_resume">Продолжить</string>
+    <string name="settings_labs">Лаборатория</string>
+    <string name="settings_labs_desc">Экспериментальные функции и функции для разработчиков</string>
+    <string name="bottomsheet_edit_controls">Изменить элементы управления</string>
+    <string name="settings_artist_artwork_source">Источник изображений исполнителей</string>
+    <string name="settings_artist_artwork_source_desc">Выберите предпочтительный источник изображений исполнителей</string>
+    <string name="settings_artist_artwork_source_prefer_local">Сначала локальные, затем API</string>
+    <string name="settings_artist_artwork_source_prefer_local_desc">Изображения из локальных папок и интеграция с Deezer</string>
+    <string name="settings_artist_artwork_source_local_only">Только локальные изображения</string>
+    <string name="settings_artist_artwork_source_local_only_desc">Использовать только изображения из локальных папок и сохранённые локальные изображения</string>
+    <string name="settings_artist_artwork_source_api_only">Только интеграции (Deezer)</string>
+    <string name="settings_artist_artwork_source_api_only_desc">Получать изображения исполнителей только через интеграцию с Deezer</string>
+    <string name="settings_artist_artwork_source_disabled">Отключено</string>
+    <string name="settings_artist_artwork_source_disabled_desc">Не загружать изображения исполнителей</string>
+    <string name="settings_rhythm_guard_hero_limit_exceeded">Лимит превышен! Дайте ушам отдохнуть.</string>
+    <string name="settings_rhythm_guard_hero_exposure_of">из %1$s</string>
+    <string name="settings_rhythm_guard_hero_volume_limit">лимит %1$s</string>
+    <string name="action_like">Нравится</string>
+    <string name="action_dislike">Не нравится</string>
+    <string name="preset_standard">Стандартный (рекомендуется)</string>
+    <string name="preset_minimal">Минимальный (безопасный)</string>
+    <string name="preset_featured">Участие и коллаборации</string>
+    <string name="preset_extended">Расширенный</string>
+    <string name="preset_cjk">Азиатские / CJK</string>
+    <string name="delimiter_active_title">Активные разделители</string>
+    <string name="delimiter_add_custom">Добавить свой разделитель</string>
+    <string name="delimiter_custom_hint">Введите разделитель (например, feat., //, x)</string>
+    <string name="delimiter_quick_suggestions">Быстрое добавление</string>
+    <string name="settings_expressive_player">Выразительный плеер</string>
+    <string name="streaming_status_ready_to_connect">Готово к подключению</string>
+    <string name="streaming_service_setup_lan_hairpin_tip">Совет: если подключение по доменному имени не работает в локальной сети Wi-Fi, но работает через мобильный интернет, возможно, на вашем роутере нет NAT loopback (Hairpin NAT). Попробуйте использовать локальный IP-адрес сервера (например, 192.168.x.x) или настройте локальный DNS.</string>
+    <string name="settings_tab_liked">Понравившиеся</string>
+    <string name="settings_tab_album_artists">Исполнители альбомов</string>
+    <string name="settings_tap_artwork_lyrics">Нажатие на обложку открывает текст</string>
+    <string name="settings_tap_artwork_lyrics_desc">Нажмите на обложку альбома один раз, чтобы включить или выключить синхронизированный текст</string>
+    <string name="settings_miniplayer_swipe_tracks">Свайп для смены треков</string>
+    <string name="settings_miniplayer_swipe_tracks_desc">Свайп влево или вправо по мини-плееру переключает треки</string>
+    <string name="settings_miniplayer_swipe_dismiss">Свайп для открытия / закрытия</string>
+    <string name="settings_miniplayer_swipe_dismiss_desc">Свайп вверх открывает полный плеер, свайп вниз закрывает мини-плеер</string>
+    <string name="settings_queue_gestures">Жесты очереди</string>
+    <string name="settings_queue_swipe_remove">Свайп для удаления из очереди</string>
+    <string name="settings_queue_swipe_remove_desc">Свайп влево или вправо по элементам очереди удаляет их</string>
+    <string name="settings_library_gestures">Библиотека и навигация</string>
+    <string name="settings_library_swipe_tabs">Свайп между вкладками</string>
+    <string name="settings_library_swipe_tabs_desc">Свайп влево или вправо переключает вкладки библиотеки</string>
+    <string name="settings_lyrics_gestures">Жесты текста песни</string>
+    <string name="settings_lyrics_tap_seek">Нажатие на строку для перемотки</string>
+    <string name="settings_lyrics_tap_seek_desc">Нажмите на любую строку текста, чтобы перейти к этому месту воспроизведения</string>
+    <string name="settings_thumb_rotate">Вращать ползунок во время воспроизведения</string>
+    <string name="settings_thumb_rotate_desc">Медленно вращает ползунок, пока играет музыка</string>
+    <string name="exp_track_error_checker">Проверка ошибок треков</string>
+    <string name="exp_track_error_checker_desc">Перехватывать нечитаемые аудиотреки, чтобы избежать бесконечной загрузки</string>
+    <string name="addtoplaylistscreen_exit_selection">Выйти из множественного выбора</string>
+    <string name="explorer_no_storage">Хранилище не найдено</string>
+    <string name="explorer_no_storage_desc">Подключите устройства хранения или проверьте разрешения, чтобы просматривать музыкальные файлы</string>
+    <string name="explorer_empty_folder">Пустая папка</string>
+    <string name="explorer_empty_folder_desc">В этой папке нет аудиофайлов</string>
+    <string name="onboardingscreen_rhythm_go">AmorX GO</string>
+    <string name="onboardingscreen_mode_local_desc">Воспроизводите аудиофайлы, хранящиеся на устройстве</string>
+    <string name="onboardingscreen_mode_streaming_desc">Стриминг с серверов Jellyfin или Subsonic</string>
+    <string name="onboarding_scanning_for_provider">Поиск %1$s…</string>
+    <string name="onboarding_scanning_for_provider_desc">Поиск ближайших серверов в вашей локальной сети Wi-Fi…</string>
+    <string name="onboardingscreen_service_choice_tips">Советы по сервисам</string>
+    <string name="onboardingscreen_service_subsonic_tip">Subsonic API используют Navidrome, Gonic, Airsonic и серверы Subsonic.</string>
+    <string name="onboardingscreen_service_jellyfin_tip">Подключается напрямую к вашему медиасерверу Jellyfin и аудиоколлекциям.</string>
+    <string name="onboardingscreen_setup_auto_scan_tip">Автоопределение сканирует локальную сеть в поисках активных серверов.</string>
+    <string name="action_delete_song">Удалить песню</string>
+    <string name="lyrics_settings_betterlyrics_first">Сначала Better Lyrics</string>
+    <string name="library_no_playlists_yet_desc">Создайте первый плейлист кнопкой +</string>
+    <string name="library_no_albums_yet_desc">Альбомы появятся здесь после добавления музыки</string>
+    <string name="library_no_artists_yet_desc">Исполнители появятся здесь после добавления музыки</string>
+    <string name="library_no_dated_songs">Песни с датой не найдены</string>
+    <string name="library_no_dated_songs_desc">Песни с датой выпуска появятся здесь</string>
+    <string name="library_no_liked_songs">Понравившихся песен пока нет</string>
+    <string name="library_no_liked_songs_desc">Отмечайте любимые песни, чтобы они появились здесь</string>
+    <string name="downgrade_update_warning_title">Уведомление о коде версии</string>
+    <string name="downgrade_update_warning_message">Установленная сборка имеет более высокий внутренний номер сборки (versionCode), чем этот релиз. Защита Android не позволяет установить версию с меньшим versionCode поверх версии с большим без предварительного удаления.\n\nВы можете продолжить загрузку, но прямая установка может не удаться, пока существующая сборка не будет удалена.</string>
+    <string name="settings_audio_routing_mode">Маршрутизация аудиовыхода</string>
+    <string name="settings_audio_routing_mode_desc">Настройка маршрутизации потока и побитового вывода на ЦАП</string>
+    <string name="audio_routing_default">Стандартная (системная по умолчанию)</string>
+    <string name="audio_routing_default_desc">Стандартная маршрутизация и микширование звука Android.</string>
+    <string name="audio_routing_app">Побитовая (напрямую на ЦАП)</string>
+    <string name="audio_routing_app_desc">Побитовая маршрутизация напрямую на ЦАП без передискретизации и DSP со стороны ОС.</string>
+    <string name="audio_routing_system">Системная принудительно</string>
+    <string name="audio_routing_system_desc">Принудительно использовать стандартную маршрутизацию звука платформы.</string>
+    <string name="audio_routing_bit_perfect_disabled_effect">Отключено (активен побитовый режим)</string>
+    <string name="about_copy_system_info">Копировать сведения о системе</string>
+    <string name="about_copy_system_info_desc">Скопировать все данные о версии и оборудовании в буфер обмена</string>
+    <string name="about_copied_format">%1$s скопировано!</string>
+    <string name="api_deezer_desc">Изображения исполнителей и обложки альбомов</string>
+    <string name="api_lrclib_desc">Синхронизированный текст по строкам</string>
+    <string name="api_betterlyrics_desc">Синхронизированный текст по словам</string>
+    <string name="api_lyrically_desc">Синхронизированный текст по словам</string>
+    <string name="api_apple_motion_canvas">Apple Music Motion Canvas</string>
+    <string name="api_apple_motion_canvas_desc">Динамические анимированные обложки альбомов — %1$s</string>
+    <string name="api_apple_canvas_wifi">Только по Wi-Fi</string>
+    <string name="api_apple_canvas_both">Wi-Fi и мобильная сеть</string>
+    <string name="api_ytmusic_desc">Изображения исполнителей и обложки альбомов</string>
+    <string name="backup_restore_queued_message">Идёт сканирование медиа. Восстановление поставлено в очередь и применится автоматически после завершения сканирования.</string>
+    <string name="backup_restore_blocked_message">Нельзя создать резервную копию во время сканирования медиа. Дождитесь завершения сканирования.</string>
+    <string name="backup_restore_queued_completed_title">Восстановление из очереди завершено</string>
+    <string name="backup_restore_queued_completed_message">Восстановление из очереди успешно завершено.\n\nПерезапустите приложение, чтобы применить все настройки.</string>
+    <string name="backup_restore_completed_message">Восстановление успешно завершено.\n\nВосстановленные разделы:\n%1$s</string>
+    <string name="backup_completed_message">Резервное копирование успешно завершено.\n\nВключённые разделы:\n%1$s</string>
+    <string name="settings_cache_size_mb">%1$s МБ</string>
+    <string name="festive_enabled_desc">Показывать праздничное оформление по всему приложению</string>
+    <string name="festive_auto_detect_desc">Автоматически показывать оформление к праздникам</string>
+
+    <!-- Часть 3: дополнительные переводы -->
+    <string name="gosettingsscreen_server_format">Сервер: %1$s</string>
+    <string name="gosettingsscreen_not_set">Не задан</string>
+    <string name="streamingservicesetup_establishing_connection">Устанавливаем соединение с провайдером&#8230;</string>
+    <string name="streaming_placeholder_track_format">Трек %1$d</string>
+    <string name="notification_streaming_auth_channel_desc">Статус аутентификации и подключения</string>
+    <string name="tile_play_music">Включить музыку</string>
+    <string name="tile_playing_format">Играет: %1$s</string>
+    <string name="tile_paused_format">Пауза: %1$s</string>
+    <string name="backup_clip_label">Резервная копия AmorX</string>
+    <string name="crashlog_clip_label">Журнал сбоев AmorX</string>
+    <string name="rhythmguardsettingsscreen_status">Состояние AmorX Guard</string>
+    <string name="betaprogrampopup_early_access_desc">Пробуйте новые функции до официального выпуска</string>
+    <string name="betaprogrampopup_shape_the_future_desc">Ваши отзывы напрямую влияют на разработку</string>
+    <string name="betaprogrampopup_direct_feedback_desc">Общайтесь напрямую с командой разработчиков</string>
+    <string name="customizeartistimage_title">Изменить изображение исполнителя</string>
+    <string name="customizeartistimage_body_format">Выберите своё изображение для «%1$s» или сбросьте его по умолчанию.</string>
+    <string name="customizeartistimage_choose_image">Выбрать изображение</string>
+    <string name="customizeartistimage_reset_to_default">Сбросить по умолчанию</string>
+    <string name="search_no_results_query_format">Ничего не найдено по запросу «%1$s».</string>
+    <string name="search_view_all_count_format">Показать все песни: %1$d</string>
+    <string name="onboarding_step_counter">Шаг %1$d из %2$d</string>
+    <string name="onboarding_configure_desc">Настройте AmorX как локальный офлайн-плеер для аудиофайлов на устройстве или подключитесь к своим стриминговым сервисам на собственном сервере.</string>
+    <string name="onboarding_connected_to_format">Подключено к %1$s как %2$s</string>
+    <string name="mainactivity_preparing">Подготовка&#8230;</string>
+    <string name="playlistsongoptions_local_song">Локальная песня</string>
+    <string name="playlistsongoptions_streaming_song">Стриминговая песня</string>
+    <string name="dialog_close">Закрыть</string>
+    <string name="trackcorruptiondialog_title">Ошибка воспроизведения трека</string>
+    <string name="trackcorruptiondialog_body">При воспроизведении песни «%1$s» возникла проблема.</string>
+    <string name="trackcorruptiondialog_skip_song">Пропустить песню</string>
+    <string name="customizeplaylistimage_title">Изменить изображение плейлиста</string>
+    <string name="customizeplaylistimage_body_format">Выберите своё изображение для «%1$s» или сбросьте его по умолчанию.</string>
+    <string name="audioquality_studio_master">STUDIO MASTER</string>
+    <string name="audioquality_hi_res_lossless">HI-RES LOSSLESS</string>
+    <string name="audioquality_lossless">LOSSLESS</string>
+    <string name="settings_expressive_quality_badge_always_visible">Не скрывать индикатор качества</string>
+    <string name="settings_expressive_quality_badge_always_visible_desc">Постоянно показывать индикатор качества звука в выразительном плеере, а не скрывать его через 5 секунд</string>
+    <string name="playback_quality_dialog_title">Качество воспроизведения звука</string>
+    <string name="playback_quality_decoded_stream">Декодированный поток</string>
+    <string name="playback_quality_output_pipeline">Конвейер вывода</string>
+    <string name="playback_quality_device">Устройство вывода</string>
+    <string name="playback_quality_decoder">Декодер</string>
+    <string name="playback_quality_sample_rate">Частота дискретизации</string>
+    <string name="playback_quality_bit_depth">Разрядность</string>
+    <string name="playback_quality_bitrate">Битрейт</string>
+    <string name="playback_quality_channels">Каналы</string>
+    <string name="playback_quality_transmission">Передача</string>
+    <string name="playback_quality_resampling">Состояние конвейера</string>
+    <string name="playback_quality_view_full_metadata">Метаданные</string>
+    <string name="playback_quality_audio_output">Маршрутизация</string>
+    <string name="settings_category_native_capabilities_title">Возможности устройства</string>
+    <string name="settings_category_native_capabilities_desc">Характеристики оборудования, архитектура процессора, дисплей и аппаратный аудиоконвейер</string>
+    <string name="settings_category_external_capabilities_title">Внешние возможности</string>
+    <string name="settings_category_external_capabilities_desc">Управление программным аудиодвижком, программными декодерами и обработкой вывода</string>
+    <string name="settings_category_device_capabilities_title">Возможности устройства</string>
+    <string name="settings_category_device_capabilities_desc">Характеристики оборудования, архитектура процессора, дисплей и аппаратный аудиоконвейер</string>
+    <string name="settings_category_audio_capabilities_title">Внешние возможности</string>
+    <string name="settings_category_audio_capabilities_desc">Управление программным аудиодвижком, программными декодерами и обработкой вывода</string>
+    <string name="settings_category_audio_engine_title">Внешние возможности</string>
+    <string name="settings_category_audio_engine_desc">Управление программным аудиодвижком, программными декодерами и обработкой вывода</string>
+    <string name="settings_external_caps_master_title">Внешние возможности</string>
+    <string name="settings_external_caps_master_desc">Внешняя программная обработка звука и декодеры</string>
+    <string name="settings_native_caps_soc">Оборудование и SoC</string>
+    <string name="settings_native_caps_platform">Платформа и сборка</string>
+    <string name="settings_native_caps_display">Дисплей и экран</string>
+    <string name="settings_native_caps_pipeline">Аппаратный аудиоконвейер</string>
+    <string name="settings_native_caps_endpoints">Выходы аудио</string>
+    <string name="settings_native_caps_hw_decoders">Аппаратные аудиодекодеры</string>
+    <string name="settings_external_caps_engine">Настройка аудиодвижка</string>
+    <string name="settings_external_caps_sw_decoders">Программные аудиодекодеры</string>
+    <string name="settings_external_caps_reset">Сбросить программные настройки</string>
+    <string name="settings_external_caps_reset_desc">Снова включить все программные декодеры и восстановить стандартный конвейер движка</string>
+    <string name="settings_external_caps_reset_toast">Программный аудиодвижок сброшен до значений по умолчанию</string>
+    <string name="settings_devcaps_playback_readiness">Готовность к воспроизведению</string>
+    <string name="settings_devcaps_audio_pipeline">Аудиооборудование и конвейер</string>
+    <string name="settings_devcaps_codecs_decoders">Кодеки и декодеры</string>
+    <string name="settings_devcaps_system_architecture">Архитектура системы</string>
+    <string name="settings_devcaps_copy_report">Копировать диагностический отчёт</string>
+    <string name="settings_devcaps_report_copied">Диагностический отчёт скопирован в буфер обмена</string>
+    <string name="settings_audio_engine_active_decoder">Активный декодер</string>
+    <string name="settings_audio_engine_prefer_hw">Предпочитать аппаратные декодеры</string>
+    <string name="settings_audio_engine_prefer_hw_desc">Отдавать приоритет встроенным аппаратным кодекам, а не программной эмуляции</string>
+    <string name="settings_audio_engine_float_output">Вывод 32-bit PCM Float</string>
+    <string name="settings_audio_engine_float_output_desc">Передавать на поддерживаемое оборудование звук с полным динамическим диапазоном с плавающей запятой, когда программные DSP-эффекты и изменение скорости или высоты тона неактивны</string>
+    <string name="settings_audio_engine_manage_decoders">Аудиодекодеры</string>
+    <string name="settings_audio_engine_reset">Сбросить декодеры</string>
+    <string name="settings_audio_engine_reset_desc">Снова включить все платформенные и аппаратные аудиодекодеры</string>
+    <string name="settings_audio_engine_reset_toast">Все декодеры сброшены до системных значений по умолчанию</string>
+    <string name="settings_category_decoder_extensions_title">Расширения декодеров</string>
+    <string name="settings_category_decoder_extensions_desc">Управление внешними аудиодвижками, плагинами FFmpeg и декодерами ExoPlayer, не входящими в платформу</string>
+    <string name="settings_decoder_extensions_engines_section">Движки расширений</string>
+    <string name="settings_decoder_extensions_codecs_section">Расширенные возможности кодеков</string>
+    <string name="settings_decoder_extensions_empty_title">Расширения не найдены</string>
+    <string name="settings_decoder_extensions_empty_desc">Нет расширений декодеров или кодеков, подходящих под выбранный фильтр.</string>
+    <string name="settings_decoder_extensions_not_supported_exoplayer">Не поддерживается ExoPlayer</string>
+    <string name="settings_decoder_extensions_supported_ffmpeg">Декодируется через расширение FFmpeg</string>
+    <string name="settings_decoder_extensions_supported_midi">Синтезируется через расширение MIDI</string>
+    <string name="settings_decoder_extensions_reset">Сбросить расширения декодеров</string>
+    <string name="settings_decoder_extensions_reset_desc">Вернуть все внешние расширения декодеров в состояние по умолчанию</string>
+    <string name="settings_decoder_extensions_reset_toast">Расширения декодеров сброшены до значений по умолчанию</string>
+    <string name="settings_native_caps_no_decoders_title">Аппаратные декодеры не найдены</string>
+    <string name="settings_native_caps_no_decoders_desc">Ваше устройство использует программные декодеры системы Android.</string>
+    <string name="settings_external_caps_no_decoders_title">Декодеры не найдены</string>
+    <string name="settings_external_caps_no_decoders_desc">Нет программных аудиодекодеров, подходящих под выбранный фильтр.</string>
+    <string name="stats_most_active_at">Пик активности: %1$s</string>
+    <string name="stats_top_dimension">Топ: %1$s</string>
+    <string name="stats_active_days">Активные дни</string>
+    <string name="stats_longest_streak">Самая длинная серия</string>
+    <string name="stats_total_sessions">Всего сеансов</string>
+    <string name="stats_avg_session">Средний сеанс</string>
+    <string name="stats_peak_day">Пиковый день</string>
+    <string name="lyrics_instrumental">Инструментал</string>
+    <string name="lyrics_nudge_backward">Сдвинуть назад</string>
+    <string name="lyrics_nudge_forward">Сдвинуть вперёд</string>
+    <string name="lyrics_source_preference">Приоритет источника</string>
+    <string name="lyrics_clear">Очистить</string>
+    <string name="lyrics_source">Источник</string>
+    <string name="lyrics_line_by_line">По строкам</string>
+    <string name="lyrics_word_by_word">По словам</string>
+    <string name="lyrics_rename_lrc_title">Переименовать файл LRC?</string>
+    <string name="lyrics_rename_lrc_body">Имя загруженного файла LRC «%1$s» отличается от имени файла песни. Переименовать его в соответствии с песней или привязать как собственный файл с тегом?</string>
+    <string name="lyrics_remember_choice">Запомнить выбор (больше не спрашивать)</string>
+    <string name="lyrics_rename">Переименовать</string>
+    <string name="lyrics_tag_keep_custom">Привязать / оставить как есть</string>
+    <string name="lyrics_rename_permission_denied">Не удалось переименовать (нет разрешения). Файл привязан как собственный.</string>
+    <string name="lyrics_renamed_to_format">Файл успешно переименован в %1$s.</string>
+    <string name="lyrics_renamed_success">Файл успешно переименован.</string>
+    <string name="player_chip_lyrics">Текст</string>
+    <string name="player_chip_repeat">Повтор</string>
+    <string name="song_deleted_successfully">Песня удалена</string>
+    <string name="backup_export_failed">Ошибка экспорта: %1$s</string>
+    <string name="backup_import_failed">Ошибка импорта: %1$s</string>
+    <string name="onboarding_restore_queued_scan">Идёт сканирование медиа. Восстановление поставлено в очередь и применится автоматически после завершения сканирования.</string>
+    <string name="onboarding_cannot_backup_scanning">Нельзя создать резервную копию во время сканирования медиа. Дождитесь завершения сканирования.</string>
+    <string name="deviceconfiguration_clip_label">экспортированный текст</string>
+    <string name="backup_clipboard_no_text">В буфере обмена нет читаемого текста резервной копии</string>
+    <string name="backup_clipboard_no_data">В буфере обмена нет данных резервной копии. Сначала скопируйте резервную копию.</string>
+    <string name="backup_restore_failed">Не удалось восстановить резервную копию: %1$s</string>
+    <string name="backup_select_section_create">Выберите хотя бы один раздел для создания резервной копии</string>
+    <string name="backup_select_section_restore">Выберите хотя бы один раздел для восстановления</string>
+    <string name="editalbumsheet_title_empty">Название альбома не может быть пустым</string>
+    <string name="editalbumsheet_artist_empty">Исполнитель альбома не может быть пустым</string>
+    <string name="batchedit_field_artist">Исполнитель</string>
+    <string name="batchedit_field_album">Альбом</string>
+    <string name="batchedit_field_genre">Жанр</string>
+    <string name="batchedit_field_year">Год</string>
+    <string name="rhythmnavigation_local_desc">Воспроизводите музыку, хранящуюся на устройстве</string>
+    <string name="rhythmnavigation_streaming_desc">Стриминг из Spotify и не только</string>
+    <string name="unresolved_song">Нераспознанная песня</string>
+    <string name="unresolved_track">Нераспознанный трек</string>
+    <string name="unknown_artist_name">Неизвестный исполнитель</string>
+    <string name="unknown_album_name">Неизвестный альбом</string>
+    <string name="settings_floating_navigation">Плавающая панель навигации</string>
+    <string name="settings_floating_navigation_desc">Располагать панель навигации над содержимым или закрепить у края экрана</string>
+    <string name="expressive_bottom_buttons_desc">Настройте и измените порядок нижних кнопок действий</string>
+    <string name="expressive_bottom_buttons_title">Изменить элементы управления</string>
+    <string name="expressive_bottom_buttons_normal_tab">Обычный режим</string>
+    <string name="expressive_bottom_buttons_merge_tab">Режим объединения</string>
+    <string name="expressive_bottom_buttons_saved">Настройки нижних кнопок сохранены</string>
+    <string name="expressive_bottom_buttons_reset">Сбросить порядок и видимость кнопок по умолчанию</string>
+    <string name="expressive_bottom_buttons_at_least_one">Должна остаться видимой хотя бы одна кнопка</string>
+    <string name="expressive_bottom_buttons_max_limit">Можно закрепить не более %1$d кнопок</string>
+    <string name="expressive_bottom_buttons_more_required">Кнопка меню с тремя точками обязательна</string>
+    <string name="settings_expressive_bottom_buttons">Настроить нижние кнопки</string>
+    <string name="settings_expressive_bottom_buttons_desc">Изменение порядка и видимости нижних кнопок для обычного режима и режима объединения</string>
+    <string name="streaming_download">Скачать</string>
+    <string name="streaming_downloading">Скачивание&#8230;</string>
+    <string name="streaming_remove_download">Удалить загрузку</string>
+    <string name="streaming_downloaded">Скачано</string>
+    <string name="rhythm_go_offline_toast">AmorX Go не в сети</string>
+    <string name="rhythm_go_online_toast">AmorX Go снова в сети</string>
+    <string name="streaming_downloaded_albums">Скачанные альбомы</string>
+    <string name="streaming_syncing_downloads_subtitle">Доступно во время синхронизации</string>
+    <string name="eq_preset_order_title">Порядок пресетов</string>
+    <string name="eq_preset_order_desc">Перетаскивайте, чтобы изменить порядок пресетов, или переключайте их видимость</string>
+    <string name="eq_preset_order_saved">Порядок пресетов сохранён</string>
+    <string name="eq_preset_order_reset">Порядок пресетов сброшен по умолчанию</string>
+    <string name="eq_preset_at_least_one">Должен остаться видимым хотя бы один пресет</string>
+    <string name="eq_preset_type_builtin">Встроенные</string>
+    <string name="eq_preset_type_custom">Свои</string>
+    <string name="eq_preset_type_autoeq">AutoEQ</string>
+    <string name="eq_save_custom_preset">Сохранить свой пресет</string>
+    <string name="eq_save_custom_preset_desc">Сохраните текущие настройки полос эквалайзера как пресет для повторного использования</string>
+    <string name="eq_preset_name_hint">Название пресета</string>
+    <string name="eq_preset_name_empty">Введите название пресета</string>
+    <string name="eq_preset_name_exists">Пресет с таким названием уже существует</string>
+    <string name="eq_preset_saved_success">Пресет \"%1$s\" сохранён</string>
+    <string name="eq_preset_delete_title">Удалить пресет</string>
+    <string name="eq_preset_delete_confirm">Вы действительно хотите удалить свой пресет \"%1$s\"?</string>
+    <string name="eq_preset_deleted">Пресет удалён</string>
+    <string name="eq_reorder_presets">Порядок пресетов</string>
+    <string name="eq_device_no_profile">Профиль AutoEQ не привязан</string>
+    <string name="eq_manage_all_devices">Управление устройствами</string>
+    <string name="eq_reorder">Изменить порядок</string>
+
+    <!-- Часть 2: дополнительные переводы -->
+    <string name="festive_christmas_desc">Снегопад в оформлении</string>
+    <string name="festive_new_year_desc">Праздничный снегопад и искры</string>
+    <plurals name="settings_count_songs">
+            <item quantity="one">%1$d песня</item>
+            <item quantity="few">%1$d песни</item>
+            <item quantity="many">%1$d песен</item>
+            <item quantity="other">%1$d песни</item>
+        </plurals>
+    <plurals name="settings_count_artists">
+            <item quantity="one">%1$d исполнитель</item>
+            <item quantity="few">%1$d исполнителя</item>
+            <item quantity="many">%1$d исполнителей</item>
+            <item quantity="other">%1$d исполнителя</item>
+        </plurals>
+    <plurals name="settings_count_albums">
+            <item quantity="one">%1$d альбом</item>
+            <item quantity="few">%1$d альбома</item>
+            <item quantity="many">%1$d альбомов</item>
+            <item quantity="other">%1$d альбома</item>
+        </plurals>
+    <string name="library_auto_fetch_artwork_desc">Автоматически загружать недостающие обложки из интернета при воспроизведении треков или при запуске</string>
+    <string name="lyrics_exported_success">Экспорт выполнен</string>
+    <string name="lyrics_export_failed">Ошибка экспорта</string>
+    <string name="lyrics_imported_success">Импорт выполнен</string>
+    <string name="lyrics_import_failed">Ошибка импорта</string>
+    <string name="lyrics_lrc_rename_behavior">Поведение при переименовании LRC</string>
+    <string name="lyrics_lrc_rename_behavior_desc">Выберите, переименовывать файлы .lrc или привязывать их как отдельные при изменении данных песни</string>
+    <string name="lyrics_rename_always">Всегда переименовывать под песню</string>
+    <string name="lyrics_rename_always_desc">Автоматически переименовывать соответствующий файл .lrc под название песни</string>
+    <string name="lyrics_rename_never">Не переименовывать (всегда привязывать)</string>
+    <string name="lyrics_rename_never_desc">Сохранять имя существующего файла .lrc и привязывать его как отдельный файл с тегом</string>
+    <string name="lyrics_rename_ask">Спрашивать каждый раз</string>
+    <string name="lyrics_rename_ask_desc">Запрашивать подтверждение, когда название песни отличается от имени файла .lrc</string>
+    <string name="lyrics_export_preferences">Экспорт настроек текстов</string>
+    <string name="lyrics_export_preferences_desc">Сохранить в CSV настройки источников для отдельных песен и собственные теги</string>
+    <string name="lyrics_import_preferences">Импорт настроек текстов</string>
+    <string name="lyrics_import_preferences_desc">Восстановить из CSV настройки источников для отдельных песен и собственные теги</string>
+    <string name="lyrics_file_data_management">Файлы и данные текстов</string>
+    <string name="lyrics_size_min" formatted="false">50%</string>
+    <string name="lyrics_size_max" formatted="false">200%</string>
+    <string name="notifications_sleep_timer_status">Состояние таймера сна</string>
+    <string name="notifications_sleep_timer_status_desc">Показывать уведомление с обратным отсчётом и кнопками управления, пока активен таймер сна</string>
+    <string name="notifications_cloud_streaming">Облако и стриминг</string>
+    <string name="notifications_cloud_sync_alerts">Оповещения о синхронизации с облаком</string>
+    <string name="notifications_cloud_sync_alerts_desc">Показывать уведомления о подключении к стриминговому сервису и ходе синхронизации</string>
+    <string name="performancesettingsscreen_haptics_detail">Вся тактильная обратная связь отключена для экономии заряда.</string>
+    <string name="performancesettingsscreen_offload_detail">Принудительное аппаратное DSP-декодирование для снижения нагрузки на процессор.</string>
+    <string name="performancesettingsscreen_marquee_detail">Бегущие анимации приостановлены, чтобы уменьшить число обновлений экрана.</string>
+    <string name="performancesettingsscreen_lossless_detail">Обложки без потерь отключены, чтобы снизить нагрузку на декодирование и память.</string>
+    <string name="performancesettingsscreen_autofetch_detail">Автоматическая загрузка недостающих обложек из интернета отключена, чтобы избежать задержек.</string>
+    <string name="performancesettingsscreen_disable_haptics_desc">Отключить вибрацию при касаниях для экономии заряда</string>
+    <string name="performancesettingsscreen_enable_audio_offload_desc">Использовать аппаратное DSP-декодирование в режиме производительности</string>
+    <string name="performancesettingsscreen_disable_text_marquee_desc">Приостановить бегущие названия для экономии энергии экрана</string>
+    <string name="performancesettingsscreen_disable_lossless_artwork_desc">Использовать обычные обложки вместо обложек без потерь в режиме производительности</string>
+    <string name="performancesettingsscreen_disable_auto_fetch_artwork_desc">Отключить автозагрузку обложек, чтобы уменьшить задержки и сетевую нагрузку</string>
+    <string name="player_ambient_backdrop">Фоновая подсветка</string>
+    <string name="player_ambient_intensity">Интенсивность подсветки</string>
+    <string name="player_ambient_desc">Размытая обложка альбома за элементами управления</string>
+    <string name="player_ambient_motion_zoom">Непрерывное движение подсветки</string>
+    <string name="player_ambient_motion_zoom_desc">Медленно приближать и анимировать фоновую обложку без остановки</string>
+    <string name="player_accent_background">Акцентный фон</string>
+    <string name="player_accent_background_desc">Точный цвет обложки альбома в качестве фона</string>
+    <string name="player_merge_controls">Объединить текст и избранное в нижней панели</string>
+    <string name="player_merge_controls_desc">Перенести кнопки текста и избранного в нижнюю панель</string>
+    <string name="expressiveplayerscreen_lyrics">Показать или скрыть текст</string>
+    <string name="expressiveplayerscreen_favorite">Избранное</string>
+    <string name="player_ambient_intensity_desc">Управляет прозрачностью карточки</string>
+    <string name="player_ambient_intensity_requires_ambient">Сначала включите фоновую подсветку</string>
+    <string name="status_enabled">Включено</string>
+    <string name="action_edit_lyrics">Изменить текст</string>
+    <string name="action_add_lyrics">Добавить текст</string>
+    <string name="extrasheet_has_lyrics">Есть текст</string>
+    <string name="extrasheet_share_file">Поделиться файлом</string>
+    <string name="extrasheet_tempo_pitch">Темп и высота тона</string>
+    <string name="player_speed_and_pitch">Скорость и высота тона</string>
+    <string name="player_sync_speed_pitch">Связать скорость и высоту тона</string>
+    <string name="player_sync_speed_pitch_desc">Синхронизировать темп воспроизведения и высоту тона</string>
+    <string name="player_playback_speed">Скорость воспроизведения</string>
+    <string name="player_current_rate">Текущая: %1$sx</string>
+    <string name="content_desc_edit_image">Изменить изображение</string>
+    <string name="content_desc_artwork_preview">Предпросмотр обложки</string>
+    <string name="materialplayerscreen_canvas">Canvas</string>
+    <string name="materialplayerscreen_share_song_cd">Поделиться песней</string>
+    <string name="expressiveplayerscreen_artwork_auto_fetched">Обложка загружена автоматически</string>
+    <string name="expressiveplayerscreen_artwork_auto_fetched_msg">Обложка из интернета автоматически применена в вашей библиотеке для «%1$s». Встроить эту обложку в аудиофайл на устройстве?</string>
+    <string name="expressiveplayerscreen_embed_in_file">Встроить в файл</string>
+    <string name="expressiveplayerscreen_keep_library_only">Оставить только в библиотеке</string>
+    <string name="expressiveplayerscreen_artwork_embedded_toast">Обложка встроена в файл на устройстве!</string>
+    <string name="expressiveplayerscreen_artwork_applied_toast">Обложка применена в библиотеке!</string>
+    <string name="expressiveplayerscreen_artwork_applied">Обложка применена!</string>
+    <string name="expressiveplayerscreen_no_artwork_found">Для этой песни обложка не найдена</string>
+    <string name="albumdetail_about_album">Об альбоме</string>
+    <string name="artistdetail_about_artist">Об исполнителе</string>
+    <string name="content_desc_customize_artwork">Изменить обложку</string>
+    <string name="licenses_desc_better_lyrics">Поставщик текстов с открытым исходным кодом для синхронизированных текстов по словам</string>
+    <string name="licenses_desc_gramophone">Многофункциональный музыкальный плеер для Android с упором на приватность</string>
+    <string name="licenses_desc_pixelplayer">Музыкальный плеер для Android в стиле Material 3 Expressive, ориентированный на офлайн</string>
+    <string name="licenses_desc_vivi_music">Больше, чем просто музыка — ваш лучший аудиоопыт</string>
+    <string name="licenses_desc_zenith">Приложение цифрового благополучия в стиле Material Design 3 Expressive</string>
+    <string name="licenses_desc_autoeq">Автоматическая эквализация наушников по амплитудно-частотным характеристикам</string>
+    <string name="licenses_desc_jetpack_compose">Современный набор инструментов Android для создания нативных интерфейсов</string>
+    <string name="licenses_desc_material3_components">Компоненты Material Design 3 для Android</string>
+    <string name="licenses_desc_media3_exoplayer">Современная библиотека воспроизведения медиа для Android</string>
+    <string name="licenses_desc_kotlin_coroutines">Фреймворк асинхронного программирования для Kotlin</string>
+    <string name="licenses_desc_coil">Библиотека загрузки изображений для Android на основе корутин Kotlin</string>
+    <string name="licenses_desc_retrofit">Типобезопасный HTTP-клиент для Android и Java</string>
+    <string name="licenses_desc_okhttp">HTTP-клиент для Android, Kotlin и Java</string>
+    <string name="licenses_desc_gson">Библиотека сериализации и десериализации JSON для Java</string>
+    <string name="licenses_desc_androidx_navigation">Компоненты навигации для приложений Android</string>
+    <string name="licenses_desc_accompanist_permissions">Утилиты Compose для работы с разрешениями</string>
+    <string name="licenses_desc_androidx_palette">Библиотека для извлечения основных цветов из изображений</string>
+    <string name="licenses_desc_jaudiotagger">Библиотека редактирования аудиометаданных для Java</string>
+    <string name="licenses_desc_taglib">Привязки для чтения и редактирования аудиометаданных</string>
+    <string name="licenses_desc_androidx_fragment">Модульные компоненты интерфейса для Android</string>
+    <string name="licenses_desc_androidx_mediarouter">Поддержка маршрутизации медиа для Android</string>
+    <string name="licenses_desc_androidx_window">Поддержка WindowManager и складных дисплеев</string>
+    <string name="licenses_desc_glance_appwidget">Современный реактивный фреймворк виджетов с Material 3</string>
+    <string name="licenses_desc_workmanager">Библиотека управления отложенными асинхронными задачами</string>
+    <string name="licenses_desc_material_symbols">Набор значков на основе вариативного шрифта Material Symbols</string>
+    <string name="licenses_desc_leakcanary">Библиотека обнаружения утечек памяти для Android</string>
+    <string name="licenses_desc_desugar_jdk_libs">Совместимость с API Java 8+ для старых версий Android</string>
+    <string name="licenses_desc_media3_ffmpeg_decoder">Расширение декодера аудио и видео FFmpeg для Media3</string>
+    <string name="licenses_desc_room">Библиотека объектного отображения SQLite для хранения данных</string>
+    <string name="licenses_desc_androidx_paging">Постраничная загрузка для больших музыкальных списков</string>
+    <string name="licenses_desc_geom_font">Современный чистый шрифт без засечек из Google Fonts</string>
+    <string name="settings_value_dp">%1$ddp</string>
+    <string name="settings_value_percent">%1$d%%</string>
+    <string name="cd_selected">Выбрано</string>
+    <string name="canvas_connectivity">Подключение для Canvas</string>
+    <string name="canvas_connectivity_desc">Выберите, когда воспроизводить анимированный Canvas</string>
+    <string name="canvas_network_note">Анимированные обложки (Canvas) загружаются с онлайн-серверов и расходуют дополнительный трафик. Выберите «Только по Wi-Fi», чтобы экономить мобильный интернет; воспроизведение автоматически приостанавливается, когда вы не в сети.</string>
+    <string name="media_suggested_folders">Предлагаемые папки (найденная музыка)</string>
+    <string name="replay_gain_disabled_battery">Отключено для экономии заряда.</string>
+    <string name="replay_gain_offload_warning">Включение отключит аппаратный Audio Offload</string>
+    <string name="settings_search_suggestions_desc">Показывать контекстные подсказки вверху</string>
+    <string name="performancesettingsscreen_performance_desc">Оптимизация вибрации, декодирования и бегущих строк для экономии энергии</string>
+    <string name="settings_expressive_colors">Выразительная цветовая палитра</string>
+    <string name="settings_expressive_colors_desc">Добавляет насыщенную тональную глубину и контраст поверхностей для элементов управления</string>
+    <string name="settings_theme_intensity">Интенсивность темы</string>
+    <string name="settings_theme_intensity_desc">Настройте яркость и тональную глубину цветов темы</string>
+    <string name="theme_intensity_standard">Стандартная</string>
+    <string name="theme_intensity_standard_desc">Сбалансированные тона Material 3 и естественный контраст</string>
+    <string name="theme_intensity_medium">Средняя</string>
+    <string name="theme_intensity_medium_desc">Более яркие акценты и усиленная глубина контейнеров</string>
+    <string name="theme_intensity_vivid">Насыщенная</string>
+    <string name="theme_intensity_vivid_desc">Максимальная яркость и богатая динамическая насыщенность</string>
+    <string name="settings_player_thumb_style_desc">Выберите форму ползунка полосы перемотки</string>
+    <string name="settings_gesture_disable_unused_desc">Отключите жесты, которыми вы не пользуетесь</string>
+    <string name="settings_home_start_collapsed_desc">Запускать заголовок главного экрана в свёрнутом виде</string>
+    <string name="settings_home_header_content_desc">Выберите, какое приветствие или сведения показывать в заголовке главного экрана</string>
+    <string name="settings_home_hide_unused_sections_desc">Скрывать разделы главного экрана, которыми вы не пользуетесь</string>
+    <string name="settings_home_widget_counts_desc">Показывать количество элементов на виджетах главного экрана</string>
+    <string name="settings_widget_theme_desc">Выберите стиль виджетов главного экрана</string>
+    <string name="lyrics_api_priority_desc">Выберите приоритет интеграций текстов по умолчанию</string>
+    <string name="lyrics_api_fallback_desc">Пробовать резервные API, если предпочтительный API не вернул текст</string>
+    <string name="api_github_desc">Интеграция с GitHub для релизов и обновлений</string>
+    <string name="api_app_updates_desc">Включить проверку обновлений и сведения о релизах</string>
+    <string name="settings_cache_max_size_desc">Максимальный объём памяти, используемый кэшем</string>
+    <string name="settings_updates_enable_desc">Главный переключатель проверки обновлений</string>
+    <string name="settings_updates_auto_check_desc">Автоматически проверять наличие новых версий</string>
+    <string name="settings_updates_manual_check_desc">Проверить обновления прямо сейчас</string>
+    <string name="settings_search_api_deezer_desc">Загружать изображения исполнителей и обложки альбомов из Deezer</string>
+    <string name="settings_search_api_lrclib_desc">Загружать синхронизированные тексты из LRCLib</string>
+    <string name="settings_search_api_lyrically_desc">Загружать тексты из сервиса Lyrically</string>
+    <string name="settings_search_api_ytmusic_desc">Изображения исполнителей и обложки альбомов</string>
+    <string name="widget_cookie_description">Мини-плеер в форме печенья с обложкой альбома и кнопками воспроизведения, предыдущего и следующего трека.</string>
+    <string name="widget_stats_description">Узнайте, сколько дней подряд вы слушали музыку, и посмотрите свою лучшую серию.</string>
+    <string name="widget_cookie_section_title">Виджет AmorX Cookie</string>
+    <string name="widget_cookie_bottom_left">Действие в левом нижнем углу</string>
+    <string name="widget_cookie_bottom_right">Действие в правом нижнем углу</string>
+    <string name="widget_cookie_action_skip_left_desc">Показывает кнопку предыдущего трека</string>
+    <string name="widget_cookie_action_skip_right_desc">Показывает кнопку следующего трека</string>
+    <string name="widget_cookie_action_shuffle_desc">Включает и выключает перемешивание</string>
+    <string name="widget_cookie_action_repeat">Повтор</string>
+    <string name="widget_cookie_action_repeat_desc">Переключает повтор: выкл. / все / один</string>
+    <string name="widget_cookie_action_favorite">Избранное</string>
+    <string name="widget_cookie_action_favorite_desc">Добавляет текущую песню в избранное или убирает её</string>
+    <string name="widget_cookie_action_none">Нет</string>
+    <string name="widget_cookie_action_none_desc">Скрывает эту кнопку в углу</string>
+    <string name="widget_stats_section_title">Виджет AmorX Stats</string>
+    <string name="widget_stats_time_range">Период прослушивания</string>
+    <string name="widget_stats_gem">Нижний круг показывает</string>
+    <string name="widget_stats_gem_longest_streak">Самая длинная серия</string>
+    <string name="widget_stats_gem_longest_streak_desc">Ваша лучшая серия прослушивания в днях</string>
+    <string name="widget_stats_gem_current_streak">Текущая серия</string>
+    <string name="widget_stats_gem_current_streak_desc">Ваша текущая серия прослушивания в днях</string>
+    <string name="widget_stats_gem_active_days">Активные дни</string>
+    <string name="widget_stats_gem_active_days_desc">Всего дней, когда вы слушали музыку</string>
+    <string name="widget_stats_gem_sessions">Всего сеансов</string>
+    <string name="widget_stats_gem_sessions_desc">Всего сеансов прослушивания за этот период</string>
+    <string name="mirror_changes_across_both">Применять изменения к обоим</string>
+    <string name="add_to_playlist_named">Добавить в «%1$s»</string>
+    <string name="released_on">Дата выпуска: %1$s</string>
+    <string name="rhythmcookiewidget_rhythm_logo">Логотип AmorX</string>
+    <string name="rhythmlyricswidget_no_lyrics_available">Текст недоступен</string>
+    <string name="rhythmlyricswidget_tagline">Ваша музыка, ваш ритм</string>
+    <string name="rhythmlyricswidget_open_to_play">Откройте AmorX, чтобы включить музыку</string>
+    <string name="rhythmstatswidget_listening">прослушивание</string>
+    <string name="rhythmwidgetpreview_lyrics_widget">Виджет текстов</string>
+    <string name="rhythmwidgetpreview_lyrics_3x2">Виджет текстов — 3×2</string>
+    <string name="rhythmwidgetpreview_lyrics_4x3">Виджет текстов — 4×3</string>
+    <string name="rhythmwidgetpreview_cookie_widget">Виджет AmorX Cookie</string>
+    <string name="rhythmwidgetpreview_cookie_2x2">Виджет Cookie — 2×2</string>
+    <string name="rhythmwidgetpreview_cookie_resized_wide">Виджет Cookie — расширенный</string>
+    <string name="player_theme_default_name">По умолчанию (Expressive)</string>
+    <string name="player_theme_default_desc">Современный выразительный дизайн с плавными анимациями и трансформирующимися элементами управления</string>
+    <string name="player_theme_compact_name">Компактный</string>
+    <string name="player_theme_compact_desc">Экономичный по месту дизайн с меньшими кнопками и уменьшенными отступами</string>
+    <string name="player_theme_large_name">Крупный</string>
+    <string name="player_theme_large_desc">Увеличенные кнопки для лучшей доступности и удобства нажатия</string>
+    <string name="player_theme_minimal_name">Минимальный</string>
+    <string name="player_theme_minimal_desc">Чистый и простой дизайн с минимумом визуальных эффектов</string>
+    <string name="gosettingsscreen_service_format">Сервис: %1$s</string>
+    <string name="gosettingsscreen_account_format">Аккаунт: %1$s</string>
+    <string name="gosettingsscreen_not_connected">Не подключён</string>
+
 </resources>

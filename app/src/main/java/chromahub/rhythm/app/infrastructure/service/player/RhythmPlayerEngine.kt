@@ -567,6 +567,8 @@ class RhythmPlayerEngine(
                             }
                         }
                     }
+                    val onlineFresh = chromahub.rhythm.app.features.online.OnlineLinks.fresh(dataSpec.uri)
+                    if (onlineFresh != null) return dataSpec.withUri(onlineFresh)
                     return dataSpec
                 }
             }

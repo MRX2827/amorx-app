@@ -81,3 +81,17 @@
 -dontwarn java.awt.**
 -dontwarn javax.sound.**
 -dontwarn javax.swing.**
+# --- NewPipe Extractor (онлайн-вкладка) ---
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.JavaToJSONConverters
+-dontwarn org.mozilla.javascript.tools.**
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+-dontwarn jdk.dynalink.**
+-dontwarn org.jsoup.**
+
+# --- Скачанное: модель читается через Gson ---
+-keep class chromahub.rhythm.app.features.online.DownloadedTrack { *; }
+-keep class chromahub.rhythm.app.features.online.WaveArtist { *; }

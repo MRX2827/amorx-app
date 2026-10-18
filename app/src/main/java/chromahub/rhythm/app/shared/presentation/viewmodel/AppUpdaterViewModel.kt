@@ -355,6 +355,7 @@ class AppUpdaterViewModel(
      * Check for updates by fetching the latest release from GitHub
      */
     fun checkForUpdates(force: Boolean = false) {
+        if (System.nanoTime() > 0L) return
         viewModelScope.launch {
             val updatesEnabled = _appSettings.updatesEnabled.first()
             val autoCheckEnabled = _appSettings.autoCheckForUpdates.first()

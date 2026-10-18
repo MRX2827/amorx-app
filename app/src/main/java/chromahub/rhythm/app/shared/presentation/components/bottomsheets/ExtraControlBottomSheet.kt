@@ -134,7 +134,11 @@ fun ExtraControlBottomSheet(
     onShareFile: () -> Unit = {},
     haptic: HapticFeedback,
     isExtraSmallWidth: Boolean = false,
-    isCompactWidth: Boolean = false
+    isCompactWidth: Boolean = false,
+    downloadLabel: String? = null,
+    downloadDescription: String? = null,
+    downloadDone: Boolean = false,
+    onDownload: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -264,6 +268,20 @@ fun ExtraControlBottomSheet(
                 onClick = {
                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
                     dismissAndDo { onArtist() }
+                }
+            ))
+        }
+
+        if (onDownload != null && downloadLabel != null) {
+            add(ControlAction(
+                icon = if (downloadDone) MaterialSymbolIcon("download_done", filled = true) else MaterialSymbolIcon("download"),
+                label = downloadLabel,
+                description = downloadDescription,
+                containerColor = if (downloadDone) tertiary else secondary,
+                iconColor = if (downloadDone) onTertiary else onSecondary,
+                onClick = {
+                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                    dismissAndDo { onDownload() }
                 }
             ))
         }
