@@ -1,5 +1,7 @@
 package chromahub.rhythm.app.features.online
 
+import androidx.compose.ui.unit.offset
+import androidx.compose.ui.layout.layout
 import android.graphics.BitmapFactory
 import android.util.Base64
 import android.widget.Toast
@@ -228,7 +230,7 @@ fun ThreadScreen(
         val old = window?.attributes?.softInputMode
         if (window != null && old != null) {
             window.setSoftInputMode(
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING or
                     (old and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_STATE)
             )
         }
@@ -305,7 +307,8 @@ fun ThreadScreen(
         }
     }
 
-    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    // AMORX_KBD_SMOOTH: высота клавиатуры читается на этапе layout, без перекомпоновки на каждом кадре
+    val imeInsets = WindowInsets.ime
 
     Column(
         modifier = modifier
@@ -351,7 +354,14 @@ fun ThreadScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = if (imeBottom > 0) 8.dp else 96.dp),
+                .padding(top = 8.dp)
+                .layout { measurable, constraints ->
+                    val reserve = 96.dp.roundToPx()
+                    val minPad = 8.dp.roundToPx()
+                    val extra = (reserve - imeInsets.getBottom(this)).coerceAtLeast(minPad)
+                    val p = measurable.measure(constraints.offset(vertical = -extra))
+                    layout(p.width, p.height + extra) { p.placeRelative(0, 0) }
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
