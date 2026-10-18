@@ -69,10 +69,8 @@ fun PeopleScreen(
     var selected by remember { mutableStateOf<RemoteProfile?>(null) }
     var playingKey by remember { mutableStateOf<String?>(null) }
     var chatPeer by remember { mutableStateOf<ChatPeer?>(null) }
-    val openChat = chatPeer
-    if (openChat != null) {
-        ThreadScreen(musicViewModel = musicViewModel, peer = openChat, onBack = { chatPeer = null })
-        return
+    PlayerLikeSheetFor(item = chatPeer) { p ->
+        ThreadScreen(musicViewModel = musicViewModel, peer = p, onBack = { chatPeer = null })
     }
 
     LaunchedEffect(query) {
@@ -91,7 +89,7 @@ fun PeopleScreen(
         loading = false
     }
 
-    BackHandler { if (selected != null) selected = null else onBack() }
+    BackHandler(enabled = chatPeer == null) { if (selected != null) selected = null else onBack() }
 
     val current = selected
     val myId = CloudProfiles.myId()

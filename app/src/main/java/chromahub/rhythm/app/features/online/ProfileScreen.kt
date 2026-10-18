@@ -55,7 +55,7 @@ import coil.compose.AsyncImage
 import java.io.File
 
 @Composable
-fun ProfileScreen(
+fun ProfileScreenBody(
     musicViewModel: MusicViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -118,7 +118,7 @@ fun ProfileScreen(
     remember { CloudProfiles.init(context); true }
     val isPublic by ProfileStore.isPublic.collectAsState()
     var publishStatus by remember { mutableStateOf<String?>(null) }
-    var showPeople by remember { mutableStateOf(false) }
+    var showPeople by remember { ProfileNavState.people }
 
     LaunchedEffect(isPublic, name, bio, avatar, favSongs, artists) {
         if (!isPublic) {
@@ -146,7 +146,7 @@ fun ProfileScreen(
         )
     }
 
-    var showChats by remember { mutableStateOf(false) }
+    var showChats by remember { ProfileNavState.chats }
     val unread by ChatNotifier.unread.collectAsState()
     val openReq by ChatNotifier.openChats.collectAsState()
     LaunchedEffect(openReq) {
@@ -154,14 +154,6 @@ fun ProfileScreen(
             showChats = true
             ChatNotifier.openChats.value = false
         }
-    }
-    if (showChats) {
-        ChatsScreen(musicViewModel = musicViewModel, onBack = { showChats = false })
-        return
-    }
-    if (showPeople) {
-        PeopleScreen(musicViewModel = musicViewModel, onBack = { showPeople = false })
-        return
     }
 
     LazyColumn(

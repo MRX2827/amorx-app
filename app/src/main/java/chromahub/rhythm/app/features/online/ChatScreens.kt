@@ -98,15 +98,12 @@ fun ChatsScreen(
         }
     }
 
-    val peer = openPeer
-    if (peer != null) {
+    PlayerLikeSheetFor(item = openPeer) { p ->
         ThreadScreen(
             musicViewModel = musicViewModel,
-            peer = peer,
-            onBack = { openPeer = null },
-            modifier = modifier
+            peer = p,
+            onBack = { openPeer = null }
         )
-        return
     }
 
     LazyColumn(
