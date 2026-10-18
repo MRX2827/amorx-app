@@ -18,6 +18,14 @@ import android.os.IBinder
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -356,35 +364,61 @@ fun ChatLiveHost(onOpenChats: () -> Unit) {
     }
 
     val b = banner
-    if (b != null) {
+    val lastBanner = remember { arrayOfNulls<ChatNotifier.Incoming>(1) }
+    if (b != null) lastBanner[0] = b
+    var popupAlive by remember { mutableStateOf(false) }
+    LaunchedEffect(b != null) {
+        if (b != null) {
+            popupAlive = true
+        } else {
+            delay(900)
+            popupAlive = false
+        }
+    }
+    val shownBanner = lastBanner[0]
+    if (shownBanner != null && (b != null || popupAlive)) {
         Popup(alignment = Alignment.TopCenter, properties = PopupProperties(focusable = false)) {
-            Card(
-                modifier = Modifier
-                    .padding(top = 48.dp, start = 12.dp, end = 12.dp)
-                    .widthIn(max = 480.dp)
-                    .clickable {
-                        banner = null
-                        ChatNotifier.openChats.value = true
-                        onOpenChats()
-                    },
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            val vis = remember { MutableTransitionState(false) }
+            vis.targetState = b != null
+            AnimatedVisibility(
+                visibleState = vis,
+                enter = slideInVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
+                    initialOffsetY = { -it }
+                ) + fadeIn(),
+                exit = slideOutVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
+                    targetOffsetY = { -it }
+                ) + fadeOut()
             ) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        b.fromName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        b.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Card(
+                    modifier = Modifier
+                        .padding(top = 48.dp, start = 12.dp, end = 12.dp)
+                        .widthIn(max = 480.dp)
+                        .clickable {
+                            banner = null
+                            ChatNotifier.openChats.value = true
+                            onOpenChats()
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            shownBanner.fromName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            shownBanner.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }

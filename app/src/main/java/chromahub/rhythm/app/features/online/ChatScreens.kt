@@ -4,6 +4,11 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutQuint
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -213,6 +218,11 @@ fun ThreadScreen(
     var sending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    var pending by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var baseline by remember { mutableStateOf<Set<Long>?>(null) }
+    val animatedIds = remember { mutableSetOf<Long>() }
+    val firstScroll = remember { booleanArrayOf(true) }
+    val shown = messages + pending
 
     BackHandler(onBack = onBack)
 
@@ -224,15 +234,28 @@ fun ThreadScreen(
     LaunchedEffect(peer.id, ver) {
         while (true) {
             CloudChat.thread(peer.id)
-                .onSuccess { messages = it; error = null }
+                .onSuccess {
+                    if (baseline == null) baseline = it.map { x -> x.id }.toSet()
+                    messages = it
+                    error = null
+                }
                 .onFailure { error = it.message }
             if (messages.any { !it.fromMe && !it.read }) CloudChat.markRead(peer.id)
             delay(2000)
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex)
+    LaunchedEffect(messages.size + pending.size) {
+        val last = messages.size + pending.size - 1
+        if (last >= 0) {
+            if (firstScroll[0]) {
+                listState.scrollToItem(last)
+                firstScroll[0] = false
+            } else {
+                val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                if (pending.isNotEmpty() || lastVisible >= last - 3) listState.animateScrollToItem(last)
+            }
+        }
     }
 
     fun send() {
@@ -242,14 +265,22 @@ fun ThreadScreen(
             Toast.makeText(context, "Сначала укажите своё имя в профиле", Toast.LENGTH_LONG).show()
             return
         }
+        val tempId = -System.currentTimeMillis()
+        pending = pending + ChatMessage(tempId, true, body, null, System.currentTimeMillis(), false)
+        text = ""
         scope.launch {
             sending = true
             CloudChat.send(peer.id, body, null, ProfileStore.name.value)
                 .onSuccess {
-                    text = ""
-                    CloudChat.thread(peer.id).onSuccess { messages = it }
+                    CloudChat.thread(peer.id).onSuccess { list ->
+                        list.filter { x -> x.fromMe }.forEach { x -> animatedIds.add(x.id) }
+                        messages = list
+                    }
+                    pending = pending.filter { x -> x.id != tempId }
                 }
                 .onFailure {
+                    pending = pending.filter { x -> x.id != tempId }
+                    text = body
                     Toast.makeText(context, it.message ?: "Не удалось отправить", Toast.LENGTH_LONG).show()
                 }
             sending = false
@@ -293,8 +324,10 @@ fun ThreadScreen(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            items(messages, key = { it.id }) { m ->
-                MessageBubble(m) { t -> ProfileSongs.play(context, musicViewModel, t) }
+            items(shown, key = { it.id }) { m ->
+                val base = baseline
+                val animate = remember(m.id) { base != null && m.id !in base && animatedIds.add(m.id) }
+                MessageBubble(m, animate) { t -> ProfileSongs.play(context, musicViewModel, t) }
             }
         }
         Row(
@@ -318,10 +351,22 @@ fun ThreadScreen(
 }
 
 @Composable
-private fun MessageBubble(m: ChatMessage, onPlay: (CloudSong) -> Unit) {
+private fun MessageBubble(m: ChatMessage, animate: Boolean, onPlay: (CloudSong) -> Unit) {
     val mine = m.fromMe
+    val appear = remember { Animatable(if (animate) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (animate) appear.animateTo(1f, tween(400, easing = EaseOutQuint))
+    }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().graphicsLayer {
+            val p = appear.value
+            alpha = p
+            val s = 0.85f + 0.15f * p
+            scaleX = s
+            scaleY = s
+            translationY = (1f - p) * 48f
+            transformOrigin = TransformOrigin(if (mine) 1f else 0f, 1f)
+        },
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start
     ) {
         Column(
