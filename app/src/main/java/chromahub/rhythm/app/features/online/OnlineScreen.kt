@@ -247,6 +247,8 @@ fun OnlineScreen(
 
         item { Spacer(Modifier.size(8.dp)) }
 
+        item { YandexImportCard(musicViewModel) }
+
         item {
             WaveCard(
                 artists = artists,
