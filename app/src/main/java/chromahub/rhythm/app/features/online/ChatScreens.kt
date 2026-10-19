@@ -356,7 +356,7 @@ fun ThreadScreen(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
                 .layout { measurable, constraints ->
-                    val reserve = 96.dp.roundToPx()
+                    val reserve = 136.dp.roundToPx()
                     val minPad = 8.dp.roundToPx()
                     val extra = (reserve - imeInsets.getBottom(this)).coerceAtLeast(minPad)
                     val p = measurable.measure(constraints.offset(vertical = -extra))

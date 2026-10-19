@@ -54,6 +54,7 @@ object OnlineDownloads {
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
 
     private var dir: File? = null
+    private var appContext: Context? = null
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder().readTimeout(60, TimeUnit.SECONDS).build()
@@ -64,6 +65,9 @@ object OnlineDownloads {
         if (dir != null) return
         val d = File(context.applicationContext.filesDir, "online_downloads").apply { mkdirs() }
         dir = d
+        appContext = context.applicationContext
+        // Недокачанные файлы после закрытия приложения больше не нужны
+        d.listFiles { f -> f.extension == "part" }?.forEach { it.delete() }
         val index = File(d, "index.json")
         if (index.exists()) {
             val loaded = runCatching {
@@ -85,6 +89,7 @@ object OnlineDownloads {
         if (items.value.any { it.id == id }) return
         synchronized(active) { if (!active.add(id)) return }
         pending.update { it + (id to PendingDownload(track, 0f)) }
+        appContext?.let { DownloadService.start(it) }
 
         scope.launch {
             val part = File(d, "$id.part")

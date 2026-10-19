@@ -307,6 +307,14 @@
             android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
             android:value="chat_message_sync" />
     </service>
+    <service
+        android:name="chromahub.rhythm.app.features.online.DownloadService"
+        android:exported="false"
+        android:foregroundServiceType="specialUse">
+        <property
+            android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+            android:value="music_download" />
+    </service>
 </application>
 
 </manifest>
