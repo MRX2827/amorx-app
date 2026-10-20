@@ -2,6 +2,7 @@ package chromahub.rhythm.app.features.online
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,7 +24,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,8 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import java.net.HttpURLConnection
 import java.net.URL
@@ -75,6 +73,7 @@ object YandexImport {
     val missing = MutableStateFlow<List<String>>(emptyList())
     val title = MutableStateFlow("")
     val message = MutableStateFlow<String?>(null)
+    val playlistOpen = MutableStateFlow(false)
 
     private var appContext: Context? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -245,7 +244,6 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
     val plTitle by YandexImport.title.collectAsState()
     val msg by YandexImport.message.collectAsState()
     var showLink by remember { mutableStateOf(false) }
-    var showList by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
 
     LaunchedEffect(msg) {
@@ -283,7 +281,7 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (tracks.isNotEmpty()) {
-                        Button(onClick = { showList = true }) { Text("Открыть") }
+                        Button(onClick = { YandexImport.playlistOpen.value = true }) { Text("Открыть") }
                         FilledTonalButton(onClick = { showLink = true }) { Text("Новая ссылка") }
                     } else {
                         Button(onClick = { showLink = true }) { Text("Вставить ссылку") }
@@ -315,13 +313,12 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
         )
     }
 
-    if (showList) {
-        YandexPlaylistScreen(musicViewModel = musicViewModel, onClose = { showList = false })
-    }
 }
 
 @Composable
-private fun YandexPlaylistScreen(musicViewModel: MusicViewModel, onClose: () -> Unit) {
+fun YandexPlaylistScreen(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
+    val onClose: () -> Unit = { YandexImport.playlistOpen.value = false }
+    BackHandler(onBack = onClose)
     val context = LocalContext.current
     val tracks by YandexImport.tracks.collectAsState()
     val missing by YandexImport.missing.collectAsState()
@@ -369,20 +366,12 @@ private fun YandexPlaylistScreen(musicViewModel: MusicViewModel, onClose: () -> 
         )
     }
 
-    Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
             LazyColumn(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxSize()
                     .statusBarsPadding()
                     .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
+                contentPadding = PaddingValues(bottom = 180.dp)
             ) {
                 item {
                     Row(
@@ -451,6 +440,4 @@ private fun YandexPlaylistScreen(musicViewModel: MusicViewModel, onClose: () -> 
                     TextButton(onClick = { confirmDelete = true }) { Text("Удалить плейлист") }
                 }
             }
-        }
-    }
 }
