@@ -2,21 +2,28 @@ package chromahub.rhythm.app.features.online
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,10 +34,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import java.net.HttpURLConnection
 import java.net.URL
@@ -232,14 +242,11 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
     remember { YandexImport.init(context); true }
     val st by YandexImport.state.collectAsState()
     val tracks by YandexImport.tracks.collectAsState()
-    val missing by YandexImport.missing.collectAsState()
     val plTitle by YandexImport.title.collectAsState()
     val msg by YandexImport.message.collectAsState()
-    val scope = rememberCoroutineScope()
     var showLink by remember { mutableStateOf(false) }
     var showList by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
-    var resolving by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(msg) {
         msg?.let {
@@ -248,44 +255,38 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
         }
     }
 
-    fun play(t: OnlineTrack) {
-        if (resolving != null) return
-        scope.launch {
-            resolving = t.videoUrl
-            val r = runCatching { OnlineRepository.resolveAudioUrl(t.videoUrl) }
-            resolving = null
-            r.onSuccess { url ->
-                musicViewModel.playSong(t.toSong(url))
-            }.onFailure {
-                Toast.makeText(context, "Не удалось получить трек: " + it.message, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("Из Яндекс Музыки", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.size(4.dp))
             Text(
-                text = "Импорт из Яндекс Музыки",
-                style = MaterialTheme.typography.titleMedium
+                text = when {
+                    st.running -> "Ищу песни: ${st.done} из ${st.total}"
+                    tracks.isNotEmpty() -> (if (plTitle.isBlank()) "Плейлист" else plTitle) + " · " + tracks.size
+                    else -> "Вставьте ссылку на плейлист, и песни найдутся здесь"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            Spacer(Modifier.size(16.dp))
             if (st.running) {
                 val frac = if (st.total > 0) st.done.toFloat() / st.total.toFloat() else 0f
-                Text(
-                    text = "Ищу песни: " + st.done + " из " + st.total,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
-                )
-                LinearProgressIndicator(progress = frac, modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(progress = { frac }, modifier = Modifier.fillMaxWidth())
             } else {
-                Row(
-                    modifier = Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilledTonalButton(onClick = { showLink = true }) { Text("Вставить ссылку") }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (tracks.isNotEmpty()) {
-                        TextButton(onClick = { showList = true }) {
-                            Text("Открыть (" + tracks.size + ")")
-                        }
+                        Button(onClick = { showList = true }) { Text("Открыть") }
+                        FilledTonalButton(onClick = { showLink = true }) { Text("Новая ссылка") }
+                    } else {
+                        Button(onClick = { showLink = true }) { Text("Вставить ссылку") }
                     }
                 }
             }
@@ -315,60 +316,141 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
     }
 
     if (showList) {
+        YandexPlaylistScreen(musicViewModel = musicViewModel, onClose = { showList = false })
+    }
+}
+
+@Composable
+private fun YandexPlaylistScreen(musicViewModel: MusicViewModel, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val tracks by YandexImport.tracks.collectAsState()
+    val missing by YandexImport.missing.collectAsState()
+    val plTitle by YandexImport.title.collectAsState()
+    val downloaded by OnlineDownloads.items.collectAsState()
+    val pending by OnlineDownloads.pending.collectAsState()
+    val scope = rememberCoroutineScope()
+    var resolving by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    // Первая песня получает настоящую ссылку, остальные получают заготовку:
+    // плеер сам обновит её перед воспроизведением (механизм OnlineLinks).
+    fun playList(list: List<OnlineTrack>, start: Int) {
+        if (resolving != null || list.isEmpty()) return
+        val first = list[start]
+        scope.launch {
+            resolving = first.videoUrl
+            val r = runCatching { OnlineRepository.resolveAudioUrl(first.videoUrl) }
+            resolving = null
+            r.onSuccess { url ->
+                val songs = list.mapIndexed { i, t ->
+                    if (i == start) t.toSong(url)
+                    else t.toSong("https://www.youtube.com/watch?v=" + t.id + "&expire=0")
+                }
+                musicViewModel.playQueue(songs, enableShuffle = false, startIndex = start)
+            }.onFailure {
+                Toast.makeText(context, "Не удалось получить трек: " + it.message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    if (confirmDelete) {
         AlertDialog(
-            onDismissRequest = { showList = false },
-            title = {
-                Text((if (plTitle.isBlank()) "Плейлист" else plTitle) + " (" + tracks.size + ")")
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Удалить плейлист?") },
+            text = { Text("Плейлист исчезнет из приложения. Скачанные песни останутся.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    YandexImport.clear()
+                    onClose()
+                }) { Text("Удалить") }
             },
-            text = {
-                LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                    items(tracks, key = { it.videoUrl }) { t ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { play(t) }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Text(
-                                t.title,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                t.artist,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    if (missing.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Не нашлось (" + missing.size + ")",
-                                style = MaterialTheme.typography.titleSmall,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                            )
-                        }
-                        items(missing) { m ->
-                            Text(
-                                m,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
-                        }
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена") } }
+        )
+    }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (plTitle.isBlank()) "Плейлист" else plTitle,
+                            style = MaterialTheme.typography.headlineMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(top = 16.dp, bottom = 4.dp)
+                        )
+                        TextButton(onClick = onClose) { Text("Закрыть") }
                     }
                 }
-            },
-            confirmButton = { TextButton(onClick = { showList = false }) { Text("Закрыть") } },
-            dismissButton = {
-                TextButton(onClick = { YandexImport.clear(); showList = false }) {
-                    Text("Удалить плейлист")
+                item {
+                    Text(
+                        text = tracks.size.toString() + " песен",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.size(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { playList(tracks, 0) }) { Text("Играть всё") }
+                        FilledTonalButton(onClick = { playList(tracks.shuffled(), 0) }) {
+                            Text("Вперемешку")
+                        }
+                    }
+                    Spacer(Modifier.size(12.dp))
+                }
+                items(tracks, key = { it.videoUrl }) { t ->
+                    val id = t.id
+                    OnlineTrackRow(
+                        track = t,
+                        resolving = resolving == t.videoUrl,
+                        isDownloaded = downloaded.any { it.id == id },
+                        downloadProgress = pending[id]?.progress,
+                        onDownload = {
+                            OnlineDownloads.download(t)
+                            Toast.makeText(context, "Скачивание началось", Toast.LENGTH_SHORT).show()
+                        },
+                        onClick = { playList(tracks, tracks.indexOf(t)) }
+                    )
+                }
+                if (missing.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Не нашлось (" + missing.size + ")",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                        )
+                    }
+                    items(missing) { m ->
+                        Text(
+                            text = m,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
+                        )
+                    }
+                }
+                item {
+                    Spacer(Modifier.size(16.dp))
+                    TextButton(onClick = { confirmDelete = true }) { Text("Удалить плейлист") }
                 }
             }
-        )
+        }
     }
 }

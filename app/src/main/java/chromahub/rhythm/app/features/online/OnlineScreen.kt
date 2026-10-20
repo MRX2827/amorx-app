@@ -463,7 +463,7 @@ private fun ArtistRow(artist: WaveArtist, added: Boolean, onToggle: () -> Unit) 
 }
 
 @Composable
-private fun OnlineTrackRow(
+internal fun OnlineTrackRow(
     track: OnlineTrack,
     resolving: Boolean,
     isDownloaded: Boolean,
