@@ -154,21 +154,6 @@ fun NotificationsSettingsScreen(onBackClick: () -> Unit) {
                 )
             ),
             SettingGroup(
-                title = stringResource(R.string.settings_notifications_updates_group),
-                items = listOf(
-                    SettingItem(
-                        RhythmIcons.Update,
-                        stringResource(R.string.settings_notifications_updates_group),
-                        stringResource(R.string.settings_update_notifications_merged_desc),
-                        toggleState = updateNotificationsEnabled,
-                        onToggleChange = {
-                            appSettings.setUpdateNotificationsEnabled(it)
-                            appSettings.setUpdateStatusNotificationsEnabled(it)
-                        }
-                    )
-                )
-            ),
-            SettingGroup(
                 title = stringResource(R.string.settings_notifications_rhythm_guard_group),
                 items = listOf(
                     SettingItem(

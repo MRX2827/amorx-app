@@ -315,6 +315,9 @@
             android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
             android:value="music_download" />
     </service>
+        <receiver
+            android:name="chromahub.rhythm.app.features.update.AmorInstallReceiver"
+            android:exported="false" />
         <provider
             android:name="chromahub.rhythm.app.features.update.AmorUpdateFileProvider"
             android:authorities="${applicationId}.amorupdate"

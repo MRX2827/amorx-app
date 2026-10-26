@@ -124,7 +124,6 @@ import chromahub.rhythm.app.shared.presentation.components.common.StyledProgress
 import chromahub.rhythm.app.shared.presentation.components.common.ProgressStyle
 import chromahub.rhythm.app.shared.presentation.components.common.ThumbStyle
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.LicensesBottomSheet
-import chromahub.rhythm.app.shared.presentation.components.bottomsheets.UpdateBottomSheet
 import chromahub.rhythm.app.ui.utils.LazyListStateSaver
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.shared.presentation.components.common.ExpressiveShapeProvider

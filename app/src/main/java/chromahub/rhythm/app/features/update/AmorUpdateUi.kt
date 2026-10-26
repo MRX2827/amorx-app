@@ -665,7 +665,7 @@ fun AmorUpdateRow(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Обновления", style = MaterialTheme.typography.titleSmall)
+            Text("Проверить обновление", style = MaterialTheme.typography.titleSmall)
             AnimatedContent(
                 targetState = subtitle,
                 transitionSpec = {

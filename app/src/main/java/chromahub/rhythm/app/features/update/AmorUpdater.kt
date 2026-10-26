@@ -1,8 +1,10 @@
 package chromahub.rhythm.app.features.update
 
 import android.content.Context
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageInfo
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -146,7 +148,8 @@ object AmorUpdater {
     fun init(context: Context) {
         if (inited) return
         inited = true
-        _dismissed.value = prefs(context).getString("dismissed", "").orEmpty()
+        _dismissed.value = ""
+        prefs(context).edit().remove("dismissed").apply()
     }
 
     fun openSheet() {
@@ -162,7 +165,6 @@ object AmorUpdater {
         val r = _state.value.currentRelease ?: return
         if (r.mandatory) return
         _dismissed.value = r.versionLabel
-        prefs(context).edit().putString("dismissed", r.versionLabel).apply()
     }
 
     // ---------------------------------------------------------------- версии
@@ -204,8 +206,6 @@ object AmorUpdater {
     suspend fun autoCheck(context: Context) {
         val app = context.applicationContext
         init(app)
-        val last = prefs(app).getLong("last_check", 0L)
-        if (System.currentTimeMillis() - last < AmorUpdateConfig.AUTO_CHECK_INTERVAL_MS) return
         runCheck(app, manual = false)
     }
 
@@ -570,12 +570,28 @@ object AmorUpdater {
             return
         }
         try {
-            val uri = FileProvider.getUriForFile(app, app.packageName + ".amorupdate", s.file)
-            val intent = Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            _hint.value = "Подтвердите установку в окне Android. Если вы передумали, нажмите «Установить» снова"
+            withContext(Dispatchers.IO) {
+                val installer = app.packageManager.packageInstaller
+                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+                params.setAppPackageName(app.packageName)
+                if (Build.VERSION.SDK_INT >= 31) {
+                    params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                }
+                val id = installer.createSession(params)
+                installer.openSession(id).use { session ->
+                    s.file.inputStream().use { input ->
+                        session.openWrite("amorx.apk", 0, s.file.length()).use { out ->
+                            input.copyTo(out)
+                            session.fsync(out)
+                        }
+                    }
+                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                        (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+                    val pi = PendingIntent.getBroadcast(app, id, Intent(app, AmorInstallReceiver::class.java), flags)
+                    session.commit(pi.intentSender)
+                }
+            }
+            _hint.value = "Устанавливаю обновление. Приложение закроется и его нужно будет открыть заново"
         } catch (e: Exception) {
             _state.value = AmorUpdateState.Failed(s.release, "Не удалось открыть установщик: " + (e.message ?: "ошибка"))
         }

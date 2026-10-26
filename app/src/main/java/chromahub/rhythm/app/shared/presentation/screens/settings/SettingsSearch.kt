@@ -1220,76 +1220,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "rhythmGuardApplyVolumeLimitOnSpeaker"
         ))
         
-        // Updates & Info Section
-        add(SearchableSettingItem(
-            id = "updates",
-            title = context.getString(R.string.settings_updates_title),
-            description = context.getString(R.string.settings_updates_desc),
-            keywords = listOf("update", "check update", "new version", "download", "changelog", "auto update"),
-            icon = RhythmIcons.Update,
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_section_updates_info),
-            settingKey = "updatesEnabled"
-        ))
-        add(SearchableSettingItem(
-            id = "updates_interval",
-            title = context.getString(R.string.updates_check_interval_title),
-            description = context.getString(R.string.onboarding_check_interval_desc),
-            keywords = listOf("update interval", "check frequency", "hourly", "daily", "weekly", "polling schedule"),
-            icon = RhythmIcons.AccessTime,
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title),
-            settingKey = "updateCheckIntervalHours"
-        ))
-        add(SearchableSettingItem(
-            id = "updates_channel",
-            title = context.getString(R.string.updates_channel_title),
-            description = context.getString(R.string.updates_channel_desc),
-            keywords = listOf("update channel", "stable", "beta", "nightly", "release channel"),
-            icon = MaterialSymbolIcon("autorenew"),
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title),
-            settingKey = "updateChannel"
-        ))
-        add(SearchableSettingItem(
-            id = "updates_enable",
-            title = context.getString(R.string.updates_enable_updates),
-            description = context.getString(R.string.settings_updates_enable_desc),
-            keywords = listOf("update", "enable", "disable", "toggle", "switch"),
-            icon = RhythmIcons.Update,
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title),
-            settingKey = "updatesEnabled"
-        ))
-        add(SearchableSettingItem(
-            id = "updates_auto_check",
-            title = context.getString(R.string.updates_enable_auto_check),
-            description = context.getString(R.string.settings_updates_auto_check_desc),
-            keywords = listOf("update", "auto check", "automatic", "background"),
-            icon = MaterialSymbolIcon("sync"),
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title),
-            settingKey = "autoCheckForUpdates"
-        ))
-        add(SearchableSettingItem(
-            id = "updates_manual_check",
-            title = context.getString(R.string.updates_manual_check),
-            description = context.getString(R.string.settings_updates_manual_check_desc),
-            keywords = listOf("update", "check now", "manual", "refresh"),
-            icon = MaterialSymbolIcon("refresh"),
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title)
-        ))
-        add(SearchableSettingItem(
-            id = "updates_source",
-            title = context.getString(R.string.updates_source_title),
-            description = context.getString(R.string.updates_source_desc),
-            keywords = listOf("update source", "github", "fdroid", "installed", "apk", "download source"),
-            icon = MaterialSymbolIcon("cloud_download"),
-            route = SettingsRoutes.UPDATES,
-            parentScreen = context.getString(R.string.settings_updates_title),
-            settingKey = "updateSource"
-        ))
+        // Info Section
         add(SearchableSettingItem(
             id = "about",
             title = context.getString(R.string.settings_about_title),
@@ -2604,16 +2535,6 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
         ))
         
         // ======================== NOTIFICATIONS SCREEN ========================
-        add(SearchableSettingItem(
-            id = "notifications_updates",
-            title = context.getString(R.string.settings_update_notifications),
-            description = context.getString(R.string.settings_update_notifications_merged_desc),
-            keywords = listOf("updates", "update notifications", "new version", "release", "update available", "up to date", "update error", "check result"),
-            icon = RhythmIcons.Update,
-            route = SettingsRoutes.NOTIFICATIONS,
-            parentScreen = context.getString(R.string.settings_notifications),
-            settingKey = "updateNotificationsEnabled"
-        ))
         add(SearchableSettingItem(
             id = "notifications_rhythm_guard_alerts",
             title = context.getString(R.string.settings_notifications_rhythm_guard_alerts),

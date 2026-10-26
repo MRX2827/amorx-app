@@ -80,7 +80,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import chromahub.rhythm.app.features.update.AmorUpdateRow
 
 /** Шаги экрана. Переходы между ними анимируются. */
 private sealed interface AccountStage {
@@ -717,7 +716,6 @@ private fun MemberSection(
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier.fillMaxWidth().height(54.dp)
         ) { Text("Сменить почту") }
-        AmorUpdateRow()
         TextButton(onClick = onLogout, enabled = !f.busy, modifier = Modifier.fillMaxWidth()) {
             Text("Выйти из аккаунта")
         }

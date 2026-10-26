@@ -99,7 +99,6 @@ import chromahub.rhythm.app.shared.presentation.components.common.horizontalEdge
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.LicensesBottomSheet
 import chromahub.rhythm.app.ui.utils.LazyListStateSaver
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
-import chromahub.rhythm.app.shared.presentation.viewmodel.AppUpdaterViewModel
 import chromahub.rhythm.app.ui.theme.getFontPreviewStyle
 import kotlinx.coroutines.delay
 import androidx.compose.animation.AnimatedContent

@@ -126,7 +126,6 @@ import androidx.navigation.navArgument
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.AddToPlaylistBottomSheet
 
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.SongInfoBottomSheet
-import chromahub.rhythm.app.shared.presentation.components.bottomsheets.UpdateBottomSheet
 import chromahub.rhythm.app.features.local.presentation.screens.AddToPlaylistScreen
 import chromahub.rhythm.app.shared.presentation.components.dialogs.CreatePlaylistDialog
 import chromahub.rhythm.app.shared.presentation.components.dialogs.QueueActionDialog
@@ -171,8 +170,6 @@ import chromahub.rhythm.app.util.HapticType
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel.SortOrder
 import chromahub.rhythm.app.shared.presentation.viewmodel.ThemeViewModel
-import chromahub.rhythm.app.shared.presentation.viewmodel.AppUpdaterViewModel
-import chromahub.rhythm.app.shared.presentation.viewmodel.rememberAppUpdaterViewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -441,30 +438,7 @@ fun LocalNavigation(
 ) {
     val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsState()
     val respectAlbumOnPlay by appSettings.respectAlbumOnPlay.collectAsState()
-    // Update monitoring
-    val updaterViewModel: AppUpdaterViewModel = rememberAppUpdaterViewModel()
-    val updateAvailable by updaterViewModel.updateAvailable.collectAsState()
     val updatesEnabled by appSettings.updatesEnabled.collectAsState()
-    val latestVersion by updaterViewModel.latestVersion.collectAsState()
-    var showUpdateBottomSheet by remember { mutableStateOf(false) }
-    
-    // Track the version we've shown to avoid re-showing for the same version
-    var lastShownVersion by remember { mutableStateOf<String?>(null) }
-    
-    // Monitor for updates and show bottom sheet automatically
-    LaunchedEffect(updateAvailable, updatesEnabled, latestVersion) {
-        if (updateAvailable && updatesEnabled) {
-            val currentVersion = latestVersion?.versionName
-            // Show if we haven't shown this version yet, or if the version changed
-            if (currentVersion != null && currentVersion != lastShownVersion) {
-                showUpdateBottomSheet = true
-                lastShownVersion = currentVersion
-            }
-        } else {
-            // Reset when update is no longer available
-            lastShownVersion = null
-        }
-    }
     // Collect state from ViewModel
     val songs by viewModel.filteredSongs.collectAsState() // Use filtered songs to exclude blacklisted ones
     val allSongs by viewModel.songs.collectAsState() // Keep all songs for specific cases
@@ -859,22 +833,6 @@ fun LocalNavigation(
                 streamingMusicViewModel = streamingMusicViewModel
             )
         }
-    }
-    
-    // Global Update Bottom Sheet - shows automatically when update is available
-    val isOnUpdatesScreen = currentRoute == Screen.TunerUpdates.route
-    if (showUpdateBottomSheet && !isOnUpdatesScreen) {
-        UpdateBottomSheet(
-            updaterViewModel = updaterViewModel,
-            onDismiss = { showUpdateBottomSheet = false },
-            onUpdateClick = { immediate ->
-                showUpdateBottomSheet = false
-                // Navigate to update settings
-                navController.navigate(Screen.TunerUpdates.route) {
-                    launchSingleTop = true
-                }
-            }
-        )
     }
 }
 
@@ -2256,10 +2214,6 @@ private fun LocalNavigationContent(
                     chromahub.rhythm.app.shared.presentation.screens.settings.DecoderExtensionsSettingsScreen(
                         onBackClick = navigateBackOrToSettings
                     )
-                }
-
-                composable(Screen.TunerUpdates.route) {
-                    UpdatesSettingsScreen(onBackClick = navigateBackOrToSettings)
                 }
 
                 composable(Screen.TunerMediaScan.route) {

@@ -5,6 +5,9 @@
 
 package chromahub.rhythm.app.shared.presentation.screens.settings
 
+import chromahub.rhythm.app.features.update.currentRelease
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.SheetAdaptiveType
@@ -279,6 +282,22 @@ fun SettingsScreen(
             )
         }
     ) { modifier ->
+        val amorState by chromahub.rhythm.app.features.update.AmorUpdater.state.collectAsState()
+        val amorScope = rememberCoroutineScope()
+        val amorInstalled = remember { chromahub.rhythm.app.features.update.AmorUpdater.installedLabel(context.applicationContext) }
+        val amorSt = amorState
+        val amorRelease = amorSt.currentRelease
+        val amorBusy = amorSt is chromahub.rhythm.app.features.update.AmorUpdateState.Checking
+        val amorHasUpdate = amorRelease != null && amorSt !is chromahub.rhythm.app.features.update.AmorUpdateState.Failed
+        val amorSubtitle = when (amorSt) {
+            is chromahub.rhythm.app.features.update.AmorUpdateState.Checking -> "Проверяем…"
+            is chromahub.rhythm.app.features.update.AmorUpdateState.UpToDate -> "У вас установлена актуальная версия"
+            is chromahub.rhythm.app.features.update.AmorUpdateState.Downloading -> "Скачиваем " + (amorRelease?.versionLabel ?: "")
+            is chromahub.rhythm.app.features.update.AmorUpdateState.Ready -> "Готово к установке: " + (amorRelease?.versionLabel ?: "")
+            is chromahub.rhythm.app.features.update.AmorUpdateState.Available -> "Доступна версия " + (amorRelease?.versionLabel ?: "")
+            is chromahub.rhythm.app.features.update.AmorUpdateState.Failed -> amorSt.message
+            else -> "Версия $amorInstalled"
+        }
         val settingGroups = listOf(
             // 1. Look & Feel
             SettingGroup(
@@ -422,6 +441,19 @@ fun SettingsScreen(
             SettingGroup(
                 title = context.getString(R.string.settings_section_updates_info),
                 items = listOf(
+                    SettingItem(
+                        RhythmIcons.Update,
+                        "Проверить обновление",
+                        amorSubtitle,
+                        palette = SettingsPalettes.Emerald,
+                        onClick = {
+                            if (amorHasUpdate) {
+                                chromahub.rhythm.app.features.update.AmorUpdater.openSheet()
+                            } else if (!amorBusy) {
+                                amorScope.launch { chromahub.rhythm.app.features.update.AmorUpdater.checkNow(context.applicationContext) }
+                            }
+                        }
+                    ),
                     SettingItem(RhythmIcons.Info, context.getString(R.string.settings_about_title), context.getString(R.string.settings_about_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.ABOUT) })
                 )
             ),
@@ -1144,7 +1176,6 @@ fun SettingsScreenWrapper(
                         SettingsRoutes.DECODER_EXTENSIONS, SettingsRoutes.FALLBACK_ENGINES -> DecoderExtensionsSettingsScreen(
                             onBackClick = handleBack
                         )
-                        SettingsRoutes.UPDATES -> UpdatesSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.LABS, SettingsRoutes.EXPERIMENTAL_FEATURES -> LabsSettingsScreen(
                             onBackClick = handleBack,
                             onNavigateTo = onNavigateToSubsetting,
@@ -1300,7 +1331,6 @@ fun SettingsScreenWrapper(
                 SettingsRoutes.DECODER_EXTENSIONS, SettingsRoutes.FALLBACK_ENGINES -> DecoderExtensionsSettingsScreen(
                     onBackClick = handleBack
                 )
-                SettingsRoutes.UPDATES -> UpdatesSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.LABS, SettingsRoutes.EXPERIMENTAL_FEATURES -> LabsSettingsScreen(
                     onBackClick = handleBack,
                     onNavigateTo = onNavigateToSubsetting,
@@ -1589,25 +1619,6 @@ fun SettingsTipsRow(
                     )
                 )
             }
-            val updatesDescs = if (updatesEnabled) {
-                listOf(
-                    context.getString(R.string.settings_tip_updates_active_desc_1),
-                    context.getString(R.string.settings_tip_updates_active_desc_2)
-                )
-            } else {
-                listOf(
-                    context.getString(R.string.settings_tip_updates_inactive_desc_1),
-                    context.getString(R.string.settings_tip_updates_inactive_desc_2)
-                )
-            }
-            add(
-                SettingsTipData(
-                    icon = RhythmIcons.Update,
-                    title = context.getString(R.string.cd_app_updates),
-                    text = updatesDescs.random(random),
-                    route = SettingsRoutes.UPDATES
-                )
-            )
             val queueDescs = if (gesturePlayerSwipeTracks) {
                 listOf(
                     context.getString(R.string.settings_tip_queue_active_desc_1),

@@ -116,12 +116,9 @@ import chromahub.rhythm.app.shared.presentation.components.common.StyledProgress
 import chromahub.rhythm.app.shared.presentation.components.common.ProgressStyle
 import chromahub.rhythm.app.shared.presentation.components.common.ThumbStyle
 import chromahub.rhythm.app.shared.presentation.components.bottomsheets.LicensesBottomSheet
-import chromahub.rhythm.app.shared.presentation.components.bottomsheets.UpdateBottomSheet
 import chromahub.rhythm.app.ui.utils.LazyListStateSaver
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.shared.presentation.components.common.ExpressiveShapes
-import chromahub.rhythm.app.shared.presentation.viewmodel.AppUpdaterViewModel
-import chromahub.rhythm.app.shared.presentation.viewmodel.rememberAppUpdaterViewModel
 import chromahub.rhythm.app.shared.presentation.viewmodel.AppVersion
 import chromahub.rhythm.app.ui.theme.getFontPreviewStyle
 import kotlinx.coroutines.delay
@@ -172,7 +169,6 @@ fun AboutScreen(
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val appUpdaterViewModel: AppUpdaterViewModel = rememberAppUpdaterViewModel()
     val appSettings = remember { AppSettings.getInstance(context) }
     var showLicensesSheet by remember { mutableStateOf(false) }
 
