@@ -161,6 +161,7 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 // Define routes for navigation
 object SettingsRoutes {
     const val NOTIFICATIONS = "notifications_settings"
+    const val ACCOUNT = "account_settings"
     const val LABS = "labs_settings"
     const val EXPERIMENTAL_FEATURES = LABS
     const val ABOUT = "about_screen"
@@ -398,6 +399,7 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_notifications_services),
                 items = buildList {
                     add(SettingItem(RhythmIcons.Notifications, context.getString(R.string.settings_notifications), context.getString(R.string.settings_notifications_desc), palette = SettingsPalettes.Coral, onClick = { onNavigateTo(SettingsRoutes.NOTIFICATIONS) }))
+                    add(SettingItem(MaterialSymbolIcon("account_circle"), "Аккаунт", "Вход по почте и облачная копия данных", palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.ACCOUNT) }))
                     // API Management/Integrations is available in both LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("hub"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
                 }
@@ -1116,6 +1118,7 @@ fun SettingsScreenWrapper(
                 ) { stack ->
                     val route = stack.lastOrNull()
                     when (route) {
+                        SettingsRoutes.ACCOUNT -> chromahub.rhythm.app.features.online.account.AccountSettingsHost(onBackClick = handleBack, appSettings = appSettings)
                         SettingsRoutes.NOTIFICATIONS -> NotificationsSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.PLAYLISTS -> PlaylistsSettingsScreen(
                             onBackClick = handleBack,
@@ -1271,6 +1274,7 @@ fun SettingsScreenWrapper(
         ) { stack ->
             val route = stack.lastOrNull()
             when (route) {
+                SettingsRoutes.ACCOUNT -> chromahub.rhythm.app.features.online.account.AccountSettingsHost(onBackClick = handleBack, appSettings = appSettings)
                 SettingsRoutes.NOTIFICATIONS -> NotificationsSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.PLAYLISTS -> PlaylistsSettingsScreen(
                     onBackClick = handleBack,

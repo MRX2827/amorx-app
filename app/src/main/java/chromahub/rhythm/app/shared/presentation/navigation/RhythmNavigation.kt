@@ -170,6 +170,8 @@ fun RhythmNavigation(
     // RhythmGuardWarningHost is mounted at root so warnings appear above all screens and bottom sheets.
     CompositionLocalProvider(LocalMiniPlayerPadding provides defaultMiniPlayerPadding) {
         Box(modifier = modifier.fillMaxSize()) {
+        chromahub.rhythm.app.features.online.account.AccountGate()
+        chromahub.rhythm.app.features.update.AmorUpdateHost()
         NavHost(
             navController = rootNavController,
             startDestination = "main",

@@ -690,6 +690,10 @@ fun PlayerScreen(
             remember { ProfileSongs.init(context); true }
             val profileSongsNow by ProfileSongs.songs.collectAsState()
             val curSongForProfile = song
+            remember { chromahub.rhythm.app.features.online.PlaylistStore.init(context); true }
+            val plNow by chromahub.rhythm.app.features.online.PlaylistStore.tracks.collectAsState()
+            val plVid = curSongForProfile?.let { chromahub.rhythm.app.features.online.ArtworkUtil.videoId(it.id) }
+            val inPlaylist = plVid != null && plNow.any { it.id == plVid }
             val inProfile = curSongForProfile != null &&
                 profileSongsNow.any { it.id == ProfileSongs.normId(curSongForProfile.id) }
 
@@ -716,6 +720,20 @@ fun PlayerScreen(
                         } else {
                             ProfileSongs.add(curSongForProfile)
                             android.widget.Toast.makeText(context, "Добавлено в профиль", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                plLabel = if (plVid == null) null else if (inPlaylist) "В плейлисте AmorX" else "Добавить в AmorX плейлист",
+                plDescription = if (inPlaylist) "Нажмите, чтобы убрать" else "Для офлайна и ссылки",
+                plDone = inPlaylist,
+                onPlaylist = if (plVid == null || curSongForProfile == null) null else {
+                    {
+                        if (inPlaylist) {
+                            chromahub.rhythm.app.features.online.PlaylistStore.remove(plVid)
+                            android.widget.Toast.makeText(context, "Убрано из плейлиста AmorX", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            chromahub.rhythm.app.features.online.PlaylistStore.add(listOf(chromahub.rhythm.app.features.online.PlTrack(plVid, curSongForProfile.title, curSongForProfile.artist, curSongForProfile.duration, chromahub.rhythm.app.features.online.ArtworkUtil.forSong(curSongForProfile.id, curSongForProfile.artworkUri?.toString()))))
+                            android.widget.Toast.makeText(context, "Добавлено в плейлист AmorX", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
                 },

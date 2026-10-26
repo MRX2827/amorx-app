@@ -78,8 +78,13 @@ fun ProfileScreenBody(
     }
 
     var showEdit by remember { mutableStateOf(false) }
+    var showAccount by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) ProfileStore.setAvatar(uri)
+    }
+
+    if (showAccount) {
+        chromahub.rhythm.app.features.online.account.AccountDialogHost(onDismiss = { showAccount = false })
     }
 
     if (showEdit) {
@@ -103,6 +108,7 @@ fun ProfileScreenBody(
                         label = { Text("О себе") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    TextButton(onClick = { showEdit = false; showAccount = true }) { Text("Аккаунт: вход и облако") }
                 }
             },
             confirmButton = {
@@ -205,6 +211,10 @@ fun ProfileScreenBody(
                 StatCard("Артистов", artists.size, Modifier.weight(1f))
                 StatCard("Недавно играло", recent.size, Modifier.weight(1f))
             }
+        }
+
+        item {
+            chromahub.rhythm.app.features.online.account.AccountEntryCard(onClick = { showAccount = true })
         }
 
         item {

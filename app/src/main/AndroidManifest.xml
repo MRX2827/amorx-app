@@ -315,6 +315,15 @@
             android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
             android:value="music_download" />
     </service>
+        <provider
+            android:name="chromahub.rhythm.app.features.update.AmorUpdateFileProvider"
+            android:authorities="${applicationId}.amorupdate"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/amor_update_paths" />
+        </provider>
 </application>
 
 </manifest>

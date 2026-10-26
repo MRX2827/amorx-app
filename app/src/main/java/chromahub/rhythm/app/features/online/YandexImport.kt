@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 data class ImportState(val running: Boolean = false, val done: Int = 0, val total: Int = 0)
@@ -74,6 +75,39 @@ object YandexImport {
     val title = MutableStateFlow("")
     val message = MutableStateFlow<String?>(null)
     val playlistOpen = MutableStateFlow(false)
+    /** Сколько песен ещё осталось поставить на скачивание (0, если «Скачать всё» не запущено). */
+    val downloading = MutableStateFlow(0)
+    private var dlJob: Job? = null
+
+    fun downloadAll() {
+        if (dlJob?.isActive == true) return
+        val queue = tracks.value.filter { t -> OnlineDownloads.items.value.none { it.id == t.id } }
+        if (queue.isEmpty()) {
+            message.value = "Все песни уже скачаны"
+            return
+        }
+        dlJob = scope.launch {
+            var left = queue.size
+            downloading.value = left
+            try {
+                for (t in queue) {
+                    while (OnlineDownloads.pending.value.size >= 3) delay(1000)
+                    withContext(Dispatchers.Main) { OnlineDownloads.download(t) }
+                    delay(300)
+                    left--
+                    downloading.value = left
+                }
+                message.value = "Все песни поставлены на скачивание"
+            } finally {
+                downloading.value = 0
+            }
+        }
+    }
+
+    fun stopDownloadAll() {
+        dlJob?.cancel()
+        downloading.value = 0
+    }
 
     private var appContext: Context? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -328,6 +362,29 @@ fun YandexPlaylistScreen(musicViewModel: MusicViewModel, modifier: Modifier = Mo
     val scope = rememberCoroutineScope()
     var resolving by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val dlLeft by YandexImport.downloading.collectAsState()
+    var confirmDl by remember { mutableStateOf(false) }
+    val toDownload = tracks.count { t -> downloaded.none { it.id == t.id } }
+
+    if (confirmDl) {
+        AlertDialog(
+            onDismissRequest = { confirmDl = false },
+            title = { Text("Скачать все песни?") },
+            text = {
+                Text(
+                    "Будет скачано песен: " + toDownload +
+                        ". Они займут место на устройстве, примерно по 5 МБ на песню."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDl = false
+                    YandexImport.downloadAll()
+                }) { Text("Скачать") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDl = false }) { Text("Отмена") } }
+        )
+    }
 
     // Первая песня получает настоящую ссылку, остальные получают заготовку:
     // плеер сам обновит её перед воспроизведением (механизм OnlineLinks).
@@ -400,6 +457,17 @@ fun YandexPlaylistScreen(musicViewModel: MusicViewModel, modifier: Modifier = Mo
                         Button(onClick = { playList(tracks, 0) }) { Text("Играть всё") }
                         FilledTonalButton(onClick = { playList(tracks.shuffled(), 0) }) {
                             Text("Вперемешку")
+                        }
+                    }
+                    if (dlLeft > 0) {
+                        Spacer(Modifier.size(8.dp))
+                        FilledTonalButton(onClick = { YandexImport.stopDownloadAll() }) {
+                            Text("Остановить скачивание (" + dlLeft + ")")
+                        }
+                    } else if (toDownload > 0) {
+                        Spacer(Modifier.size(8.dp))
+                        FilledTonalButton(onClick = { confirmDl = true }) {
+                            Text("Скачать всё (" + toDownload + ")")
                         }
                     }
                     Spacer(Modifier.size(12.dp))

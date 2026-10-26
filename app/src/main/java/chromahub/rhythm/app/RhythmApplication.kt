@@ -56,6 +56,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         
         instance = this
+        chromahub.rhythm.app.features.online.account.CloudAutoSync.install(this)
         
         Log.d(TAG, "═══════════════════════════════════════════════════")
         Log.d(TAG, "RhythmApplication onCreate")

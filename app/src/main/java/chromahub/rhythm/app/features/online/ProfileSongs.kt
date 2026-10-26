@@ -95,6 +95,12 @@ object ProfileSongs {
         save()
     }
 
+    /** Заменяет весь список (восстановление из облака). */
+    fun replaceAll(list: List<CloudSong>) {
+        songs.value = list.take(MAX)
+        save()
+    }
+
     /** Один раз переносит прежние лайки в список профиля. */
     fun migrateFromLikes(liked: List<Song>) {
         val ctx = appContext ?: return

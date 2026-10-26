@@ -143,7 +143,11 @@ fun ExtraControlBottomSheet(
     profileDescription: String? = null,
     profileDone: Boolean = false,
     onProfile: (() -> Unit)? = null,
-    onShareChat: (() -> Unit)? = null
+    onShareChat: (() -> Unit)? = null,
+    plLabel: String? = null,
+    plDescription: String? = null,
+    plDone: Boolean = false,
+    onPlaylist: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -287,6 +291,19 @@ fun ExtraControlBottomSheet(
                 onClick = {
                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
                     dismissAndDo { onProfile() }
+                }
+            ))
+        }
+        if (onPlaylist != null && plLabel != null) {
+            add(ControlAction(
+                icon = if (plDone) MaterialSymbolIcon("playlist_add_check", filled = true) else MaterialSymbolIcon("playlist_add"),
+                label = plLabel,
+                description = plDescription,
+                containerColor = if (plDone) tertiary else secondary,
+                iconColor = if (plDone) onTertiary else onSecondary,
+                onClick = {
+                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                    dismissAndDo { onPlaylist() }
                 }
             ))
         }

@@ -157,11 +157,6 @@ fun OnlineScreen(
         }
     }
 
-    val ypOpen by YandexImport.playlistOpen.collectAsState()
-    if (ypOpen) {
-        YandexPlaylistScreen(musicViewModel = musicViewModel, modifier = modifier)
-        return
-    }
 
     LazyColumn(
         state = listState,
@@ -254,6 +249,8 @@ fun OnlineScreen(
         item { Spacer(Modifier.size(8.dp)) }
 
         item { YandexImportCard(musicViewModel) }
+        item { PlaylistCard(musicViewModel) }
+        item { MimoseImportCard() }
 
         item {
             WaveCard(

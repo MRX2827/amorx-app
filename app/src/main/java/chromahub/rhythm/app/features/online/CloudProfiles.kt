@@ -69,7 +69,7 @@ object CloudProfiles {
                 .build()
         )
 
-    private fun storeSession(json: JSONObject) {
+    internal fun storeSession(json: JSONObject) {
         val p = prefs ?: return
         p.edit()
             .putString("access", json.getString("access_token"))
