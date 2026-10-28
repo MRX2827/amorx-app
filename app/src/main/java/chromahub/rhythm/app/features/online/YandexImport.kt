@@ -270,7 +270,7 @@ object YandexImport {
 }
 
 @Composable
-fun YandexImportCard(musicViewModel: MusicViewModel) {
+fun YandexImportCard(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     remember { YandexImport.init(context); true }
     val st by YandexImport.state.collectAsState()
@@ -287,40 +287,46 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        )
+    val onPaste: () -> Unit = {
+        val clip = clipboardText(context)
+        if (clip.contains("yandex", ignoreCase = true)) {
+            YandexImport.start(clip)
+        } else {
+            link = ""
+            showLink = true
+        }
+    }
+
+    ImportTile(
+        modifier = modifier,
+        title = "Яндекс Музыка",
+        subtitle = when {
+            st.running -> "Ищу песни: " + st.done + " из " + st.total
+            tracks.isNotEmpty() -> (if (plTitle.isBlank()) "Плейлист" else plTitle) + " · " + tracks.size
+            else -> "Песни из плейлиста найдутся здесь"
+        },
+        container = MaterialTheme.colorScheme.secondaryContainer,
+        content = MaterialTheme.colorScheme.onSecondaryContainer,
+        progress = if (st.running) (if (st.total > 0) st.done.toFloat() / st.total.toFloat() else -1f) else null
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text("Из Яндекс Музыки", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                text = when {
-                    st.running -> "Ищу песни: ${st.done} из ${st.total}"
-                    tracks.isNotEmpty() -> (if (plTitle.isBlank()) "Плейлист" else plTitle) + " · " + tracks.size
-                    else -> "Вставьте ссылку на плейлист, и песни найдутся здесь"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.size(16.dp))
-            if (st.running) {
-                val frac = if (st.total > 0) st.done.toFloat() / st.total.toFloat() else 0f
-                LinearProgressIndicator(progress = { frac }, modifier = Modifier.fillMaxWidth())
+        if (!st.running) {
+            if (tracks.isNotEmpty()) {
+                Button(
+                    onClick = { YandexImport.playlistOpen.value = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = TileBtnPad
+                ) { Text("Открыть") }
+                FilledTonalButton(
+                    onClick = onPaste,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = TileBtnPad
+                ) { Text("Новая ссылка") }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (tracks.isNotEmpty()) {
-                        Button(onClick = { YandexImport.playlistOpen.value = true }) { Text("Открыть") }
-                        FilledTonalButton(onClick = { showLink = true }) { Text("Новая ссылка") }
-                    } else {
-                        Button(onClick = { showLink = true }) { Text("Вставить ссылку") }
-                    }
-                }
+                Button(
+                    onClick = onPaste,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = TileBtnPad
+                ) { Text("Вставить ссылку") }
             }
         }
     }
@@ -346,7 +352,6 @@ fun YandexImportCard(musicViewModel: MusicViewModel) {
             dismissButton = { TextButton(onClick = { showLink = false }) { Text("Отмена") } }
         )
     }
-
 }
 
 @Composable

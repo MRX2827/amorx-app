@@ -218,13 +218,14 @@ object MimoseImport {
 }
 
 @Composable
-fun MimoseImportCard() {
+fun MimoseImportCard(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val st by MimoseImport.state.collectAsState()
     val msg by MimoseImport.message.collectAsState()
     val miss by MimoseImport.missing.collectAsState()
     var link by remember { mutableStateOf("") }
     var showMissing by remember { mutableStateOf(false) }
+    var showLink by remember { mutableStateOf(false) }
 
     if (showMissing) {
         AlertDialog(
@@ -241,59 +242,70 @@ fun MimoseImportCard() {
         )
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+    if (showLink) {
+        AlertDialog(
+            onDismissRequest = { showLink = false },
+            title = { Text("Ссылка на плейлист Mimose") },
+            text = {
+                OutlinedTextField(
+                    value = link,
+                    onValueChange = { link = it },
+                    singleLine = true,
+                    placeholder = { Text("mimose.fun/p/…") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLink = false
+                    MimoseImport.start(context, link)
+                }) { Text("Импорт") }
+            },
+            dismissButton = { TextButton(onClick = { showLink = false }) { Text("Отмена") } }
         )
+    }
+
+    val onPaste: () -> Unit = {
+        val clip = clipboardText(context)
+        if (clip.contains("mimose", ignoreCase = true)) {
+            MimoseImport.start(context, clip)
+        } else {
+            link = ""
+            showLink = true
+        }
+    }
+
+    val m = msg
+    ImportTile(
+        modifier = modifier,
+        title = "Mimose",
+        subtitle = when {
+            st.running -> "Поиск: " + st.done + " из " + st.total
+            m != null -> m
+            else -> "Песни попадут в плейлист AmorX"
+        },
+        container = MaterialTheme.colorScheme.tertiaryContainer,
+        content = MaterialTheme.colorScheme.onTertiaryContainer,
+        progress = if (st.running) (if (st.total > 0) st.done.toFloat() / st.total.toFloat() else -1f) else null
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Text("Импорт из Mimose", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                "Вставьте ссылку на плейлист: песни найдутся, попадут в плейлист AmorX и скачаются",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Spacer(Modifier.size(12.dp))
-            OutlinedTextField(
-                value = link,
-                onValueChange = { link = it },
+        if (st.running) {
+            Button(
+                onClick = { MimoseImport.cancel() },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = !st.running,
-                label = { Text("mimose.fun/p/…") }
-            )
-            if (st.running) {
-                Spacer(Modifier.size(12.dp))
-                if (st.total > 0) {
-                    LinearProgressIndicator(progress = { st.done.toFloat() / st.total }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Spacer(Modifier.size(4.dp))
-                Text("Поиск: " + st.done + " из " + st.total, style = MaterialTheme.typography.bodySmall)
-            }
-            val m = msg
-            if (m != null) {
-                Spacer(Modifier.size(8.dp))
-                Text(m, style = MaterialTheme.typography.bodyMedium)
-            }
-            Spacer(Modifier.size(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (st.running) {
-                    Button(onClick = { MimoseImport.cancel() }) { Text("Стоп") }
-                } else {
-                    Button(onClick = { MimoseImport.start(context, link) }, enabled = link.isNotBlank()) { Text("Импорт") }
-                    FilledTonalButton(onClick = {
-                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        link = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                    }) { Text("Вставить") }
-                }
-                if (miss.isNotEmpty()) {
-                    TextButton(onClick = { showMissing = true }) { Text("Не найдено: " + miss.size) }
-                }
+                contentPadding = TileBtnPad
+            ) { Text("Стоп") }
+        } else {
+            Button(
+                onClick = onPaste,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = TileBtnPad
+            ) { Text("Вставить ссылку") }
+            if (miss.isNotEmpty()) {
+                TextButton(
+                    onClick = { showMissing = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = TileBtnPad
+                ) { Text("Не найдено: " + miss.size) }
             }
         }
     }

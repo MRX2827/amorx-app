@@ -151,7 +151,7 @@ object CloudPlaylists {
             .put("dur", it.durMs).put("art", it.art ?: JSONObject.NULL)
     })
 
-    fun linkFor(code: String): String = "amorx://playlist/" + code
+    fun linkFor(code: String): String = "https://mrx2827.github.io/amorxsyte/p.html#playlist/" + code
 
     fun parseCode(text: String): String? {
         val t = text.trim()
@@ -225,5 +225,30 @@ object CloudPlaylists {
                 )
             }
         }
+    }
+}
+
+/** Нажатие на ссылку amorx://playlist/КОД: плейлист сам загружается, импортируется и ставится на скачивание. */
+object PlaylistLinkImport {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    fun handle(context: Context, uri: android.net.Uri): Boolean {
+        val code = CloudPlaylists.parseCode(uri.toString()) ?: return false
+        val app = context.applicationContext
+        PlaylistStore.init(app)
+        scope.launch {
+            android.widget.Toast.makeText(app, "Загружаем плейлист…", android.widget.Toast.LENGTH_SHORT).show()
+            CloudPlaylists.fetch(code)
+                .onSuccess { list ->
+                    PlaylistStore.replace(list)
+                    android.widget.Toast.makeText(app, "Импортировано песен: " + list.size, android.widget.Toast.LENGTH_LONG).show()
+                    val err = PlaylistDownloader.start(app)
+                    if (err != null) android.widget.Toast.makeText(app, err, android.widget.Toast.LENGTH_LONG).show()
+                }
+                .onFailure {
+                    android.widget.Toast.makeText(app, it.message ?: "Не удалось импортировать плейлист", android.widget.Toast.LENGTH_LONG).show()
+                }
+        }
+        return true
     }
 }

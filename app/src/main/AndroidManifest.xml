@@ -217,6 +217,14 @@
                 <data android:mimeType="application/vnd.apple.mpegurl" />
                 <data android:mimeType="application/vnd.apple.mpegurl.audio" />
             </intent-filter>
+
+            <!-- Ссылки на плейлист AmorX -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amorx" android:host="playlist" />
+            </intent-filter>
         </activity>
         
         <!-- External playback activity for quick audio file playback -->

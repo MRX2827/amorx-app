@@ -826,6 +826,11 @@ class MainActivity : AppCompatActivity() {
                     ServiceStartUtils.startServiceSafely(this, prevIntent, TAG, "shortcut_skip_previous")
                 }
                 Intent.ACTION_VIEW -> {
+                    val linkUri = intent.data
+                    if (linkUri != null && linkUri.scheme == "amorx" && linkUri.host == "playlist") {
+                        chromahub.rhythm.app.features.online.PlaylistLinkImport.handle(this, linkUri)
+                        return
+                    }
                     // Handle external audio file with validation
                     intent.data?.let { uri ->
                         Log.d(TAG, "Received ACTION_VIEW intent with URI: $uri")

@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
@@ -164,34 +165,41 @@ fun PlaylistCard(musicViewModel: MusicViewModel) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp)
+            .padding(bottom = 12.dp)
             .graphicsLayer { scaleX = press; scaleY = press }
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(24.dp))
             .clickable(interactionSource = src, indication = LocalIndication.current) { PlaylistNav.open.value = true },
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Text("Плейлист AmorX", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                if (tracks.isEmpty()) "Пусто. Добавьте песни из плеера или вставьте ссылку друга"
-                else "Песен: " + tracks.size + " · скачано: " + have,
-                style = MaterialTheme.typography.bodyMedium
-            )
+        Column(Modifier.padding(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                CoverMosaic(tracks.take(4).map { it.art }, 64.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("Плейлист AmorX", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        if (tracks.isEmpty()) "Пусто. Добавьте песни из плеера или вставьте ссылку друга"
+                        else if (have >= tracks.size) "Песен: " + tracks.size + " · все скачаны"
+                        else "Песен: " + tracks.size + " · скачано: " + have,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             if (running || busy) {
-                Spacer(Modifier.size(12.dp))
+                Spacer(Modifier.size(8.dp))
                 if (tracks.isNotEmpty()) LinearProgressIndicator(progress = { have.toFloat() / tracks.size }, modifier = Modifier.fillMaxWidth())
                 else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            Spacer(Modifier.size(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { PlaylistNav.open.value = true }) { Text("Открыть") }
+            Spacer(Modifier.size(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = { PlaylistNav.open.value = true }, contentPadding = TileBtnPad) { Text("Открыть") }
                 if (have < tracks.size) {
-                    FilledTonalButton(onClick = { PlaylistActions.startDownloads(context) }, enabled = !running) {
+                    FilledTonalButton(onClick = { PlaylistActions.startDownloads(context) }, enabled = !running, contentPadding = TileBtnPad) {
                         Text(if (running) "Качаю…" else "Скачать всё")
                     }
                 }
@@ -344,6 +352,83 @@ private fun PlaylistScreen(vm: MusicViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+
+internal val TileBtnPad = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+
+internal fun clipboardText(ctx: Context): String {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    return cm.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty()
+}
+
+@Composable
+internal fun CoverMosaic(arts: List<String?>, size: Dp) {
+    val bg = listOf(
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer,
+        MaterialTheme.colorScheme.surface
+    )
+    Column(
+        modifier = Modifier.size(size).clip(RoundedCornerShape(14.dp)),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        for (r in 0..1) {
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                for (c in 0..1) {
+                    val i = r * 2 + c
+                    val a = arts.getOrNull(i)
+                    Box(Modifier.weight(1f).fillMaxHeight().background(bg[i])) {
+                        if (!a.isNullOrBlank()) {
+                            AsyncImage(
+                                model = a,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ImportTile(
+    modifier: Modifier,
+    title: String,
+    subtitle: String,
+    container: androidx.compose.ui.graphics.Color,
+    content: androidx.compose.ui.graphics.Color,
+    progress: Float?,
+    actions: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.heightIn(min = 32.dp)
+            )
+            if (progress != null) {
+                if (progress >= 0f) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            actions()
         }
     }
 }

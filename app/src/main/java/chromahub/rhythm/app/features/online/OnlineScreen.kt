@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -194,6 +197,19 @@ fun OnlineScreen(
 
         item { Spacer(Modifier.size(8.dp)) }
 
+        item { PlaylistCard(musicViewModel) }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp).height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                YandexImportCard(musicViewModel, Modifier.weight(1f).fillMaxHeight())
+                MimoseImportCard(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+
+        item { Spacer(Modifier.size(4.dp)) }
+
         val err = error
         if (loading) {
             item {
@@ -247,10 +263,6 @@ fun OnlineScreen(
         }
 
         item { Spacer(Modifier.size(8.dp)) }
-
-        item { YandexImportCard(musicViewModel) }
-        item { PlaylistCard(musicViewModel) }
-        item { MimoseImportCard() }
 
         item {
             WaveCard(
@@ -312,34 +324,36 @@ private fun WaveCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text("Моя волна", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.size(4.dp))
-            Text(
-                text = if (artists.isEmpty()) "Выберите любимых артистов, и волна подберёт музыку"
-                else artists.joinToString(", ") { it.name },
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.size(16.dp))
-            if (loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.size(12.dp))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onStart, enabled = !loading) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Моя волна", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = if (artists.isEmpty()) "Выберите артистов" else artists.joinToString(", ") { it.name },
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                FilledTonalButton(onClick = onPickArtists, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                    Text(if (artists.isEmpty()) "Артисты" else "Артисты (" + artists.size + ")")
+                }
+                Button(onClick = onStart, enabled = !loading, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
                     Text(if (loading) "Готовлю…" else "Запустить")
                 }
-                FilledTonalButton(onClick = onPickArtists) {
-                    Text(if (artists.isEmpty()) "Выбрать артистов" else "Артисты (${artists.size})")
-                }
+            }
+            if (loading) {
+                Spacer(Modifier.size(8.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
         }
     }
