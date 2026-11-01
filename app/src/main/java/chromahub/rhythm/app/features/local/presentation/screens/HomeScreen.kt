@@ -1570,6 +1570,9 @@ private fun ModernScrollableContent(
             verticalArrangement = Arrangement.spacedBy(sectionSpacing),
             contentPadding = PaddingValues(bottom = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding())
         ) {
+        item(key = "amorx_stories") {
+            chromahub.rhythm.app.features.online.stories.StoriesRow(musicViewModel = musicViewModel)
+        }
         @Composable
         fun RenderLocalSection(sectionId: String) {
             when (sectionId) {

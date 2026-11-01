@@ -32,8 +32,8 @@ android {
         
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991310
-        versionName = overrideVersionName ?: "5.5.499.1310"
+        versionCode = overrideVersionCode ?: 554991311
+        versionName = overrideVersionName ?: "5.5.499.1311"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
         buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-13"}\"")
@@ -255,6 +255,8 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.exoplayer.midi)
+    implementation(libs.androidx.media3.transformer)
+    implementation(libs.androidx.media3.effect)
     implementation(libs.org.jellyfin.media3.ffmpeg.decoder)
     
     // Icons - Material Symbols variable font (res/font/material_symbols_outlined.ttf)
