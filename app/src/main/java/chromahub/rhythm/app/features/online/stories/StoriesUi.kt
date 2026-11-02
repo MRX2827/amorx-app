@@ -8,20 +8,35 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -46,14 +61,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -62,11 +80,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -76,15 +97,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -98,6 +126,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -110,22 +139,42 @@ import chromahub.rhythm.app.features.online.CloudSong
 import chromahub.rhythm.app.features.online.PlaylistStore
 import chromahub.rhythm.app.features.online.ProfileSongs
 import chromahub.rhythm.app.features.online.ProfileStore
+import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.shared.presentation.components.common.SplashBackgroundOrbs
 import chromahub.rhythm.app.shared.presentation.components.common.buildSplashBackdropShapes
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 private const val SONG_STORY_MS = 7000f
 
-private fun timeAgo(ms: Long): String {
+internal fun timeAgo(ms: Long): String {
     val m = ((System.currentTimeMillis() - ms) / 60_000L).coerceAtLeast(0L)
     return when {
         m < 1 -> "только что"
         m < 60 -> "$m мин назад"
         else -> "${m / 60} ч назад"
     }
+}
+
+private fun formatDuration(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(s / 60, s % 60)
+}
+
+/** Пружинное нажатие, как у обложки в плеере. */
+@Composable
+private fun rememberPressScale(source: MutableInteractionSource, pressed: Float = 0.92f): State<Float> {
+    val isPressed by source.collectIsPressedAsState()
+    return animateFloatAsState(
+        targetValue = if (isPressed) pressed else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "pressScale"
+    )
 }
 
 // ───────────────────────── ряд историй на «Главной» ─────────────────────────
@@ -142,14 +191,23 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
     }
     val feed by CloudStories.feed.collectAsState()
     val seen by CloudStories.seen.collectAsState()
+    val friends by CloudFriends.state.collectAsState()
     val avatarPath by ProfileStore.avatarPath.collectAsState()
     val myName by ProfileStore.name.collectAsState()
 
     var snapshot by remember { mutableStateOf<List<StoryGroup>>(emptyList()) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
     var composer by remember { mutableStateOf(false) }
+    var friendsOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { CloudStories.refresh() }
+    LaunchedEffect(Unit) {
+        CloudFriends.refresh()
+        CloudStories.refresh()
+    }
+    // пока человек смотрит ленту, заранее находим звук для историй-песен
+    LaunchedEffect(feed) {
+        StoryAudio.prefetch(feed.flatMap { it.stories }.filter { !it.isVideo })
+    }
 
     val mine = feed.firstOrNull { it.isMine }
     val others = feed.filter { !it.isMine }
@@ -168,6 +226,7 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
                 unseen = mine != null && mine.stories.any { it.id !in seen },
                 hasStories = mine != null,
                 showPlus = true,
+                index = 0,
                 onClick = {
                     if (mine != null) {
                         snapshot = feed
@@ -177,21 +236,27 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
                 onPlus = { composer = true }
             )
         }
-        items(others, key = { "story_" + it.ownerId }) { g ->
-            StoryBubble(
-                name = g.name,
-                b64 = g.avatarB64,
-                filePath = null,
-                label = g.name,
-                unseen = g.stories.any { it.id !in seen },
-                hasStories = true,
-                showPlus = false,
-                onClick = {
-                    snapshot = feed
-                    viewerIndex = feed.indexOf(g)
-                },
-                onPlus = {}
-            )
+        item(key = "story_friends") {
+            FriendsBubble(count = friends.incoming.size, index = 1, onClick = { friendsOpen = true })
+        }
+        itemsIndexed(others, key = { _, g -> "story_" + g.ownerId }) { i, g ->
+            Box(modifier = Modifier.animateItemCompat()) {
+                StoryBubble(
+                    name = g.name,
+                    b64 = g.avatarB64,
+                    filePath = null,
+                    label = g.name,
+                    unseen = g.stories.any { it.id !in seen },
+                    hasStories = true,
+                    showPlus = false,
+                    index = i + 2,
+                    onClick = {
+                        snapshot = feed
+                        viewerIndex = feed.indexOf(g)
+                    },
+                    onPlus = {}
+                )
+            }
         }
     }
 
@@ -204,10 +269,12 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
             onClose = { viewerIndex = null }
         )
     }
-    if (composer) {
-        StoryComposer(musicViewModel = musicViewModel, onDismiss = { composer = false })
-    }
+    if (composer) StoryComposer(musicViewModel = musicViewModel, onDismiss = { composer = false })
+    if (friendsOpen) FriendsSheet(onDismiss = { friendsOpen = false })
 }
+
+/** Заглушка на случай, если анимация перестановки недоступна: просто возвращает тот же Modifier. */
+private fun Modifier.animateItemCompat(): Modifier = this
 
 @Composable
 private fun StoryBubble(
@@ -218,32 +285,57 @@ private fun StoryBubble(
     unseen: Boolean,
     hasStories: Boolean,
     showPlus: Boolean,
+    index: Int,
     onClick: () -> Unit,
     onPlus: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    // пружинное нажатие, как у обложки в плеере
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.9f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "storyBubbleScale"
-    )
-    val ring: Brush = when {
-        hasStories && unseen -> Brush.sweepGradient(listOf(cs.primary, cs.tertiary, cs.secondary, cs.primary))
-        else -> SolidColor(cs.outlineVariant)
+    val pressScale by rememberPressScale(interaction)
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 55L)
+        appear.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
     }
+    val spin = rememberInfiniteTransition(label = "storyRing")
+    val angle by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
+        label = "storyRingAngle"
+    )
+    val ringBrush = remember(cs.primary, cs.tertiary, cs.secondary) {
+        Brush.sweepGradient(listOf(cs.primary, cs.tertiary, cs.secondary, cs.primary))
+    }
+    val active = hasStories && unseen
+    val ringModifier = if (active) {
+        Modifier.drawBehind {
+            val stroke = 3.dp.toPx()
+            rotate(angle) {
+                drawCircle(brush = ringBrush, radius = size.minDimension / 2f - stroke / 2f, style = Stroke(width = stroke))
+            }
+        }
+    } else {
+        Modifier.border(2.dp, cs.outlineVariant, CircleShape)
+    }
+
     Column(
-        modifier = Modifier.width(76.dp),
+        modifier = Modifier
+            .width(76.dp)
+            .graphicsLayer {
+                val s = appear.value
+                scaleX = s
+                scaleY = s
+                alpha = s.coerceIn(0f, 1f)
+            },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(modifier = Modifier.size(72.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { scaleX = scale; scaleY = scale }
-                    .border(if (hasStories && unseen) 3.dp else 2.dp, ring, CircleShape)
+                    .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+                    .then(ringModifier)
                     .padding(5.dp)
                     .clip(CircleShape)
                     .clickable(interactionSource = interaction, indication = null, onClick = onClick),
@@ -262,7 +354,7 @@ private fun StoryBubble(
                         .clickable(onClick = onPlus),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("+", color = cs.onPrimary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Icon(StoryIcons.Add, contentDescription = "Добавить историю", tint = cs.onPrimary, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -279,7 +371,71 @@ private fun StoryBubble(
 }
 
 @Composable
-private fun StoryAvatar(b64: String?, filePath: String?, label: String, size: Dp) {
+private fun FriendsBubble(count: Int, index: Int, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressScale by rememberPressScale(interaction)
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 55L)
+        appear.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+    }
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .graphicsLayer {
+                val s = appear.value
+                scaleX = s
+                scaleY = s
+                alpha = s.coerceIn(0f, 1f)
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(modifier = Modifier.size(72.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
+                    .padding(5.dp)
+                    .clip(CircleShape)
+                    .background(cs.secondaryContainer)
+                    .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(StoryIcons.Group, contentDescription = "Друзья", tint = cs.onSecondaryContainer, modifier = Modifier.size(30.dp))
+            }
+            if (count > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(cs.error)
+                        .border(2.dp, cs.surface, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (count > 9) "9+" else count.toString(),
+                        color = cs.onError,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+        Text(
+            "Друзья",
+            style = MaterialTheme.typography.labelMedium,
+            color = cs.onSurface,
+            maxLines = 1,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+@Composable
+internal fun StoryAvatar(b64: String?, filePath: String?, label: String, size: Dp) {
     val bitmap = remember(b64) {
         b64?.let {
             runCatching {
@@ -319,6 +475,9 @@ private fun StoryAvatar(b64: String?, filePath: String?, label: String, size: Dp
 
 // ───────────────────────── просмотр, как в Instagram ─────────────────────────
 
+/** Состояние звука истории-песни: ждём ссылку, играет фрагмент, не нашли или передали в основной плеер. */
+internal enum class StoryAudioState { NONE, LOADING, READY, FAILED, HANDOFF }
+
 @OptIn(UnstableApi::class)
 @Composable
 private fun StoryViewer(
@@ -345,12 +504,29 @@ private fun StoryViewer(
     var progress by remember { mutableFloatStateOf(0f) }
     var pressPaused by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var songBusy by remember { mutableStateOf(false) }
     var dragY by remember { mutableFloatStateOf(0f) }
+    var closing by remember { mutableStateOf(false) }
+    var audio by remember(story.id) { mutableStateOf(if (story.isVideo) StoryAudioState.NONE else StoryAudioState.LOADING) }
+
+    // появление и закрытие: мягкая пружина и плавное затухание
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    fun requestClose() {
+        if (closing) return
+        closing = true
+        scope.launch {
+            enter.animateTo(0f, tween(180))
+            onClose()
+        }
+    }
 
     fun goNext() {
         if (si < group.stories.lastIndex) si++
         else if (gi < groups.lastIndex) { gi++; si = 0 }
-        else onClose()
+        else requestClose()
     }
     fun goPrev() {
         if (si > 0) si--
@@ -359,7 +535,7 @@ private fun StoryViewer(
     }
     val onNext by rememberUpdatedState({ goNext() })
     val onPrev by rememberUpdatedState({ goPrev() })
-    val pausedNow by rememberUpdatedState(pressPaused || menuOpen)
+    val pausedNow by rememberUpdatedState(pressPaused || menuOpen || songBusy)
 
     val player = remember {
         ExoPlayer.Builder(context.applicationContext).build().apply {
@@ -379,19 +555,42 @@ private fun StoryViewer(
         CloudStories.markSeen(story.id)
         progress = 0f
         val url = story.videoUrl
-        if (url != null) {
-            player.setMediaItem(MediaItem.fromUri(url))
-            player.prepare()
-            player.playWhenReady = !pausedNow
-        } else {
-            player.stop()
-            player.clearMediaItems()
+        val song = story.song
+        when {
+            url != null -> {
+                player.setMediaItem(MediaItem.fromUri(url))
+                player.prepare()
+                player.playWhenReady = !pausedNow
+            }
+            song != null -> {
+                // фрагмент песни играет прямо в истории: ссылка уже найдена заранее
+                player.stop()
+                player.clearMediaItems()
+                val found = withTimeoutOrNull(9000L) { StoryAudio.resolve(song) }
+                if (found == null) {
+                    audio = StoryAudioState.FAILED
+                } else {
+                    val clip = MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(story.clipStartMs)
+                        .setEndPositionMs(story.clipEndMs)
+                        .build()
+                    player.setMediaItem(MediaItem.Builder().setUri(found.uri).setClippingConfiguration(clip).build())
+                    player.prepare()
+                    player.playWhenReady = !pausedNow
+                    audio = StoryAudioState.READY
+                }
+            }
+            else -> {
+                player.stop()
+                player.clearMediaItems()
+            }
         }
     }
-    LaunchedEffect(pressPaused, menuOpen) {
-        if (story.isVideo) player.playWhenReady = !(pressPaused || menuOpen)
+    LaunchedEffect(pressPaused, menuOpen, audio) {
+        if (story.isVideo || audio == StoryAudioState.READY) player.playWhenReady = !(pressPaused || menuOpen)
     }
-    // один «счётчик» для видео и песен: видео идёт по позиции плеера, песня по таймеру
+    // видео и фрагмент песни идут по позиции плеера, поэтому видео доходит до конца.
+    // Если звук песни не нашёлся или передан в основной плеер, историю ведёт обычный таймер
     LaunchedEffect(story.id) {
         var last = SystemClock.uptimeMillis()
         while (true) {
@@ -400,60 +599,82 @@ private fun StoryViewer(
             val dt = now - last
             last = now
             if (pausedNow) continue
-            if (story.isVideo) {
-                if (player.playerError != null) { onNext(); return@LaunchedEffect }
-                val d = player.duration
-                if (player.playbackState == Player.STATE_ENDED) progress = 1f
-                else if (d > 0 && d != C.TIME_UNSET) progress = (player.currentPosition.toFloat() / d).coerceIn(0f, 1f)
-            } else {
-                progress = (progress + dt / SONG_STORY_MS).coerceAtMost(1f)
+            val followPlayer = story.isVideo || audio == StoryAudioState.READY
+            when {
+                followPlayer -> {
+                    if (player.playerError != null) {
+                        if (story.isVideo) { onNext(); return@LaunchedEffect }
+                        player.stop()
+                        audio = StoryAudioState.FAILED
+                        continue
+                    }
+                    val d = player.duration
+                    if (player.playbackState == Player.STATE_ENDED) progress = 1f
+                    else if (d > 0 && d != C.TIME_UNSET) progress = (player.currentPosition.toFloat() / d).coerceIn(0f, 1f)
+                }
+                audio == StoryAudioState.LOADING -> Unit // ждём звук, полоска стоит
+                else -> progress = (progress + dt / SONG_STORY_MS).coerceAtMost(1f)
             }
             if (progress >= 1f) { onNext(); return@LaunchedEffect }
         }
     }
 
+    // переход между историями: между людьми слайд, внутри одного человека лёгкое смещение с затуханием
+    val storySpec: AnimatedContentTransitionScope<Pair<Int, Int>>.() -> ContentTransform = {
+        val gd = targetState.first - initialState.first
+        val sd = targetState.second - initialState.second
+        if (gd != 0) {
+            val d = if (gd > 0) 1 else -1
+            (slideInHorizontally(tween(340)) { it * d } + fadeIn(tween(340))) togetherWith
+                (slideOutHorizontally(tween(340)) { -it * d / 3 } + fadeOut(tween(260)))
+        } else {
+            val d = if (sd >= 0) 1 else -1
+            (slideInHorizontally(tween(260)) { it * d / 8 } + fadeIn(tween(260))) togetherWith
+                (slideOutHorizontally(tween(260)) { -it * d / 8 } + fadeOut(tween(200)))
+        }
+    }
+
     Dialog(
-        onDismissRequest = onClose,
+        onDismissRequest = { requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    translationY = dragY
-                    val s = 1f - (dragY / 3000f).coerceIn(0f, 0.15f)
+                    val e = enter.value
+                    val s = (0.9f + 0.1f * e) * (1f - (dragY / 3000f).coerceIn(0f, 0.15f))
                     scaleX = s
                     scaleY = s
-                    alpha = 1f - (dragY / 1200f).coerceIn(0f, 0.6f)
+                    translationY = dragY
+                    alpha = e.coerceIn(0f, 1f) * (1f - (dragY / 1200f).coerceIn(0f, 0.6f))
                 }
                 .background(Color.Black)
         ) {
             // 1. картинка: видео или фон истории-песни
-            if (story.isVideo) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            useController = false
-                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            this.player = player
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (story.caption.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
-                            .navigationBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 28.dp)
-                    ) {
-                        Text(story.caption, color = Color.White, style = MaterialTheme.typography.bodyLarge)
+            AnimatedContent(
+                targetState = gi to si,
+                transitionSpec = storySpec,
+                modifier = Modifier.fillMaxSize(),
+                label = "storyMedia"
+            ) { (g, s) ->
+                val st = groups.getOrNull(g)?.stories?.getOrNull(s)
+                if (st != null) {
+                    if (st.isVideo) {
+                        AndroidView(
+                            factory = { ctx ->
+                                PlayerView(ctx).apply {
+                                    useController = false
+                                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                    this.player = player
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        SongBackdrop(st)
                     }
                 }
-            } else {
-                SongBackdrop(story)
             }
 
             // 2. тапы: назад, вперёд, удержание = пауза, свайп вниз = закрыть
@@ -472,21 +693,50 @@ private fun StoryViewer(
                     }
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
-                            onDragEnd = { if (dragY > 220f) onClose() else dragY = 0f },
-                            onDragCancel = { dragY = 0f },
+                            onDragEnd = {
+                                if (dragY > 220f) requestClose()
+                                else scope.launch { animate(dragY, 0f, animationSpec = spring()) { v, _ -> dragY = v } }
+                            },
+                            onDragCancel = {
+                                scope.launch { animate(dragY, 0f, animationSpec = spring()) { v, _ -> dragY = v } }
+                            },
                             onVerticalDrag = { _, dy -> dragY = (dragY + dy).coerceAtLeast(0f) }
                         )
                     }
             )
 
-            // 3. песня поверх тапов, чтобы кнопка «Слушать» нажималась
-            if (!story.isVideo) SongStoryForeground(story, musicViewModel)
+            // 3. подпись видео и карточка песни поверх тапов, чтобы кнопка «Слушать» нажималась
+            AnimatedContent(
+                targetState = gi to si,
+                transitionSpec = storySpec,
+                modifier = Modifier.fillMaxSize(),
+                label = "storyForeground"
+            ) { (g, s) ->
+                val st = groups.getOrNull(g)?.stories?.getOrNull(s)
+                if (st != null) {
+                    if (st.isVideo) VideoCaption(st)
+                    else SongStoryForeground(
+                        story = st,
+                        musicViewModel = musicViewModel,
+                        audioState = if (st.id == story.id) audio else StoryAudioState.NONE,
+                        onBusy = { songBusy = it },
+                        onHandoff = {
+                            player.playWhenReady = false
+                            audio = StoryAudioState.HANDOFF
+                        }
+                    )
+                }
+            }
 
             // 4. верхняя панель: полоски, автор, меню
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = enter.value.coerceIn(0f, 1f)
+                        translationY = (1f - enter.value.coerceIn(0f, 1f)) * -40f
+                    }
                     .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent)))
                     .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -531,23 +781,28 @@ private fun StoryViewer(
                         Text(timeAgo(story.createdAtMs), color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
                     }
                     Box {
-                        Text(
-                            "⋮",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.clickable { menuOpen = true }.padding(horizontal = 14.dp, vertical = 6.dp)
+                        Icon(
+                            StoryIcons.More,
+                            contentDescription = "Меню",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { menuOpen = true }
+                                .padding(10.dp)
+                                .size(24.dp)
                         )
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             if (group.isMine) {
                                 DropdownMenuItem(
                                     text = { Text("Удалить историю") },
+                                    leadingIcon = { Icon(StoryIcons.Delete, null, Modifier.size(20.dp)) },
                                     onClick = {
                                         menuOpen = false
                                         scope.launch {
                                             CloudStories.delete(story)
                                                 .onSuccess {
                                                     Toast.makeText(context, "История удалена", Toast.LENGTH_SHORT).show()
-                                                    onClose()
+                                                    requestClose()
                                                 }
                                                 .onFailure {
                                                     Toast.makeText(context, it.message ?: "Не удалось удалить", Toast.LENGTH_SHORT).show()
@@ -558,6 +813,7 @@ private fun StoryViewer(
                             } else {
                                 DropdownMenuItem(
                                     text = { Text("Пожаловаться") },
+                                    leadingIcon = { Icon(StoryIcons.Flag, null, Modifier.size(20.dp)) },
                                     onClick = {
                                         menuOpen = false
                                         scope.launch {
@@ -574,14 +830,44 @@ private fun StoryViewer(
                             }
                         }
                     }
-                    Text(
-                        "✕",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.clickable { onClose() }.padding(horizontal = 12.dp, vertical = 6.dp)
+                    Icon(
+                        StoryIcons.Close,
+                        contentDescription = "Закрыть",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { requestClose() }
+                            .padding(10.dp)
+                            .size(24.dp)
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VideoCaption(story: Story) {
+    if (story.caption.isBlank()) return
+    val a = remember(story.id) { Animatable(0f) }
+    LaunchedEffect(story.id) {
+        delay(200)
+        a.animateTo(1f, tween(380))
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = a.value
+                    translationY = (1f - a.value) * 60f
+                }
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 28.dp)
+        ) {
+            Text(story.caption, color = Color.White, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
@@ -633,21 +919,88 @@ private fun SongBackdrop(story: Story) {
     }
 }
 
+private sealed interface SongResolve {
+    data object Loading : SongResolve
+    data object Failed : SongResolve
+    data class Ready(val song: Song) : SongResolve
+}
+
 @Composable
-private fun SongStoryForeground(story: Story, musicViewModel: MusicViewModel) {
+private fun EqualizerBars(active: Boolean, color: Color, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "storyEq")
+    val heights = (0 until 4).map { i ->
+        t.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(420 + i * 130, easing = EaseInOut), RepeatMode.Reverse),
+            label = "storyEq$i"
+        )
+    }
+    Row(
+        modifier = modifier.height(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        heights.forEach { h ->
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        scaleY = if (active) h.value else 0.3f
+                    }
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(color)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SongStoryForeground(
+    story: Story,
+    musicViewModel: MusicViewModel,
+    audioState: StoryAudioState,
+    onBusy: (Boolean) -> Unit,
+    onHandoff: () -> Unit
+) {
     val song = story.song ?: return
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val cs = MaterialTheme.colorScheme
-    var loading by remember(story.id) { mutableStateOf(false) }
 
-    // обложка выезжает пружиной с отскоком, как в плеере, и потом «дышит»
+    // Песня уже найдена заранее (кэш), поэтому «Слушать» срабатывает сразу
+    val resolve by produceState<SongResolve>(SongResolve.Loading, story.id) {
+        value = StoryAudio.resolve(song)?.let { SongResolve.Ready(it) } ?: SongResolve.Failed
+    }
+    var wantPlay by remember(story.id) { mutableStateOf(false) }
+    var started by remember(story.id) { mutableStateOf(false) }
+
+    // пока трек грузится после нажатия, таймер истории стоит
+    DisposableEffect(story.id) { onDispose { onBusy(false) } }
+    LaunchedEffect(resolve, wantPlay) {
+        if (!wantPlay || started) return@LaunchedEffect
+        when (val r = resolve) {
+            is SongResolve.Ready -> {
+                onBusy(false)
+                started = true
+                onHandoff()
+                musicViewModel.playSong(r.song)
+                Toast.makeText(context, "Играет: " + song.title, Toast.LENGTH_SHORT).show()
+            }
+            SongResolve.Failed -> {
+                onBusy(false)
+                wantPlay = false
+                Toast.makeText(context, "Не удалось найти песню", Toast.LENGTH_SHORT).show()
+            }
+            SongResolve.Loading -> onBusy(true)
+        }
+    }
+
+    // обложка выезжает пружиной с отскоком, как в плеере, потом «дышит»; текст и кнопка появляются по очереди
     val enter = remember(story.id) { Animatable(0f) }
     LaunchedEffect(story.id) {
-        enter.animateTo(
-            1f,
-            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
-        )
+        enter.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
     }
     val breathe by rememberInfiniteTransition(label = "storyBreathe").animateFloat(
         initialValue = 1f,
@@ -655,6 +1008,10 @@ private fun SongStoryForeground(story: Story, musicViewModel: MusicViewModel) {
         animationSpec = infiniteRepeatable(tween(2400, easing = EaseInOut), RepeatMode.Reverse),
         label = "storyBreatheValue"
     )
+    fun stage(from: Float): Float = ((enter.value - from) / 0.5f).coerceIn(0f, 1f)
+
+    val btnSource = remember { MutableInteractionSource() }
+    val btnScale by rememberPressScale(btnSource, 0.94f)
 
     Column(
         modifier = Modifier
@@ -691,63 +1048,88 @@ private fun SongStoryForeground(story: Story, musicViewModel: MusicViewModel) {
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                Text("♪", style = MaterialTheme.typography.displayLarge, color = cs.onPrimaryContainer)
+                Icon(StoryIcons.MusicNote, null, tint = cs.onPrimaryContainer, modifier = Modifier.size(72.dp))
             }
         }
         Spacer(Modifier.height(24.dp))
-        Text(
-            song.title,
-            color = Color.White,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            song.artist,
-            color = Color.White.copy(alpha = 0.85f),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        if (story.caption.isNotBlank()) {
-            Spacer(Modifier.height(16.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.graphicsLayer {
+                val a = stage(0.25f)
+                alpha = a
+                translationY = (1f - a) * 48f
+            }
+        ) {
             Text(
-                story.caption,
+                song.title,
                 color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.3f))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                song.artist,
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EqualizerBars(active = audioState == StoryAudioState.READY, color = Color.White)
+                Text(
+                    formatDuration(story.clipStartMs) + " – " + formatDuration(story.clipEndMs),
+                    color = Color.White.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+            if (story.caption.isNotBlank()) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    story.caption,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.Black.copy(alpha = 0.3f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
         }
         Spacer(Modifier.height(24.dp))
         Button(
-            onClick = {
-                if (loading) return@Button
-                scope.launch {
-                    loading = true
-                    val resolved = runCatching { CloudProfiles.resolveSong(song) }.getOrNull()
-                    loading = false
-                    if (resolved != null) {
-                        musicViewModel.playSong(resolved)
-                        Toast.makeText(context, "Играет: " + song.title, Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Не удалось найти песню", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            },
-            shape = RoundedCornerShape(28.dp)
+            onClick = { if (!started && !wantPlay) wantPlay = true },
+            interactionSource = btnSource,
+            shape = RoundedCornerShape(28.dp),
+            modifier = Modifier.graphicsLayer {
+                val a = stage(0.45f)
+                alpha = a
+                translationY = (1f - a) * 48f
+                scaleX = btnScale
+                scaleY = btnScale
+            }
         ) {
-            if (loading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = cs.onPrimary)
-            } else {
-                Text("▶  Слушать")
+            when {
+                started -> {
+                    Icon(StoryIcons.Check, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Играет")
+                }
+                wantPlay && resolve is SongResolve.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = cs.onPrimary)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Загружаем…")
+                }
+                else -> {
+                    Icon(StoryIcons.Play, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Слушать целиком")
+                }
             }
         }
     }
@@ -757,12 +1139,42 @@ private fun SongStoryForeground(story: Story, musicViewModel: MusicViewModel) {
 
 private data class SongChoice(val song: CloudSong, val source: String)
 
+private enum class ComposerStage { PREPARING, MENU, SONG_LIST, READY }
+
+@Composable
+private fun OptionCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val source = remember { MutableInteractionSource() }
+    val scale by rememberPressScale(source, 0.97f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(24.dp))
+            .background(cs.secondaryContainer.copy(alpha = 0.55f))
+            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(48.dp).clip(CircleShape).background(cs.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = cs.onPrimary, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val isPublic by ProfileStore.isPublic.collectAsState()
     val favs by ProfileSongs.songs.collectAsState()
     val plTracks by PlaylistStore.tracks.collectAsState()
     val playlists by musicViewModel.playlists.collectAsState()
@@ -770,17 +1182,19 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
     var step by remember { mutableStateOf("menu") } // menu | song | video
     var preparing by remember { mutableStateOf(false) }
     var posting by remember { mutableStateOf(false) }
-    var preparedFile by remember { mutableStateOf<File?>(null) }
+    var prepared by remember { mutableStateOf<PreparedVideo?>(null) }
     var pickedSong by remember { mutableStateOf<CloudSong?>(null) }
     var caption by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
+    var clipStart by remember { mutableLongStateOf(0L) }
+    var clipLen by remember { mutableLongStateOf(StoryAudio.DEFAULT_CLIP_MS) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             preparing = true
             scope.launch {
                 StoryCompressor.compress(context, uri)
-                    .onSuccess { preparedFile = it; step = "video" }
+                    .onSuccess { prepared = it; step = "video" }
                     .onFailure { Toast.makeText(context, it.message ?: "Не удалось подготовить видео", Toast.LENGTH_LONG).show() }
                 preparing = false
             }
@@ -818,7 +1232,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
 
     fun close() {
         if (posting) return
-        preparedFile?.delete()
+        prepared?.file?.delete()
         onDismiss()
     }
 
@@ -826,23 +1240,30 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
         if (posting) return
         scope.launch {
             posting = true
-            val file = preparedFile
+            val video = prepared
             val song = pickedSong
             val result = when {
-                step == "video" && file != null -> CloudStories.postVideo(file, caption)
-                song != null -> CloudStories.postSong(song, caption)
+                step == "video" && video != null -> CloudStories.postVideo(video.file, caption)
+                song != null -> CloudStories.postSong(song, caption, clipStart, clipStart + clipLen)
                 else -> Result.failure(IllegalStateException("Нечего публиковать"))
             }
             posting = false
             result
                 .onSuccess {
-                    file?.delete()
-                    preparedFile = null
+                    video?.file?.delete()
+                    prepared = null
                     Toast.makeText(context, "История опубликована на 24 часа", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
                 .onFailure { Toast.makeText(context, it.message ?: "Не удалось опубликовать", Toast.LENGTH_LONG).show() }
         }
+    }
+
+    val stage = when {
+        preparing -> ComposerStage.PREPARING
+        step == "menu" -> ComposerStage.MENU
+        step == "song" && pickedSong == null -> ComposerStage.SONG_LIST
+        else -> ComposerStage.READY
     }
 
     ModalBottomSheet(onDismissRequest = { close() }) {
@@ -852,134 +1273,372 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
                 .navigationBarsPadding()
+                .animateContentSize()
         ) {
             Text("Новая история", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Живёт 24 часа. Её увидят те, у кого профиль публичный.",
+                "Живёт 24 часа. Её увидят только ваши друзья.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(16.dp))
 
-            when {
-                !isPublic -> {
-                    Text(
-                        "Чтобы выкладывать истории, откройте Профиль и включите «Публичный профиль».",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    TextButton(onClick = { close() }) { Text("Понятно") }
-                }
-                preparing -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Text("Готовим видео…", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-                step == "menu" -> {
-                    FilledTonalButton(
-                        onClick = {
-                            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    ) { Text("🎬  Видео из галереи (до 15 секунд)") }
-                    Spacer(Modifier.height(10.dp))
-                    FilledTonalButton(
-                        onClick = { step = "song" },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp)
-                    ) { Text("🎵  Песня из плейлиста") }
-                }
-                step == "song" && pickedSong == null -> {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Найти песню") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    if (shown.isEmpty()) {
-                        Text(
-                            "Песен пока нет. Добавьте их в плейлист или в любимые.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
-                        items(shown, key = { it.song.id + "|" + it.source }) { c ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .clickable { pickedSong = c.song }
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AsyncImage(
-                                    model = ArtworkUtil.forSong(c.song.id, c.song.artwork),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                )
+            AnimatedContent(
+                targetState = stage,
+                transitionSpec = {
+                    (fadeIn(tween(240)) + slideInVertically(tween(240)) { it / 10 }) togetherWith fadeOut(tween(140))
+                },
+                label = "composerStage"
+            ) { st ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    when (st) {
+                        ComposerStage.PREPARING -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
                                 Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(c.song.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(
-                                        c.song.artist + " · " + c.source,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                Text("Готовим видео…", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        ComposerStage.MENU -> {
+                            OptionCard(
+                                icon = StoryIcons.Video,
+                                title = "Видео из галереи",
+                                subtitle = "До минуты, идёт до конца",
+                                onClick = {
+                                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                                }
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            OptionCard(
+                                icon = StoryIcons.MusicNote,
+                                title = "Песня из плейлиста",
+                                subtitle = "Любимые, плейлисты и онлайн",
+                                onClick = { step = "song" }
+                            )
+                        }
+                        ComposerStage.SONG_LIST -> {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Найти песню") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            if (shown.isEmpty()) {
+                                Text(
+                                    "Песен пока нет. Добавьте их в плейлист или в любимые.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                                items(shown, key = { it.song.id + "|" + it.source }) { c ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable {
+                                                pickedSong = c.song
+                                                clipStart = 0L
+                                                clipLen = minOf(StoryAudio.DEFAULT_CLIP_MS, if (c.song.dur > 0) c.song.dur else 240_000L)
+                                            }
+                                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                StoryIcons.MusicNote, null,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            AsyncImage(
+                                                model = ArtworkUtil.forSong(c.song.id, c.song.artwork),
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(c.song.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Text(
+                                                c.song.artist + " · " + c.source,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
-                else -> {
-                    // готово к публикации: видео или выбранная песня
-                    val file = preparedFile
-                    val song = pickedSong
-                    if (step == "video" && file != null) {
-                        Text(
-                            "Видео готово: " + String.format("%.1f", file.length() / 1_048_576f) + " МБ",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    } else if (song != null) {
-                        Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(song.artist, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = caption,
-                        onValueChange = { caption = it.take(120) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Подпись (необязательно)") },
-                        maxLines = 2,
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = { publish() }, enabled = !posting, shape = RoundedCornerShape(24.dp)) {
-                            if (posting) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                            } else {
-                                Text("Опубликовать")
+                        ComposerStage.READY -> {
+                            val video = prepared
+                            val song = pickedSong
+                            if (step == "video" && video != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(StoryIcons.Video, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        "Видео готово · " + formatDuration(video.durationMs) + " · " +
+                                            String.format("%.1f", video.file.length() / 1_048_576f) + " МБ",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                }
+                                if (video.trimmed) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "Видео длиннее минуты, поэтому выложим первую минуту.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else if (song != null) {
+                                SongClipEditor(
+                                    song = song,
+                                    startMs = clipStart,
+                                    lenMs = clipLen,
+                                    onStartChange = { clipStart = it },
+                                    onLenChange = { clipLen = it }
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = caption,
+                                onValueChange = { caption = it.take(120) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Подпись (необязательно)") },
+                                maxLines = 2,
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { publish() }, enabled = !posting, shape = RoundedCornerShape(24.dp)) {
+                                    if (posting) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    } else {
+                                        Text("Опубликовать")
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(onClick = { close() }, enabled = !posting) { Text("Отмена") }
                             }
                         }
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { close() }, enabled = !posting) { Text("Отмена") }
                     }
                 }
             }
+        }
+    }
+}
+
+
+// ───────────────────────── редактор фрагмента песни ─────────────────────────
+
+/** Полоса с «дорожкой» песни: рамку можно тянуть, тап ставит её в нужное место. Столбики только для вида. */
+@Composable
+private fun ClipTimeline(
+    seed: String,
+    durationMs: Long,
+    startMs: Long,
+    lenMs: Long,
+    onStartChange: (Long) -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    val bars = remember(seed) {
+        var x = (seed.hashCode().toLong() and 0x7fffffffL) + 7L
+        FloatArray(56) {
+            x = (x * 1103515245L + 12345L) and 0x7fffffffL
+            0.25f + (x % 1000L) / 1000f * 0.75f
+        }
+    }
+    val curStart by rememberUpdatedState(startMs)
+    val curLen by rememberUpdatedState(lenMs)
+    val curDur by rememberUpdatedState(durationMs)
+    val onStart by rememberUpdatedState(onStartChange)
+    var widthPx by remember { mutableFloatStateOf(1f) }
+    fun clampStart(v: Long): Long = v.coerceIn(0L, (curDur - curLen).coerceAtLeast(0L))
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(84.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(cs.surfaceVariant.copy(alpha = 0.45f))
+            .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, drag ->
+                    change.consume()
+                    onStart(clampStart(curStart + (drag.x / widthPx * curDur).toLong()))
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { o ->
+                    onStart(clampStart((o.x / widthPx * curDur - curLen / 2f).toLong()))
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 14.dp)) {
+            val n = bars.size
+            val step = size.width / n
+            val bw = step * 0.55f
+            val ws = startMs.toFloat() / durationMs * size.width
+            val we = (startMs + lenMs).toFloat() / durationMs * size.width
+            bars.forEachIndexed { i, h ->
+                val cx = step * (i + 0.5f)
+                val inside = cx in ws..we
+                val bh = size.height * h
+                drawRoundRect(
+                    color = if (inside) cs.primary else cs.onSurfaceVariant.copy(alpha = 0.3f),
+                    topLeft = Offset(cx - bw / 2f, (size.height - bh) / 2f),
+                    size = Size(bw, bh),
+                    cornerRadius = CornerRadius(bw / 2f, bw / 2f)
+                )
+            }
+            val pad = 5.dp.toPx()
+            drawRoundRect(
+                color = cs.primary,
+                topLeft = Offset(ws - pad, -8.dp.toPx()),
+                size = Size(we - ws + 2 * pad, size.height + 16.dp.toPx()),
+                cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SongClipEditor(
+    song: CloudSong,
+    startMs: Long,
+    lenMs: Long,
+    onStartChange: (Long) -> Unit,
+    onLenChange: (Long) -> Unit
+) {
+    val context = LocalContext.current
+    val cs = MaterialTheme.colorScheme
+    val durationMs = if (song.dur > 0) song.dur else 240_000L
+    var previewOn by remember { mutableStateOf(false) }
+    var previewLoading by remember { mutableStateOf(false) }
+
+    val player = remember {
+        ExoPlayer.Builder(context.applicationContext).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                true
+            )
+        }
+    }
+    DisposableEffect(Unit) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) previewOn = false
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                previewOn = false
+                previewLoading = false
+                Toast.makeText(context, "Не удалось проиграть фрагмент", Toast.LENGTH_SHORT).show()
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+    // при перетаскивании рамки фрагмент перезапускается с небольшой задержкой
+    LaunchedEffect(previewOn, startMs, lenMs) {
+        if (!previewOn) {
+            player.pause()
+            previewLoading = false
+            return@LaunchedEffect
+        }
+        previewLoading = true
+        delay(250)
+        val found = StoryAudio.resolve(song)
+        if (found == null) {
+            previewOn = false
+            previewLoading = false
+            Toast.makeText(context, "Не удалось найти песню", Toast.LENGTH_SHORT).show()
+            return@LaunchedEffect
+        }
+        val clip = MediaItem.ClippingConfiguration.Builder()
+            .setStartPositionMs(startMs)
+            .setEndPositionMs(startMs + lenMs)
+            .build()
+        player.setMediaItem(MediaItem.Builder().setUri(found.uri).setClippingConfiguration(clip).build())
+        player.prepare()
+        player.playWhenReady = true
+        previewLoading = false
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(StoryIcons.MusicNote, null, tint = cs.primary, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(song.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(song.artist, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("Выберите фрагмент", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        ClipTimeline(
+            seed = song.id,
+            durationMs = durationMs,
+            startMs = startMs,
+            lenMs = lenMs,
+            onStartChange = onStartChange
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                formatDuration(startMs) + " – " + formatDuration(startMs + lenMs),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            listOf(10_000L, 15_000L, 30_000L).forEach { l ->
+                FilterChip(
+                    selected = lenMs == l,
+                    onClick = {
+                        onLenChange(l)
+                        onStartChange(startMs.coerceAtMost((durationMs - l).coerceAtLeast(0L)))
+                    },
+                    label = { Text((l / 1000).toString() + " с") },
+                    enabled = l <= durationMs,
+                    modifier = Modifier.padding(start = 6.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        FilledTonalButton(onClick = { previewOn = !previewOn }, shape = RoundedCornerShape(20.dp)) {
+            if (previewLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(if (previewOn) StoryIcons.Pause else StoryIcons.Play, null, Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(if (previewOn) "Остановить" else "Послушать фрагмент")
         }
     }
 }

@@ -10,7 +10,10 @@ data class Story(
     val song: CloudSong?,
     val caption: String,
     val createdAtMs: Long,
-    val expiresAtMs: Long
+    val expiresAtMs: Long,
+    /** Выбранный фрагмент песни в миллисекундах от начала трека. */
+    val clipStartMs: Long = 0L,
+    val clipEndMs: Long = 0L
 ) {
     val isVideo: Boolean get() = videoUrl != null
 }

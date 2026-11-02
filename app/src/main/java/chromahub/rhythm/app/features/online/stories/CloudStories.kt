@@ -107,6 +107,14 @@ object CloudStories {
             )
         } else null
         if (video == null && song == null) return null
+        var clipStart = 0L
+        var clipEnd = 0L
+        if (song != null) {
+            val t = o.getJSONObject("track")
+            clipStart = t.optLong("start", 0L).coerceAtLeast(0L)
+            clipEnd = t.optLong("end", 0L)
+            if (clipEnd <= clipStart) clipEnd = clipStart + StoryAudio.DEFAULT_CLIP_MS
+        }
         return Story(
             id = o.getString("id"),
             ownerId = o.getString("owner_id"),
@@ -114,7 +122,9 @@ object CloudStories {
             song = song,
             caption = if (o.isNull("caption")) "" else o.getString("caption"),
             createdAtMs = parseTime(o.optString("created_at")),
-            expiresAtMs = parseTime(o.optString("expires_at"))
+            expiresAtMs = parseTime(o.optString("expires_at")),
+            clipStartMs = clipStart,
+            clipEndMs = clipEnd
         )
     }
 
@@ -198,7 +208,7 @@ object CloudStories {
 
     private fun insertError(code: Int, body: String): String = when {
         code == 401 || code == 403 || body.contains("row-level security", ignoreCase = true) ->
-            "Не удалось опубликовать. Включите «Публичный профиль» в профиле. Одновременно можно держать до $MAX_ACTIVE историй"
+            "Не удалось опубликовать. Одновременно можно держать до $MAX_ACTIVE историй, подождите, пока старые закончатся или удалите одну"
         else -> "Ошибка публикации ($code)"
     }
 
@@ -247,7 +257,7 @@ object CloudStories {
         }.also { if (it.isSuccess) refresh() }
     }
 
-    suspend fun postSong(song: CloudSong, caption: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun postSong(song: CloudSong, caption: String, clipStartMs: Long, clipEndMs: Long): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val (token, uid) = CloudProfiles.session()
             val row = JSONObject()
@@ -261,6 +271,8 @@ object CloudStories {
                         .put("artist", song.artist)
                         .put("artwork", song.artwork ?: JSONObject.NULL)
                         .put("dur", song.dur)
+                        .put("start", clipStartMs)
+                        .put("end", clipEndMs)
                 )
                 .put("caption", captionValue(caption))
             val (id, exp) = insertRow(token, row)

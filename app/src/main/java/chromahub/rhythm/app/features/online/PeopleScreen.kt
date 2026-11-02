@@ -196,10 +196,18 @@ fun PeopleScreen(
             }
             item {
                 if (current.id != myId) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(
+                            10.dp,
+                            Alignment.CenterHorizontally
+                        ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         androidx.compose.material3.Button(onClick = {
                             chatPeer = ChatPeer(current.id, current.username, current.avatarB64)
                         }) { Text("Написать") }
+                        chromahub.rhythm.app.features.online.stories.FriendButton(personId = current.id)
                     }
                 }
             }

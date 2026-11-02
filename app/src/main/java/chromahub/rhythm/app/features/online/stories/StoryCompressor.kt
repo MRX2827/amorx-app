@@ -23,15 +23,24 @@ import java.io.File
 import java.io.IOException
 import kotlin.coroutines.resume
 
+/** Готовое к публикации видео. [trimmed] = true, если оно длиннее лимита и выложены только первые [StoryCompressor.MAX_MS]. */
+data class PreparedVideo(val file: File, val durationMs: Long, val trimmed: Boolean)
+
 /**
- * Готовит видео для истории прямо на телефоне: первые 15 секунд, короткая сторона не больше 720,
- * H.264 ~2 Мбит/с. Получается около 4 МБ, чтобы не расходовать бесплатный трафик облака.
+ * Готовит видео для истории прямо на телефоне.
+ *
+ * Видео идёт до конца, если оно не длиннее минуты. Чтобы файл оставался небольшим (около 8 МБ),
+ * качество подбирается по длине: короткое видео получает больше битрейта, длинное меньше.
+ * Только видео длиннее минуты обрезается, и человеку об этом сообщается заранее.
  */
 @OptIn(UnstableApi::class)
 object StoryCompressor {
-    const val MAX_MS = 15_000L
-    private const val SHORT_SIDE = 720
-    private const val BITRATE = 2_000_000
+    const val MAX_MS = 60_000L
+
+    private const val TARGET_BYTES = 8_000_000L
+    private const val AUDIO_BPS = 128_000L
+    private const val MIN_VIDEO_BPS = 700_000L
+    private const val MAX_VIDEO_BPS = 2_500_000L
 
     private data class Info(val w: Int, val h: Int, val durationMs: Long)
 
@@ -49,28 +58,47 @@ object StoryCompressor {
         }
     }
 
-    suspend fun compress(context: Context, input: Uri): Result<File> {
+    /** Битрейт видео под целевой размер файла для данной длины. */
+    private fun videoBitrate(usedMs: Long): Int {
+        val sec = (usedMs.coerceAtLeast(1_000L) / 1000.0)
+        val total = (TARGET_BYTES * 8L / sec).toLong()
+        return (total - AUDIO_BPS).coerceIn(MIN_VIDEO_BPS, MAX_VIDEO_BPS).toInt()
+    }
+
+    suspend fun compress(context: Context, input: Uri): Result<PreparedVideo> {
         val info = withContext(Dispatchers.IO) { runCatching { probe(context, input) } }
             .getOrElse { return Result.failure(IOException("Не удалось прочитать видео")) }
         if (info.w <= 0 || info.h <= 0) return Result.failure(IOException("Это не видео или формат не поддерживается"))
 
-        val scale = minOf(1f, SHORT_SIDE.toFloat() / minOf(info.w, info.h))
+        val trimmed = info.durationMs > MAX_MS
+        val usedMs = when {
+            info.durationMs <= 0L -> MAX_MS // длина неизвестна: считаем с запасом
+            trimmed -> MAX_MS
+            else -> info.durationMs
+        }
+        val bitrate = videoBitrate(usedMs)
+        val shortSide = if (bitrate < 1_300_000) 540 else 720
+        val scale = minOf(1f, shortSide.toFloat() / minOf(info.w, info.h))
         val targetHeight = (info.h * scale).toInt().let { it - it % 2 }.coerceAtLeast(2)
         val out = File(context.cacheDir, "story_${System.currentTimeMillis()}.mp4")
 
-        return withContext(Dispatchers.Main) {
-            suspendCancellableCoroutine { cont ->
-                val clip = MediaItem.ClippingConfiguration.Builder()
-                    .setStartPositionMs(0)
-                    .setEndPositionMs(MAX_MS)
-                    .build()
-                val item = MediaItem.Builder().setUri(input).setClippingConfiguration(clip).build()
+        val result = withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine<Result<File>> { cont ->
+                val itemBuilder = MediaItem.Builder().setUri(input)
+                if (trimmed) {
+                    itemBuilder.setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(0)
+                            .setEndPositionMs(MAX_MS)
+                            .build()
+                    )
+                }
                 val videoEffects = if (scale < 1f) listOf(Presentation.createForHeight(targetHeight)) else emptyList()
-                val edited = EditedMediaItem.Builder(item)
+                val edited = EditedMediaItem.Builder(itemBuilder.build())
                     .setEffects(Effects(emptyList(), videoEffects))
                     .build()
                 val encoder = DefaultEncoderFactory.Builder(context.applicationContext)
-                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(BITRATE).build())
+                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
                     .build()
                 val transformer = Transformer.Builder(context.applicationContext)
                     .setVideoMimeType(MimeTypes.VIDEO_H264)
@@ -87,7 +115,9 @@ object StoryCompressor {
                             exportException: ExportException
                         ) {
                             out.delete()
-                            if (cont.isActive) cont.resume(Result.failure(IOException("Не удалось подготовить видео", exportException)))
+                            if (cont.isActive) {
+                                cont.resume(Result.failure(IOException("Не удалось подготовить видео", exportException)))
+                            }
                         }
                     })
                     .build()
@@ -98,5 +128,6 @@ object StoryCompressor {
                 transformer.start(edited, out.absolutePath)
             }
         }
+        return result.map { PreparedVideo(it, usedMs, trimmed) }
     }
 }
