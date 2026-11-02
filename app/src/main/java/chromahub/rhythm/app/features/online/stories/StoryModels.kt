@@ -26,3 +26,13 @@ data class StoryGroup(
     val isMine: Boolean,
     val stories: List<Story>
 )
+
+/** Человек в списке «кто посмотрел» или «кто лайкнул». */
+data class StoryPerson(val id: String, val name: String, val avatarB64: String?, val atMs: Long)
+
+/** Реакции на историю. Списки заполняются только для автора. */
+data class StoryStats(
+    val views: List<StoryPerson> = emptyList(),
+    val likes: List<StoryPerson> = emptyList(),
+    val likedByMe: Boolean = false
+)

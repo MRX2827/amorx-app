@@ -505,6 +505,8 @@ private fun StoryViewer(
     var pressPaused by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var songBusy by remember { mutableStateOf(false) }
+    var statsOpen by remember { mutableStateOf(false) }
+    var stats by remember(story.id) { mutableStateOf(StoryStats()) }
     var dragY by remember { mutableFloatStateOf(0f) }
     var closing by remember { mutableStateOf(false) }
     var audio by remember(story.id) { mutableStateOf(if (story.isVideo) StoryAudioState.NONE else StoryAudioState.LOADING) }
@@ -535,7 +537,7 @@ private fun StoryViewer(
     }
     val onNext by rememberUpdatedState({ goNext() })
     val onPrev by rememberUpdatedState({ goPrev() })
-    val pausedNow by rememberUpdatedState(pressPaused || menuOpen || songBusy)
+    val pausedNow by rememberUpdatedState(pressPaused || menuOpen || songBusy || statsOpen)
 
     val player = remember {
         ExoPlayer.Builder(context.applicationContext).build().apply {
@@ -550,6 +552,16 @@ private fun StoryViewer(
         }
     }
     DisposableEffect(Unit) { onDispose { player.release() } }
+
+    // реакции: у автора списки, у зрителя свой лайк; просмотр засчитывается после секунды
+    LaunchedEffect(story.id) {
+        val mineNow = group.isMine
+        CloudStories.loadStats(story, mineNow).onSuccess { stats = it }
+        if (!mineNow) {
+            delay(1000)
+            CloudStories.recordView(story)
+        }
+    }
 
     LaunchedEffect(story.id) {
         CloudStories.markSeen(story.id)
@@ -586,8 +598,8 @@ private fun StoryViewer(
             }
         }
     }
-    LaunchedEffect(pressPaused, menuOpen, audio) {
-        if (story.isVideo || audio == StoryAudioState.READY) player.playWhenReady = !(pressPaused || menuOpen)
+    LaunchedEffect(pressPaused, menuOpen, statsOpen, audio) {
+        if (story.isVideo || audio == StoryAudioState.READY) player.playWhenReady = !(pressPaused || menuOpen || statsOpen)
     }
     // видео и фрагмент песни идут по позиции плеера, поэтому видео доходит до конца.
     // Если звук песни не нашёлся или передан в основной плеер, историю ведёт обычный таймер
@@ -780,6 +792,25 @@ private fun StoryViewer(
                         )
                         Text(timeAgo(story.createdAtMs), color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
                     }
+                    if (group.isMine) {
+                        ReactionPill(StoryIcons.Eye, stats.views.size, Color.White) { statsOpen = true }
+                        Spacer(Modifier.width(6.dp))
+                        ReactionPill(StoryIcons.Heart, stats.likes.size, Color(0xFFFF4D6D)) { statsOpen = true }
+                        Spacer(Modifier.width(2.dp))
+                    } else {
+                        LikeButton(stats.likedByMe) {
+                            val st = story
+                            val now = !stats.likedByMe
+                            stats = stats.copy(likedByMe = now)
+                            scope.launch {
+                                CloudStories.setLike(st, now).onFailure {
+                                    if (st.id == story.id) stats = stats.copy(likedByMe = !now)
+                                    Toast.makeText(context, it.message ?: "Не удалось сохранить лайк", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        Spacer(Modifier.width(2.dp))
+                    }
                     Box {
                         Icon(
                             StoryIcons.More,
@@ -842,7 +873,106 @@ private fun StoryViewer(
                     )
                 }
             }
+
+            if (statsOpen && group.isMine) {
+                StoryStatsSheet(
+                    story = story,
+                    initial = stats,
+                    onLoaded = { stats = it },
+                    onDismiss = { statsOpen = false }
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun ReactionPill(icon: ImageVector, count: Int, tint: Color, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.28f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 5.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint.copy(alpha = 0.9f), modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(count.toString(), color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(liked) {
+        if (liked) {
+            scale.snapTo(0.65f)
+            scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium))
+        }
+    }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.28f))
+            .clickable(onClick = onClick)
+    ) {
+        Icon(
+            StoryIcons.Heart,
+            contentDescription = if (liked) "Убрать лайк" else "Лайк",
+            tint = if (liked) Color(0xFFFF4D6D) else Color.White.copy(alpha = 0.85f),
+            modifier = Modifier
+                .size(18.dp)
+                .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StoryStatsSheet(
+    story: Story,
+    initial: StoryStats,
+    onLoaded: (StoryStats) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var stats by remember { mutableStateOf(initial) }
+    var tab by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(story.id) {
+        CloudStories.loadStats(story, true).onSuccess { stats = it; onLoaded(it) }
+        loading = false
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        androidx.compose.material3.TabRow(selectedTabIndex = tab, containerColor = Color.Transparent) {
+            androidx.compose.material3.Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Просмотры " + stats.views.size) })
+            androidx.compose.material3.Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Лайки " + stats.likes.size) })
+        }
+        val list = if (tab == 0) stats.views else stats.likes
+        if (list.isEmpty()) {
+            Text(
+                if (loading) "Загрузка…" else if (tab == 0) "Пока никто не смотрел" else "Пока нет лайков",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(32.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                items(list, key = { it.id }) { p ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        StoryAvatar(p.avatarB64, null, p.name, 40.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(p.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(timeAgo(p.atMs), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -1037,15 +1167,19 @@ private fun SongStoryForeground(
                 }
                 .shadow(24.dp, RoundedCornerShape(36.dp))
                 .clip(RoundedCornerShape(36.dp))
-                .background(cs.primaryContainer),
+                .then(if (cover == null) Modifier.background(cs.primaryContainer) else Modifier),
             contentAlignment = Alignment.Center
         ) {
             if (cover != null) {
+                // фон под обложкой убран, а сама картинка чуть больше рамки: при дробном масштабе
+                // по краям больше не просвечивают светлые полоски
                 AsyncImage(
                     model = cover,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { scaleX = 1.03f; scaleY = 1.03f }
                 )
             } else {
                 Icon(StoryIcons.MusicNote, null, tint = cs.onPrimaryContainer, modifier = Modifier.size(72.dp))

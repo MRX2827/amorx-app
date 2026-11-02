@@ -290,6 +290,104 @@ object CloudStories {
         }.also { if (it.isSuccess) refresh() }
     }
 
+    // ----- просмотры и лайки -----
+
+    private val viewSent = HashSet<String>()
+
+    /** Засчитывает просмотр чужой истории. Повторные и ошибки сети никому не мешают. */
+    suspend fun recordView(story: Story): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!viewSent.add(story.id)) return@runCatching
+            val (token, uid) = CloudProfiles.session()
+            val body = JSONObject().put("story_id", story.id).put("viewer_id", uid)
+            val req = rest(token, "story_views?on_conflict=story_id,viewer_id")
+                .header("Prefer", "resolution=ignore-duplicates,return=minimal")
+                .post(body.toString().toRequestBody(CloudProfiles.JSON_TYPE))
+                .build()
+            val (code, _) = CloudProfiles.exec(req)
+            if (code !in 200..299 && code != 409) {
+                viewSent.remove(story.id)
+                throw IOException("view $code")
+            }
+        }
+    }
+
+    suspend fun setLike(story: Story, liked: Boolean): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val (token, uid) = CloudProfiles.session()
+            val req = if (liked) {
+                val body = JSONObject().put("story_id", story.id).put("user_id", uid)
+                rest(token, "story_likes?on_conflict=story_id,user_id")
+                    .header("Prefer", "resolution=ignore-duplicates,return=minimal")
+                    .post(body.toString().toRequestBody(CloudProfiles.JSON_TYPE))
+                    .build()
+            } else {
+                rest(token, "story_likes?story_id=eq.${story.id}&user_id=eq.$uid").delete().build()
+            }
+            val (code, _) = CloudProfiles.exec(req)
+            if (code !in 200..299 && code != 409) throw IOException("Не удалось сохранить лайк ($code)")
+        }
+    }
+
+    private fun readPeople(
+        token: String,
+        rows: JSONArray,
+        idKey: String,
+        timeKey: String
+    ): List<StoryPerson> {
+        val ids = (0 until rows.length()).map { rows.getJSONObject(it).getString(idKey) }.distinct()
+        val people = HashMap<String, Pair<String, String?>>()
+        if (ids.isNotEmpty()) {
+            val (pc, pb) = CloudProfiles.exec(
+                rest(token, "profiles?select=id,username,avatar_b64&id=in.(" + ids.joinToString(",") + ")").get().build()
+            )
+            if (pc in 200..299) {
+                val pa = JSONArray(pb)
+                for (i in 0 until pa.length()) {
+                    val o = pa.getJSONObject(i)
+                    people[o.getString("id")] = o.optString("username") to
+                        (if (o.isNull("avatar_b64")) null else o.getString("avatar_b64").takeIf { it.isNotBlank() })
+                }
+            }
+        }
+        return (0 until rows.length()).map { i ->
+            val o = rows.getJSONObject(i)
+            val id = o.getString(idKey)
+            val p = people[id]
+            StoryPerson(
+                id = id,
+                name = p?.first?.takeIf { it.isNotBlank() } ?: "Без имени",
+                avatarB64 = p?.second,
+                atMs = parseTime(o.optString(timeKey))
+            )
+        }
+    }
+
+    /** Свой лайк (для чужой истории) или полные списки просмотров и лайков (для своей). */
+    suspend fun loadStats(story: Story, mine: Boolean): Result<StoryStats> = withContext(Dispatchers.IO) {
+        runCatching {
+            val (token, uid) = CloudProfiles.session()
+            if (!mine) {
+                val (c, b) = CloudProfiles.exec(
+                    rest(token, "story_likes?select=user_id&story_id=eq.${story.id}&user_id=eq.$uid&limit=1").get().build()
+                )
+                StoryStats(likedByMe = c in 200..299 && JSONArray(b).length() > 0)
+            } else {
+                val (vc, vb) = CloudProfiles.exec(
+                    rest(token, "story_views?select=viewer_id,viewed_at&story_id=eq.${story.id}&order=viewed_at.desc&limit=500").get().build()
+                )
+                val (lc, lb) = CloudProfiles.exec(
+                    rest(token, "story_likes?select=user_id,created_at&story_id=eq.${story.id}&order=created_at.desc&limit=500").get().build()
+                )
+                if (vc !in 200..299 && lc !in 200..299) throw IOException("Не удалось загрузить ($vc)")
+                StoryStats(
+                    views = if (vc in 200..299) readPeople(token, JSONArray(vb), "viewer_id", "viewed_at") else emptyList(),
+                    likes = if (lc in 200..299) readPeople(token, JSONArray(lb), "user_id", "created_at") else emptyList()
+                )
+            }
+        }
+    }
+
     suspend fun report(story: Story): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val (token, uid) = CloudProfiles.session()
