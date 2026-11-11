@@ -80,6 +80,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,7 +90,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -130,23 +132,21 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.features.online.ArtworkUtil
-import chromahub.rhythm.app.features.online.CloudProfiles
 import chromahub.rhythm.app.features.online.CloudSong
 import chromahub.rhythm.app.features.online.PlaylistStore
 import chromahub.rhythm.app.features.online.ProfileSongs
 import chromahub.rhythm.app.features.online.ProfileStore
-import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.shared.presentation.components.common.SplashBackgroundOrbs
 import chromahub.rhythm.app.shared.presentation.components.common.buildSplashBackdropShapes
+import chromahub.rhythm.app.shared.data.model.Song
 import coil.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
@@ -179,6 +179,7 @@ private fun rememberPressScale(source: MutableInteractionSource, pressed: Float 
 
 // ───────────────────────── ряд историй на «Главной» ─────────────────────────
 
+@OptIn(UnstableApi::class)
 @Composable
 fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -200,13 +201,32 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
     var composer by remember { mutableStateOf(false) }
     var friendsOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        CloudFriends.refresh()
-        CloudStories.refresh()
+    // пока приложение открыто, лента обновляется сама каждые 3 секунды, чтобы новые истории
+    // появлялись у людей сразу; в фоне опрос останавливается
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            CloudFriends.refresh()
+            while (true) {
+                CloudStories.refresh()
+                delay(3_000L)
+            }
+        }
     }
-    // пока человек смотрит ленту, заранее находим звук для историй-песен
-    LaunchedEffect(feed) {
-        StoryAudio.prefetch(feed.flatMap { it.stories }.filter { !it.isVideo })
+    val audioPreloader = remember(context) { StoryAudioPreloader(context.applicationContext) }
+    DisposableEffect(audioPreloader) { onDispose { audioPreloader.release() } }
+    val firstSongs = remember(feed, seen) {
+        feed.mapNotNull { group ->
+            val songs = group.stories.filter { !it.isVideo && it.song != null }
+            songs.firstOrNull { it.id !in seen } ?: songs.firstOrNull()
+        }.take(6)
+    }
+    LaunchedEffect(audioPreloader, lifecycleOwner, firstSongs, viewerIndex, composer) {
+        if (viewerIndex == null && !composer) {
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                audioPreloader.preload(firstSongs)
+            }
+        }
     }
 
     val mine = feed.firstOrNull { it.isMine }
@@ -265,6 +285,7 @@ fun StoriesRow(musicViewModel: MusicViewModel, modifier: Modifier = Modifier) {
         StoryViewer(
             groups = snapshot,
             startGroup = vi,
+            audioPreloader = audioPreloader,
             musicViewModel = musicViewModel,
             onClose = { viewerIndex = null }
         )
@@ -483,6 +504,7 @@ internal enum class StoryAudioState { NONE, LOADING, READY, FAILED, HANDOFF }
 private fun StoryViewer(
     groups: List<StoryGroup>,
     startGroup: Int,
+    audioPreloader: StoryAudioPreloader,
     musicViewModel: MusicViewModel,
     onClose: () -> Unit
 ) {
@@ -539,8 +561,9 @@ private fun StoryViewer(
     val onPrev by rememberUpdatedState({ goPrev() })
     val pausedNow by rememberUpdatedState(pressPaused || menuOpen || songBusy || statsOpen)
 
-    val player = remember {
-        ExoPlayer.Builder(context.applicationContext).build().apply {
+    val videoSources = remember(context) { DefaultMediaSourceFactory(context.applicationContext) }
+    val player = remember(audioPreloader) {
+        audioPreloader.buildPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -551,7 +574,15 @@ private fun StoryViewer(
             repeatMode = Player.REPEAT_MODE_OFF
         }
     }
-    DisposableEffect(Unit) { onDispose { player.release() } }
+    DisposableEffect(player) { onDispose { player.release() } }
+
+    val orderedStories = remember(groups) { groups.flatMap { it.stories } }
+    LaunchedEffect(audioPreloader, story.id) {
+        val position = orderedStories.indexOf(story)
+        val upcoming = orderedStories.drop(position + 1).asSequence()
+            .filter { !it.isVideo && it.song != null }.take(4).toList()
+        audioPreloader.preload(listOf(story) + upcoming + listOfNotNull(orderedStories.getOrNull(position - 1)))
+    }
 
     // реакции: у автора списки, у зрителя свой лайк; просмотр засчитывается после секунды
     LaunchedEffect(story.id) {
@@ -570,26 +601,23 @@ private fun StoryViewer(
         val song = story.song
         when {
             url != null -> {
-                player.setMediaItem(MediaItem.fromUri(url))
+                player.setMediaSource(videoSources.createMediaSource(MediaItem.fromUri(url)))
                 player.prepare()
                 player.playWhenReady = !pausedNow
             }
             song != null -> {
-                // фрагмент песни играет прямо в истории: ссылка уже найдена заранее
-                player.stop()
+                player.pause()
                 player.clearMediaItems()
-                val found = withTimeoutOrNull(9000L) { StoryAudio.resolve(song) }
+                val found = withTimeoutOrNull(StoryAudio.LOAD_TIMEOUT_MS) {
+                    StoryAudio.resolve(context, song)
+                }
+                if (audio == StoryAudioState.HANDOFF) return@LaunchedEffect
                 if (found == null) {
                     audio = StoryAudioState.FAILED
                 } else {
-                    val clip = MediaItem.ClippingConfiguration.Builder()
-                        .setStartPositionMs(story.clipStartMs)
-                        .setEndPositionMs(story.clipEndMs)
-                        .build()
-                    player.setMediaItem(MediaItem.Builder().setUri(found.uri).setClippingConfiguration(clip).build())
+                    audioPreloader.setClip(player, story, found)
                     player.prepare()
                     player.playWhenReady = !pausedNow
-                    audio = StoryAudioState.READY
                 }
             }
             else -> {
@@ -598,8 +626,10 @@ private fun StoryViewer(
             }
         }
     }
-    LaunchedEffect(pressPaused, menuOpen, statsOpen, audio) {
-        if (story.isVideo || audio == StoryAudioState.READY) player.playWhenReady = !(pressPaused || menuOpen || statsOpen)
+    LaunchedEffect(pausedNow) {
+        if (story.isVideo || player.currentMediaItem?.mediaId == story.id && audio != StoryAudioState.HANDOFF) {
+            player.playWhenReady = !pausedNow
+        }
     }
     // видео и фрагмент песни идут по позиции плеера, поэтому видео доходит до конца.
     // Если звук песни не нашёлся или передан в основной плеер, историю ведёт обычный таймер
@@ -611,7 +641,9 @@ private fun StoryViewer(
             val dt = now - last
             last = now
             if (pausedNow) continue
-            val followPlayer = story.isVideo || audio == StoryAudioState.READY
+            val clipInstalled = player.currentMediaItem?.mediaId == story.id
+            val followPlayer = story.isVideo ||
+                clipInstalled && (audio == StoryAudioState.LOADING || audio == StoryAudioState.READY)
             when {
                 followPlayer -> {
                     if (player.playerError != null) {
@@ -620,8 +652,12 @@ private fun StoryViewer(
                         audio = StoryAudioState.FAILED
                         continue
                     }
+                    val state = player.playbackState
+                    if (state == Player.STATE_READY && audio == StoryAudioState.LOADING) {
+                        audio = StoryAudioState.READY
+                    }
                     val d = player.duration
-                    if (player.playbackState == Player.STATE_ENDED) progress = 1f
+                    if (state == Player.STATE_ENDED) progress = 1f
                     else if (d > 0 && d != C.TIME_UNSET) progress = (player.currentPosition.toFloat() / d).coerceIn(0f, 1f)
                 }
                 audio == StoryAudioState.LOADING -> Unit // ждём звук, полоска стоит
@@ -1049,12 +1085,6 @@ private fun SongBackdrop(story: Story) {
     }
 }
 
-private sealed interface SongResolve {
-    data object Loading : SongResolve
-    data object Failed : SongResolve
-    data class Ready(val song: Song) : SongResolve
-}
-
 @Composable
 private fun EqualizerBars(active: Boolean, color: Color, modifier: Modifier = Modifier) {
     val t = rememberInfiniteTransition(label = "storyEq")
@@ -1099,31 +1129,27 @@ private fun SongStoryForeground(
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
 
-    // Песня уже найдена заранее (кэш), поэтому «Слушать» срабатывает сразу
-    val resolve by produceState<SongResolve>(SongResolve.Loading, story.id) {
-        value = StoryAudio.resolve(song)?.let { SongResolve.Ready(it) } ?: SongResolve.Failed
-    }
     var wantPlay by remember(story.id) { mutableStateOf(false) }
     var started by remember(story.id) { mutableStateOf(false) }
 
-    // пока трек грузится после нажатия, таймер истории стоит
-    DisposableEffect(story.id) { onDispose { onBusy(false) } }
-    LaunchedEffect(resolve, wantPlay) {
+    LaunchedEffect(story.id, wantPlay) {
         if (!wantPlay || started) return@LaunchedEffect
-        when (val r = resolve) {
-            is SongResolve.Ready -> {
-                onBusy(false)
+        onBusy(true)
+        try {
+            val found = withTimeoutOrNull(StoryAudio.LOAD_TIMEOUT_MS) {
+                StoryAudio.resolve(context, song)
+            }
+            if (found != null) {
                 started = true
                 onHandoff()
-                musicViewModel.playSong(r.song)
+                musicViewModel.playSong(found)
                 Toast.makeText(context, "Играет: " + song.title, Toast.LENGTH_SHORT).show()
-            }
-            SongResolve.Failed -> {
-                onBusy(false)
-                wantPlay = false
+            } else {
                 Toast.makeText(context, "Не удалось найти песню", Toast.LENGTH_SHORT).show()
             }
-            SongResolve.Loading -> onBusy(true)
+        } finally {
+            wantPlay = false
+            onBusy(false)
         }
     }
 
@@ -1254,7 +1280,7 @@ private fun SongStoryForeground(
                     Spacer(Modifier.width(8.dp))
                     Text("Играет")
                 }
-                wantPlay && resolve is SongResolve.Loading -> {
+                wantPlay -> {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = cs.onPrimary)
                     Spacer(Modifier.width(10.dp))
                     Text("Загружаем…")
@@ -1317,7 +1343,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
     var preparing by remember { mutableStateOf(false) }
     var posting by remember { mutableStateOf(false) }
     var prepared by remember { mutableStateOf<PreparedVideo?>(null) }
-    var pickedSong by remember { mutableStateOf<CloudSong?>(null) }
+    var pickedSong by remember { mutableStateOf<SongChoice?>(null) }
     var caption by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var clipStart by remember { mutableLongStateOf(0L) }
@@ -1338,7 +1364,9 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
     val choices = remember(favs, plTracks, playlists) {
         val out = ArrayList<SongChoice>()
         favs.forEach { out.add(SongChoice(it, "Любимые песни")) }
-        plTracks.forEach { out.add(SongChoice(CloudSong(it.id, it.title, it.artist, it.art, it.durMs), "Мой плейлист")) }
+        plTracks.forEach {
+            out.add(SongChoice(CloudSong("online_" + it.id, it.title, it.artist, it.art, it.durMs), "Мой плейлист"))
+        }
         playlists.forEach { pl ->
             pl.songs.forEach { s ->
                 out.add(
@@ -1375,7 +1403,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
         scope.launch {
             posting = true
             val video = prepared
-            val song = pickedSong
+            val song = pickedSong?.song
             val result = when {
                 step == "video" && video != null -> CloudStories.postVideo(video.file, caption)
                 song != null -> CloudStories.postSong(song, caption, clipStart, clipStart + clipLen)
@@ -1475,7 +1503,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(14.dp))
                                             .clickable {
-                                                pickedSong = c.song
+                                                pickedSong = c
                                                 clipStart = 0L
                                                 clipLen = minOf(StoryAudio.DEFAULT_CLIP_MS, if (c.song.dur > 0) c.song.dur else 240_000L)
                                             }
@@ -1518,7 +1546,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
                         }
                         ComposerStage.READY -> {
                             val video = prepared
-                            val song = pickedSong
+                            val choice = pickedSong
                             if (step == "video" && video != null) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(StoryIcons.Video, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -1537,9 +1565,9 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            } else if (song != null) {
+                            } else if (choice != null) {
                                 SongClipEditor(
-                                    song = song,
+                                    song = choice.song,
                                     startMs = clipStart,
                                     lenMs = clipLen,
                                     onStartChange = { clipStart = it },
@@ -1654,7 +1682,7 @@ private fun ClipTimeline(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
 @Composable
 private fun SongClipEditor(
     song: CloudSong,
@@ -1666,30 +1694,45 @@ private fun SongClipEditor(
     val context = LocalContext.current
     val cs = MaterialTheme.colorScheme
     val durationMs = if (song.dur > 0) song.dur else 240_000L
-    var previewOn by remember { mutableStateOf(false) }
-    var previewLoading by remember { mutableStateOf(false) }
-
-    val player = remember {
-        ExoPlayer.Builder(context.applicationContext).build().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                true
-            )
-        }
+    var previewOn by remember(song) { mutableStateOf(false) }
+    var resolved by remember(song) { mutableStateOf<Song?>(null) }
+    var resolveFailed by remember(song) { mutableStateOf(false) }
+    var attempt by remember(song) { mutableIntStateOf(0) }
+    var playerState by remember(song) { mutableIntStateOf(Player.STATE_IDLE) }
+    var playerItem by remember(song) { mutableStateOf<MediaItem?>(null) }
+    val clip = remember(resolved, startMs, lenMs) {
+        resolved?.let { StoryAudio.clip(it, song.id, startMs, startMs + lenMs) }
     }
-    DisposableEffect(Unit) {
+    val previewLoading = previewOn && (clip == null || clip != playerItem || playerState != Player.STATE_READY)
+
+    val player = remember(context, song) {
+        val appContext = context.applicationContext
+        val mediaSources = DefaultMediaSourceFactory(appContext)
+            .setDataSourceFactory(StoryAudio.dataSourceFactory(appContext))
+        ExoPlayer.Builder(appContext)
+            .setMediaSourceFactory(mediaSources)
+            .setLoadControl(StoryAudio.loadControl())
+            .build().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(),
+                    true
+                )
+            }
+    }
+    DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED) previewOn = false
+            override fun onEvents(player: Player, events: Player.Events) {
+                playerState = player.playbackState
+                playerItem = player.currentMediaItem
+                if (playerState == Player.STATE_ENDED) previewOn = false
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                if (previewOn) Toast.makeText(context, "Не удалось проиграть фрагмент", Toast.LENGTH_SHORT).show()
                 previewOn = false
-                previewLoading = false
-                Toast.makeText(context, "Не удалось проиграть фрагмент", Toast.LENGTH_SHORT).show()
             }
         }
         player.addListener(listener)
@@ -1698,30 +1741,35 @@ private fun SongClipEditor(
             player.release()
         }
     }
-    // при перетаскивании рамки фрагмент перезапускается с небольшой задержкой
-    LaunchedEffect(previewOn, startMs, lenMs) {
-        if (!previewOn) {
-            player.pause()
-            previewLoading = false
-            return@LaunchedEffect
-        }
-        previewLoading = true
-        delay(250)
-        val found = StoryAudio.resolve(song)
-        if (found == null) {
+
+    LaunchedEffect(song, attempt) {
+        val found = withTimeoutOrNull(StoryAudio.LOAD_TIMEOUT_MS) { StoryAudio.resolve(context, song) }
+        resolved = found
+        resolveFailed = found == null
+        if (resolveFailed && previewOn) {
             previewOn = false
-            previewLoading = false
             Toast.makeText(context, "Не удалось найти песню", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun preparePreview(item: MediaItem) {
+        if (player.currentMediaItem != item) player.setMediaItem(item)
+        player.prepare()
+        player.playWhenReady = previewOn
+    }
+
+    LaunchedEffect(player, clip) {
+        if (clip == null) return@LaunchedEffect
+        if (player.currentMediaItem == clip) {
+            player.playWhenReady = previewOn
             return@LaunchedEffect
         }
-        val clip = MediaItem.ClippingConfiguration.Builder()
-            .setStartPositionMs(startMs)
-            .setEndPositionMs(startMs + lenMs)
-            .build()
-        player.setMediaItem(MediaItem.Builder().setUri(found.uri).setClippingConfiguration(clip).build())
-        player.prepare()
-        player.playWhenReady = true
-        previewLoading = false
+        if (player.currentMediaItem != null) {
+            player.pause()
+            delay(150L)
+        }
+        // Нажатие на кнопку могло уже подготовить этот фрагмент во время задержки.
+        if (player.currentMediaItem != clip) preparePreview(clip)
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1765,7 +1813,25 @@ private fun SongClipEditor(
             }
         }
         Spacer(Modifier.height(8.dp))
-        FilledTonalButton(onClick = { previewOn = !previewOn }, shape = RoundedCornerShape(20.dp)) {
+        FilledTonalButton(
+            onClick = {
+                previewOn = !previewOn
+                if (previewOn) {
+                    if (resolveFailed) {
+                        resolveFailed = false
+                        attempt++
+                    }
+                    if (clip != null) {
+                        if (player.playbackState == Player.STATE_ENDED) player.seekToDefaultPosition()
+                        preparePreview(clip)
+                    }
+                } else {
+                    player.pause()
+                    player.seekToDefaultPosition()
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        ) {
             if (previewLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
