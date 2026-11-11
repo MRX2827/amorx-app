@@ -117,6 +117,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -529,6 +530,9 @@ private fun StoryViewer(
     var menuOpen by remember { mutableStateOf(false) }
     var songBusy by remember { mutableStateOf(false) }
     var statsOpen by remember { mutableStateOf(false) }
+    var statsTab by remember { mutableIntStateOf(0) }
+    var verticalDragging by remember { mutableStateOf(false) }
+    val dragThreshold = with(LocalDensity.current) { 80.dp.toPx() }
     var stats by remember(story.id) { mutableStateOf(StoryStats()) }
     var dragY by remember { mutableFloatStateOf(0f) }
     var closing by remember { mutableStateOf(false) }
@@ -560,7 +564,7 @@ private fun StoryViewer(
     }
     val onNext by rememberUpdatedState({ goNext() })
     val onPrev by rememberUpdatedState({ goPrev() })
-    val pausedNow by rememberUpdatedState(pressPaused || menuOpen || songBusy || statsOpen)
+    val pausedNow by rememberUpdatedState(pressPaused || verticalDragging || menuOpen || songBusy || statsOpen)
 
     val videoSources = remember(context) { DefaultMediaSourceFactory(context.applicationContext) }
     val player = remember(audioPreloader) {
@@ -738,16 +742,35 @@ private fun StoryViewer(
                             onTap = { offset -> if (offset.x < size.width * 0.3f) onPrev() else onNext() }
                         )
                     }
-                    .pointerInput(Unit) {
+                    .pointerInput(story.id, group.isMine, dragThreshold) {
+                        var distance = 0f
                         detectVerticalDragGestures(
+                            onDragStart = {
+                                distance = 0f
+                                verticalDragging = true
+                            },
                             onDragEnd = {
-                                if (dragY > 220f) requestClose()
-                                else scope.launch { animate(dragY, 0f, animationSpec = spring()) { v, _ -> dragY = v } }
+                                when {
+                                    distance > dragThreshold -> requestClose()
+                                    distance < -dragThreshold && group.isMine -> {
+                                        statsTab = 0
+                                        statsOpen = true
+                                        dragY = 0f
+                                    }
+                                    else -> scope.launch {
+                                        animate(dragY, 0f, animationSpec = spring()) { v, _ -> dragY = v }
+                                    }
+                                }
+                                verticalDragging = false
                             },
                             onDragCancel = {
+                                verticalDragging = false
                                 scope.launch { animate(dragY, 0f, animationSpec = spring()) { v, _ -> dragY = v } }
                             },
-                            onVerticalDrag = { _, dy -> dragY = (dragY + dy).coerceAtLeast(0f) }
+                            onVerticalDrag = { _, dy ->
+                                distance += dy
+                                dragY = distance.coerceAtLeast(0f)
+                            }
                         )
                     }
             )
@@ -828,9 +851,9 @@ private fun StoryViewer(
                         Text(timeAgo(story.createdAtMs), color = Color.White.copy(alpha = 0.75f), style = MaterialTheme.typography.labelSmall)
                     }
                     if (group.isMine) {
-                        ReactionPill(StoryIcons.Eye, stats.views.size, Color.White) { statsOpen = true }
+                        ReactionPill(StoryIcons.Eye, stats.views.size, Color.White) { statsTab = 0; statsOpen = true }
                         Spacer(Modifier.width(6.dp))
-                        ReactionPill(StoryIcons.Heart, stats.likes.size, Color(0xFFFF4D6D)) { statsOpen = true }
+                        ReactionPill(StoryIcons.Heart, stats.likes.size, Color(0xFFFF4D6D)) { statsTab = 1; statsOpen = true }
                         Spacer(Modifier.width(2.dp))
                     } else {
                         LikeButton(stats.likedByMe) {
@@ -913,6 +936,7 @@ private fun StoryViewer(
                 StoryStatsSheet(
                     story = story,
                     initial = stats,
+                    initialTab = statsTab,
                     onLoaded = { stats = it },
                     onDismiss = { statsOpen = false }
                 )
@@ -970,11 +994,12 @@ private fun LikeButton(liked: Boolean, onClick: () -> Unit) {
 private fun StoryStatsSheet(
     story: Story,
     initial: StoryStats,
+    initialTab: Int,
     onLoaded: (StoryStats) -> Unit,
     onDismiss: () -> Unit
 ) {
     var stats by remember { mutableStateOf(initial) }
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var loading by remember { mutableStateOf(true) }
     LaunchedEffect(story.id) {
         CloudStories.loadStats(story, true).onSuccess { stats = it; onLoaded(it) }

@@ -1820,8 +1820,9 @@ private fun LocalNavigationContent(
         chromahub.rhythm.app.features.online.PlaylistSheetHost(viewModel, currentRoute)
         chromahub.rhythm.app.features.online.YandexSheetHost(viewModel, currentRoute)
         chromahub.rhythm.app.features.online.ChatLiveHost(onOpenChats = {
-            navController.navigate(Screen.Profile.route) { launchSingleTop = true }
+            chromahub.rhythm.app.features.online.ChatNotifier.openChats.value = true
         })
+        chromahub.rhythm.app.features.online.ChatInboxHost(viewModel)
             // Main content
             NavHost(
                 navController = navController,

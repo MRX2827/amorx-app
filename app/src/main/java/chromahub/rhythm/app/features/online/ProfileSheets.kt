@@ -15,6 +15,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,7 +30,6 @@ import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 /** Какие внутренние экраны профиля открыты. Хранится здесь, чтобы профиль оставался под ними. */
 object ProfileNavState {
     val people: MutableState<Boolean> = mutableStateOf(false)
-    val chats: MutableState<Boolean> = mutableStateOf(false)
 }
 
 /**
@@ -98,7 +99,7 @@ fun <T : Any> PlayerLikeSheetFor(
     }
 }
 
-/** Профиль остаётся на месте, «Найти людей» и «Сообщения» выезжают поверх него. */
+/** Профиль остаётся на месте, «Найти людей» открывается поверх него. */
 @Composable
 fun ProfileScreen(
     musicViewModel: MusicViewModel,
@@ -108,7 +109,6 @@ fun ProfileScreen(
     DisposableEffect(Unit) {
         onDispose {
             ProfileNavState.people.value = false
-            ProfileNavState.chats.value = false
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
@@ -119,11 +119,20 @@ fun ProfileScreen(
                 onBack = { ProfileNavState.people.value = false }
             )
         }
-        PlayerLikeSheet(visible = ProfileNavState.chats.value) {
-            ChatsScreen(
-                musicViewModel = musicViewModel,
-                onBack = { ProfileNavState.chats.value = false }
-            )
+    }
+}
+
+@Composable
+internal fun ChatInboxHost(musicViewModel: MusicViewModel) {
+    var visible by remember { mutableStateOf(false) }
+    val requested by ChatNotifier.openChats.collectAsState()
+    LaunchedEffect(requested) {
+        if (requested) {
+            visible = true
+            ChatNotifier.openChats.value = false
         }
+    }
+    PlayerLikeSheet(visible = visible) {
+        ChatsScreen(musicViewModel = musicViewModel, onBack = { visible = false })
     }
 }

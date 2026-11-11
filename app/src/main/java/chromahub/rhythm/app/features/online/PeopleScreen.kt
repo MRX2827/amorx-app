@@ -43,11 +43,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
+import chromahub.rhythm.app.features.online.feed.FeedFollowButton
+import chromahub.rhythm.app.features.online.feed.FeedProfileGrid
+import chromahub.rhythm.app.features.online.feed.SocialProfileHeader
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -56,7 +58,8 @@ import kotlinx.coroutines.launch
 fun PeopleScreen(
     musicViewModel: MusicViewModel,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialPerson: RemoteProfile? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -66,7 +69,7 @@ fun PeopleScreen(
     var results by remember { mutableStateOf<List<RemoteProfile>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<RemoteProfile?>(null) }
+    var selected by remember(initialPerson?.id) { mutableStateOf(initialPerson) }
     var playingKey by remember { mutableStateOf<String?>(null) }
     var chatPeer by remember { mutableStateOf<ChatPeer?>(null) }
     PlayerLikeSheetFor(item = chatPeer) { p ->
@@ -87,6 +90,12 @@ fun PeopleScreen(
                 error = it.message ?: "Ошибка сети"
             }
         loading = false
+    }
+
+    LaunchedEffect(initialPerson?.id) {
+        val person = initialPerson ?: return@LaunchedEffect
+        val full = CloudProfiles.find(person.id)
+        if (full != null && selected?.id == person.id) selected = full
     }
 
     BackHandler(enabled = chatPeer == null) { if (selected != null) selected = null else onBack() }
@@ -172,44 +181,22 @@ fun PeopleScreen(
                 TextButton(onClick = { selected = null }, modifier = Modifier.padding(top = 8.dp)) { Text("‹ К списку") }
             }
             item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    PeopleAvatar(current.avatarB64, null, current.username, 112.dp)
-                    Spacer(Modifier.size(12.dp))
-                    Text(
-                        current.username,
-                        style = MaterialTheme.typography.headlineMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    if (current.bio.isNotBlank()) {
-                        Spacer(Modifier.size(4.dp))
-                        Text(
-                            current.bio,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-            item {
-                if (current.id != myId) {
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(
-                            10.dp,
-                            Alignment.CenterHorizontally
-                        ),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.material3.Button(onClick = {
-                            chatPeer = ChatPeer(current.id, current.username, current.avatarB64)
-                        }) { Text("Написать") }
+                SocialProfileHeader(authorId = current.id, name = current.username, bio = current.bio, avatar = {
+                    PeopleAvatar(current.avatarB64, null, current.username, 82.dp)
+                }, actions = {
+                    if (current.id != myId) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FeedFollowButton(current.id, Modifier.weight(1f))
+                            androidx.compose.material3.FilledTonalButton(onClick = {
+                                chatPeer = ChatPeer(current.id, current.username, current.avatarB64)
+                            }, modifier = Modifier.weight(1f)) { Text("Написать") }
+                        }
                         chromahub.rhythm.app.features.online.stories.FriendButton(personId = current.id)
                     }
-                }
+                })
+            }
+            item {
+                FeedProfileGrid(authorId = current.id, modifier = Modifier.padding(vertical = 16.dp))
             }
             if (current.artists.isNotEmpty()) {
                 item {

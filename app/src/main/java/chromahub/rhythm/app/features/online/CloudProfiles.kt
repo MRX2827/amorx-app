@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -238,6 +239,24 @@ object CloudProfiles {
             artists = artists,
             songs = songs
         )
+    }
+
+    internal suspend fun find(id: String): RemoteProfile? = withContext(Dispatchers.IO) {
+        try {
+            val (token, _) = session()
+            val url = (SupabaseConfig.URL + "/rest/v1/profiles").toHttpUrl().newBuilder()
+                .addQueryParameter("select", "id,username,bio,avatar_b64,favorite_artists,favorite_songs")
+                .addQueryParameter("id", "eq.$id")
+                .addQueryParameter("limit", "1")
+                .build()
+            val (code, body) = exec(Request.Builder().url(url).header("apikey", SupabaseConfig.KEY)
+                .header("Authorization", "Bearer $token").get().build())
+            if (code in 200..299) parse(JSONArray(body)).firstOrNull() else null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
     }
 
     suspend fun search(query: String): Result<List<RemoteProfile>> = withContext(Dispatchers.IO) {

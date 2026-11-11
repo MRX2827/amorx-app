@@ -11,6 +11,8 @@ import chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import chromahub.rhythm.app.ui.LocalMiniPlayerPadding
+import chromahub.rhythm.app.features.online.ChatNotifier
+import chromahub.rhythm.app.features.online.feed.FeedHome
 import chromahub.rhythm.app.features.streaming.presentation.components.StreamingServiceStateCard
 import chromahub.rhythm.app.features.streaming.data.repository.StreamingServiceSession
 import chromahub.rhythm.app.features.streaming.domain.model.StreamingSong
@@ -195,7 +197,6 @@ import chromahub.rhythm.app.shared.data.model.Album
 import chromahub.rhythm.app.shared.data.model.Artist
 import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.shared.presentation.components.player.MiniPlayer
-import chromahub.rhythm.app.features.local.presentation.components.settings.HomeSectionOrderBottomSheet
 import chromahub.rhythm.app.shared.presentation.components.common.M3PlaceholderType
 import chromahub.rhythm.app.shared.presentation.components.common.ExpressiveFilledButton
 import chromahub.rhythm.app.shared.presentation.components.common.ExpressiveFilledTonalButton
@@ -236,7 +237,6 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
-import java.util.Calendar
 import kotlin.random.Random
 import androidx.core.text.HtmlCompat
 import androidx.compose.ui.res.stringResource
@@ -317,7 +317,6 @@ fun HomeScreen(
     // Home section order bottom sheet state
     var showHomeSectionOrderSheet by remember { mutableStateOf(false) }
 
-    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsState()
     var streamingIsRefreshing by remember { mutableStateOf(false) }
     LaunchedEffect(streamingIsLoading) {
         if (!streamingIsLoading) streamingIsRefreshing = false
@@ -367,48 +366,6 @@ fun HomeScreen(
             Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
         }
     }
-
-    // Select featured content from all albums (enhanced selection)
-    val featuredContent = albums
-
-    // Get all unique artists
-    val availableArtists = remember(artists) {
-        artists.sortedBy { it.name }
-    }
-
-    val quickPicks = songs.take(8)
-    val topArtists = availableArtists
-
-    // Enhanced filtering for new releases
-    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-    val currentYearReleases = remember(albums, currentYear) {
-        albums.filter { it.year == currentYear }
-            .ifEmpty {
-                albums.sortedByDescending { it.year }.take(6)
-            }
-    }
-
-    // Enhanced recently added songs
-    val recentlyAddedSongs by rememberOffMain(emptyList<Song>(), songs) {
-        val oneMonthAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.timeInMillis
-        songs.filter { it.dateAdded >= oneMonthAgo }
-            .sortedByDescending { it.dateAdded }
-    }
-
-    // Enhanced recently added albums
-    val recentlyAddedAlbums by rememberOffMain(emptyList<Album>(), albums, songs) {
-        val oneMonthAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.timeInMillis
-        val recentSongIds = songs.filter { it.dateAdded >= oneMonthAgo }.map { it.id }.toSet()
-        albums.filter { album ->
-            album.songs.any { song -> song.id in recentSongIds }
-        }.sortedByDescending { album ->
-            album.songs.mapNotNull { song ->
-                if (song.id in recentSongIds) song.dateAdded else null
-            }.maxOfOrNull { it } ?: 0L
-        }
-    }
-
-
 
     val homeDownloadedSongs = streamingViewModel?.downloadedSongs?.collectAsState()?.value ?: emptyList()
     val homeDownloadingSongIds = streamingViewModel?.downloadingSongIds?.collectAsState()?.value ?: emptySet()
@@ -543,19 +500,13 @@ fun HomeScreen(
         )
     }
 
-    if (showHomeSectionOrderSheet) {
-        if (isStreamingMode) {
-            chromahub.rhythm.app.features.streaming.presentation.components.settings.StreamingHomeSectionOrderBottomSheet(
-                onDismiss = { showHomeSectionOrderSheet = false },
-                appSettings = AppSettings.getInstance(context)
-            )
-        } else {
-            HomeSectionOrderBottomSheet(
-                onDismiss = { showHomeSectionOrderSheet = false },
-                appSettings = AppSettings.getInstance(context)
-            )
-        }
+    if (showHomeSectionOrderSheet && isStreamingMode) {
+        chromahub.rhythm.app.features.streaming.presentation.components.settings.StreamingHomeSectionOrderBottomSheet(
+            onDismiss = { showHomeSectionOrderSheet = false },
+            appSettings = AppSettings.getInstance(context)
+        )
     }
+    val unreadChats by ChatNotifier.unread.collectAsState()
 
     CollapsibleHeaderScreen(
         title = if (isStreamingMode) context.getString(R.string.streaming_integration_title) else context.getString(R.string.home_title),
@@ -564,7 +515,7 @@ fun HomeScreen(
         showAppIcon = showAppIcon,
         iconVisibilityMode = iconVisibilityMode,
         headerActions = buildList {
-            val showReorder = !isLandscapeTablet
+            val showReorder = isStreamingMode && !isLandscapeTablet
             val showSettings = !isTablet && floatingNavigationBar
 
             if (showReorder) {
@@ -579,6 +530,12 @@ fun HomeScreen(
                     )
                 )
             }
+            add(HeaderAction(
+                icon = MaterialSymbolIcon("chat_bubble"),
+                text = unreadChats.takeIf { it > 0 }?.toString(),
+                contentDescription = if (unreadChats > 0) "Сообщения ($unreadChats)" else "Сообщения",
+                onClick = { ChatNotifier.openChats.value = true }
+            ))
             if (showSettings) {
                 add(
                     HeaderAction(
@@ -629,38 +586,10 @@ fun HomeScreen(
                 }
             )
         } else {
-            ModernScrollableContent(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(bottom = if (currentSong != null) 0.dp else 0.dp),
-                featuredContent = featuredContent,
-                albums = albums,
-                topArtists = topArtists,
-                newReleases = currentYearReleases,
-                recentlyAddedSongs = recentlyAddedSongs,
-                recentlyAddedAlbums = recentlyAddedAlbums,
-                recentlyPlayed = recentlyPlayed,
-                songs = songs,
-                onSongClick = onSongClick,
-                onAlbumClick = onAlbumClick,
-                onArtistClick = { artist: Artist ->
-                    onNavigateToArtist(artist)
-                },
-                onViewAllSongs = onViewAllSongs,
-                onViewAllAlbums = onViewAllAlbums,
-                onViewAllArtists = onViewAllArtists,
-                onSearchClick = onSearchClick,
-                onSettingsClick = onSettingsClick,
-                onNavigateToLibrary = onNavigateToLibrary,
-                onNavigateToPlaylist = onNavigateToPlaylist,
-                onNavigateToStats = onNavigateToStats,
-                onNavigateToRhythmGuard = onNavigateToRhythmGuard,
+            FeedHome(
                 musicViewModel = musicViewModel,
-                coroutineScope = coroutineScope,
-                isRefreshing = isLibraryRefreshing,
-                onRefresh = {
-                    musicViewModel.refreshLibrary(showMediaScanLoader = false)
-                }
+                bottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding(),
+                modifier = modifier.fillMaxSize()
             )
         }
     }
@@ -1355,584 +1284,6 @@ private fun StreamingHomeWelcomeContent(
     }
 }
 
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ModernScrollableContent(
-    modifier: Modifier = Modifier,
-    featuredContent: List<Album>,
-    albums: List<Album>,
-    topArtists: List<Artist>,
-    newReleases: List<Album>,
-    recentlyAddedSongs: List<Song>,
-    recentlyAddedAlbums: List<Album>,
-    recentlyPlayed: List<Song>,
-    songs: List<Song>,
-    onSongClick: (Song) -> Unit,
-    onAlbumClick: (Album) -> Unit,
-    onArtistClick: (Artist) -> Unit,
-    onViewAllSongs: () -> Unit,
-    onViewAllAlbums: () -> Unit,
-    onViewAllArtists: () -> Unit,
-    onSearchClick: () -> Unit,
-    onSettingsClick: () -> Unit = {},
-    onNavigateToLibrary: () -> Unit = {},
-    onNavigateToPlaylist: (String) -> Unit = {},
-    onNavigateToStats: () -> Unit = {},
-    onNavigateToRhythmGuard: () -> Unit = {},
-    musicViewModel: chromahub.rhythm.app.viewmodel.MusicViewModel,
-    coroutineScope: CoroutineScope,
-    isRefreshing: Boolean = false,
-    onRefresh: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    val windowSizeClass = calculateWindowSizeClass(context as android.app.Activity)
-    val widthSizeClass = windowSizeClass.widthSizeClass
-    val heightSizeClass = windowSizeClass.heightSizeClass
-    val scrollState = rememberScrollState()
-    val allSongs by musicViewModel.filteredSongs.collectAsState()
-
-    // Home Screen Customization Settings
-    val appSettings = AppSettings.getInstance(context)
-    val sectionOrder by appSettings.homeSectionOrder.collectAsState()
-    val showRecentlyPlayed by appSettings.homeShowRecentlyPlayed.collectAsState()
-    val showDiscoverCarousel by appSettings.homeShowDiscoverCarousel.collectAsState()
-    val showArtists by appSettings.homeShowArtists.collectAsState()
-    val showNewReleases by appSettings.homeShowNewReleases.collectAsState()
-    val showRecentlyAdded by appSettings.homeShowRecentlyAdded.collectAsState()
-    val showRecommended by appSettings.homeShowRecommended.collectAsState()
-    val showListeningStats by appSettings.homeShowListeningStats.collectAsState()
-    val discoverItemCount by appSettings.homeDiscoverItemCount.collectAsState()
-    val recentlyPlayedCount by appSettings.homeRecentlyPlayedCount.collectAsState()
-    val artistsCount by appSettings.homeArtistsCount.collectAsState()
-    val newReleasesCount by appSettings.homeNewReleasesCount.collectAsState()
-    val recentlyAddedCount by appSettings.homeRecentlyAddedCount.collectAsState()
-    val recommendedCount by appSettings.homeRecommendedCount.collectAsState()
-
-    // Rhythm Guard States (pulled up from LazyColumn block)
-    val rhythmGuardMode by appSettings.rhythmGuardMode.collectAsState()
-    val showRhythmGuardWidget by appSettings.homeShowRhythmGuard.collectAsState()
-    val rhythmGuardAge by appSettings.rhythmGuardAge.collectAsState()
-    val rhythmGuardAlertThresholdMinutes by appSettings.rhythmGuardAlertThresholdMinutes.collectAsState()
-    val rhythmGuardTimeoutUntilMs by appSettings.rhythmGuardTimeoutUntilMs.collectAsState()
-    val dailyListeningStats by appSettings.dailyListeningStats.collectAsState()
-    val persistedSongsPlayed by appSettings.songsPlayed.collectAsState()
-    val listeningTimeMs by appSettings.listeningTime.collectAsState()
-
-    val rhythmGuardPolicy = remember(rhythmGuardAge) { appSettings.getRhythmGuardPolicy(rhythmGuardAge) }
-    val rhythmGuardRecommendedMinutes = when (rhythmGuardMode) {
-        AppSettings.RHYTHM_GUARD_MODE_MANUAL -> rhythmGuardAlertThresholdMinutes
-            .takeIf { it > 0 }
-            ?: rhythmGuardPolicy.recommendedDailyMinutes
-        else -> rhythmGuardPolicy.recommendedDailyMinutes
-    }
-    val playbackStatsRepository = remember(context) { PlaybackStatsRepository.getInstance(context) }
-    var todayListeningMinutes by remember { mutableIntStateOf(0) }
-
-    val currentProgress by musicViewModel.progress.collectAsState()
-    val currentDurationMs by musicViewModel.duration.collectAsState()
-    val currentIsPlaying by musicViewModel.isPlaying.collectAsState()
-
-    LaunchedEffect(dailyListeningStats, persistedSongsPlayed, listeningTimeMs, currentProgress, currentDurationMs, currentIsPlaying) {
-        val todaySummary = runCatching {
-            playbackStatsRepository.loadSummary(StatsTimeRange.TODAY)
-        }.getOrNull()
-        val dbDurationMs = todaySummary?.totalDurationMs ?: 0L
-        val activeSessionDurationMs = if (currentIsPlaying && currentDurationMs > 0) {
-            (currentProgress * currentDurationMs).toLong()
-        } else {
-            0L
-        }
-        val totalMs = dbDurationMs + activeSessionDurationMs
-        todayListeningMinutes = (totalMs / 60000L).toInt().coerceAtLeast(0)
-    }
-
-    // Discover widget card content visibility settings
-    val discoverShowAlbumName by appSettings.homeDiscoverShowAlbumName.collectAsState()
-    val discoverShowArtistName by appSettings.homeDiscoverShowArtistName.collectAsState()
-    val discoverShowYear by appSettings.homeDiscoverShowYear.collectAsState()
-    val discoverShowPlayButton by appSettings.homeDiscoverShowPlayButton.collectAsState()
-    val discoverShowGradient by appSettings.homeDiscoverShowGradient.collectAsState()
-
-    // Enhanced artist computation
-    val availableArtists = remember(topArtists) {
-        val collaborationSeparators = listOf(
-            ", ", ",", " & ", " and ", "&", " feat. ", " featuring ", " ft. ",
-            " with ", " x ", " X ", " + ", " vs ", " VS ", " / ", ";", " · "
-        )
-
-        val collaborationRegex = collaborationSeparators
-            .map { Regex.escape(it) }
-            .joinToString("|")
-            .toRegex(RegexOption.IGNORE_CASE)
-
-        topArtists.filter { artist ->
-            !artist.name.contains(collaborationRegex)
-        }
-    }
-
-    // Featured albums with stable ID preservation across library & background metadata updates
-    var currentFeaturedAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
-
-    // Synchronize currentFeaturedAlbums when library/albums change without reshuffling
-    LaunchedEffect(albums, discoverItemCount) {
-        if (albums.isEmpty()) {
-            currentFeaturedAlbums = emptyList()
-            return@LaunchedEffect
-        }
-        val targetCount = discoverItemCount.coerceAtLeast(1)
-        if (currentFeaturedAlbums.isEmpty()) {
-            currentFeaturedAlbums = albums.shuffled().take(targetCount)
-        } else {
-            val albumsById = albums.associateBy { it.id }
-            val updated = currentFeaturedAlbums.mapNotNull { albumsById[it.id] }
-            if (updated.size < targetCount && albums.size > updated.size) {
-                val existingIds = updated.map { it.id }.toSet()
-                val remaining = albums.filter { it.id !in existingIds }.shuffled()
-                currentFeaturedAlbums = (updated + remaining).take(targetCount)
-            } else if (updated.size > targetCount) {
-                currentFeaturedAlbums = updated.take(targetCount)
-            } else if (updated.isNotEmpty()) {
-                currentFeaturedAlbums = updated
-            } else {
-                currentFeaturedAlbums = albums.shuffled().take(targetCount)
-            }
-        }
-    }
-
-    // Auto-refresh featured content periodically every 45s (stable loop, decoupled from album list emissions)
-    val latestAlbums by rememberUpdatedState(albums)
-    val latestDiscoverItemCount by rememberUpdatedState(discoverItemCount)
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(45000)
-            val currentList = latestAlbums
-            val targetCount = latestDiscoverItemCount.coerceAtLeast(1)
-            if (currentList.isNotEmpty()) {
-                currentFeaturedAlbums = if (currentList.size > targetCount) {
-                    currentList.shuffled().take(targetCount)
-                } else {
-                    currentList.shuffled()
-                }
-            }
-        }
-    }
-
-    val lazyListState = rememberLazyListState()
-    val isTablet = widthSizeClass != WindowWidthSizeClass.Compact || windowScreenWidthDp() >= 600
-    val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
-
-    val horizontalPadding = when (widthSizeClass) {
-        WindowWidthSizeClass.Compact -> 20.dp
-        WindowWidthSizeClass.Medium -> 48.dp
-        WindowWidthSizeClass.Expanded -> 64.dp
-        else -> 20.dp
-    }
-    val sectionSpacing = when (widthSizeClass) {
-        WindowWidthSizeClass.Compact -> when (heightSizeClass) {
-            WindowHeightSizeClass.Compact -> 32.dp
-            else -> 40.dp
-        }
-        WindowWidthSizeClass.Medium -> when (heightSizeClass) {
-            WindowHeightSizeClass.Compact -> 48.dp
-            else -> 56.dp
-        }
-        WindowWidthSizeClass.Expanded -> when (heightSizeClass) {
-            WindowHeightSizeClass.Compact -> 52.dp
-            else -> 64.dp
-        }
-        else -> 40.dp
-    }
-
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.background
-    ) {
-        val pullToRefreshState = rememberPullToRefreshState()
-        val isListAtTop by remember { derivedStateOf { lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0 } }
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = onRefresh,
-            state = pullToRefreshState,
-            enabled = isListAtTop,
-            modifier = Modifier.fillMaxSize(),
-            indicator = {
-                PullToRefreshDefaults.LoadingIndicator(
-                    state = pullToRefreshState,
-                    isRefreshing = isRefreshing,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
-            }
-        ) {
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(sectionSpacing),
-            contentPadding = PaddingValues(bottom = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding())
-        ) {
-        item(key = "amorx_stories") {
-            chromahub.rhythm.app.features.online.stories.StoriesRow(musicViewModel = musicViewModel)
-        }
-        @Composable
-        fun RenderLocalSection(sectionId: String) {
-            when (sectionId) {
-                "RECENTLY_PLAYED" -> {
-                    if (showRecentlyPlayed) {
-                        ModernRecentlyPlayedSection(
-                            recentlyPlayed = recentlyPlayed.take(recentlyPlayedCount),
-                            onSongClick = onSongClick,
-                            musicViewModel = musicViewModel,
-                            coroutineScope = coroutineScope,
-                            widthSizeClass = widthSizeClass,
-                            heightSizeClass = heightSizeClass
-                        )
-                    }
-                }
-                "ARTISTS" -> {
-                    if (showArtists) {
-                        if (availableArtists.isNotEmpty()) {
-                            ModernArtistsSection(
-                                artists = availableArtists.take(artistsCount),
-                                songs = allSongs,
-                                onArtistClick = onArtistClick,
-                                onViewAllArtists = onViewAllArtists,
-                                widthSizeClass = widthSizeClass,
-                                heightSizeClass = heightSizeClass
-                            )
-                        } else {
-                            Column {
-                                ModernSectionTitle(
-                                    title = context.getString(R.string.home_artists),
-                                    subtitle = context.getString(R.string.home_explore_musicians),
-                                    viewAllAction = onViewAllArtists
-                                )
-                                Spacer(modifier = Modifier.height(20.dp))
-                                ModernEmptyState(
-                                    icon = RhythmIcons.ArtistFilled,
-                                    title = context.getString(R.string.home_no_artists),
-                                    subtitle = context.getString(R.string.home_no_artists_desc),
-                                    iconSize = 32.dp
-                                )
-                            }
-                        }
-                    }
-                }
-                "NEW_RELEASES" -> {
-                    if (showNewReleases) {
-                        Column {
-                            ModernSectionTitle(
-                                title = context.getString(R.string.home_new_releases),
-                                subtitle = context.getString(R.string.home_fresh_music),
-                                onPlayAll = {
-                                    coroutineScope.launch {
-                                        val allNewReleaseSongs = newReleases.flatMap { album ->
-                                            musicViewModel.getMusicRepository().getSongsForAlbumLocal(album.id)
-                                        }
-                                        if (allNewReleaseSongs.isNotEmpty()) {
-                                            musicViewModel.playSongs(allNewReleaseSongs)
-                                        }
-                                    }
-                                },
-                                onShufflePlay = {
-                                    coroutineScope.launch {
-                                        val allNewReleaseSongs = newReleases.flatMap { album ->
-                                            musicViewModel.getMusicRepository().getSongsForAlbumLocal(album.id)
-                                        }
-                                        if (allNewReleaseSongs.isNotEmpty()) {
-                                            musicViewModel.playShuffled(allNewReleaseSongs)
-                                        }
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            if (newReleases.isNotEmpty()) {
-                                val newReleasesListState = rememberLazyListState()
-                                LazyRow(
-                                    state = newReleasesListState,
-                                    modifier = Modifier.horizontalEdgeBlend(
-                                        lazyListState = newReleasesListState,
-                                        fadeWidth = 16.dp
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    items(
-                                        items = newReleases.take(newReleasesCount),
-                                        key = { "newrelease_${it.id}" },
-                                        contentType = { "album" }
-                                    ) { album ->
-                                        ModernAlbumCard(
-                                            album = album,
-                                            onClick = { onAlbumClick(album) },
-                                            widthSizeClass = widthSizeClass,
-                                            heightSizeClass = heightSizeClass
-                                        )
-                                    }
-                                }
-                            } else {
-                                ModernEmptyState(
-                                    icon = MaterialSymbolIcon("new_releases", filled = true),
-                                    title = context.getString(R.string.home_no_new_releases),
-                                    subtitle = context.getString(R.string.home_no_new_releases_desc),
-                                    iconSize = 32.dp
-                                )
-                            }
-                        }
-                    }
-                }
-                "RECENTLY_ADDED" -> {
-                    if (showRecentlyAdded) {
-                        Column {
-                            ModernSectionTitle(
-                                title = context.getString(R.string.home_recently_added),
-                                subtitle = context.getString(R.string.home_latest_additions),
-                                onPlayAll = {
-                                    if (recentlyAddedSongs.isNotEmpty()) {
-                                        musicViewModel.playSongs(recentlyAddedSongs)
-                                    }
-                                },
-                                onShufflePlay = {
-                                    if (recentlyAddedSongs.isNotEmpty()) {
-                                        musicViewModel.playShuffled(recentlyAddedSongs)
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            if (recentlyAddedAlbums.isNotEmpty()) {
-                                val recentlyAddedListState = rememberLazyListState()
-                                LazyRow(
-                                    state = recentlyAddedListState,
-                                    modifier = Modifier.horizontalEdgeBlend(
-                                        lazyListState = recentlyAddedListState,
-                                        fadeWidth = 16.dp
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    items(
-                                        items = recentlyAddedAlbums.take(recentlyAddedCount),
-                                        key = { "recentalbum_${it.id}" },
-                                        contentType = { "album" }
-                                    ) { album ->
-                                        ModernAlbumCard(
-                                            album = album,
-                                            onClick = { onAlbumClick(album) },
-                                            widthSizeClass = widthSizeClass,
-                                            heightSizeClass = heightSizeClass
-                                        )
-                                    }
-                                }
-                            } else {
-                                ModernEmptyState(
-                                    icon = MaterialSymbolIcon("library_add", filled = true),
-                                    title = context.getString(R.string.home_no_recently_added),
-                                    subtitle = context.getString(R.string.home_no_recently_added_desc),
-                                    iconSize = 32.dp
-                                )
-                            }
-                        }
-                    }
-                }
-                "RECOMMENDED" -> {
-                    if (showRecommended) {
-                        val favoriteSongsState = musicViewModel.favoriteSongs.collectAsState()
-                        val recommendedSongs by rememberOffMain(emptyList<Song>(), recentlyPlayed, songs, recommendedCount, favoriteSongsState.value) {
-                            val favoriteIds = favoriteSongsState.value
-                            val favoriteSongsList = songs.filter { it.id in favoriteIds }
-
-                            var result = if (recentlyPlayed.isNotEmpty()) {
-                                val playedArtists = recentlyPlayed.map { it.artist }.distinct()
-                                val playedAlbums = recentlyPlayed.map { it.album }.distinct()
-
-                                songs.filter { song ->
-                                    (song.artist in playedArtists || song.album in playedAlbums) &&
-                                            !recentlyPlayed.contains(song)
-                                }.shuffled()
-                            } else {
-                                emptyList()
-                            }
-
-                            if (result.isEmpty() && recentlyPlayed.isNotEmpty()) {
-                                val playedArtists = recentlyPlayed.map { it.artist }.distinct()
-                                val playedAlbums = recentlyPlayed.map { it.album }.distinct()
-                                result = songs.filter { song ->
-                                    song.artist in playedArtists || song.album in playedAlbums
-                                }.shuffled()
-                            }
-
-                            if (result.isEmpty()) {
-                                result = favoriteSongsList.shuffled()
-                            }
-
-                            if (result.isEmpty()) {
-                                result = songs.shuffled()
-                            }
-
-                            result.take(recommendedCount)
-                        }
-
-                        ModernRecommendedSection(
-                            recommendedSongs = recommendedSongs,
-                            artists = availableArtists,
-                            onSongClick = onSongClick,
-                            onPlayClick = { songsToPlay ->
-                                musicViewModel.playSongs(songsToPlay)
-                            }
-                        )
-                    }
-                }
-                "RHYTHM_GUARD" -> {
-                    if (showRhythmGuardWidget && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF) {
-                        val rhythmGuardTimeoutRemainingMs = (rhythmGuardTimeoutUntilMs - System.currentTimeMillis()).coerceAtLeast(0L)
-                        val isRhythmGuardTimeoutActive = rhythmGuardTimeoutRemainingMs > 0L
-
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            ModernSectionTitle(
-                                title = stringResource(id = R.string.settings_rhythm_guard),
-                                subtitle = stringResource(id = R.string.settings_rhythm_guard_list_desc)
-                            )
-                            RhythmGuardCard(
-                                rhythmGuardMode = rhythmGuardMode,
-                                rhythmGuardRecommendedMinutes = rhythmGuardRecommendedMinutes,
-                                todayListeningMinutes = todayListeningMinutes,
-                                isGuardTimeoutActive = isRhythmGuardTimeoutActive,
-                                guardTimeoutRemainingMs = rhythmGuardTimeoutRemainingMs,
-                                onCardClick = onNavigateToRhythmGuard
-                            )
-                        }
-                    }
-                }
-                "STATS" -> {
-                    if (showListeningStats) {
-                        ModernListeningStatsSection(onClick = onNavigateToStats)
-                    }
-                }
-            }
-        }
-
-        fun isLocalSectionVisible(sectionId: String): Boolean = when (sectionId) {
-            "RECENTLY_PLAYED" -> showRecentlyPlayed
-            "ARTISTS" -> showArtists
-            "NEW_RELEASES" -> showNewReleases
-            "RECENTLY_ADDED" -> showRecentlyAdded
-            "RECOMMENDED" -> showRecommended
-            "RHYTHM_GUARD" -> showRhythmGuardWidget && rhythmGuardMode != AppSettings.RHYTHM_GUARD_MODE_OFF
-            "STATS" -> showListeningStats
-            else -> false
-        }
-
-        if (isLandscapeTablet) {
-            if (showDiscoverCarousel && sectionOrder.contains("DISCOVER")) {
-                item(key = "section_discover") {
-                    if (currentFeaturedAlbums.isNotEmpty()) {
-                        ModernFeaturedSection(
-                            albums = currentFeaturedAlbums,
-                            onAlbumClick = onAlbumClick,
-                            showAlbumName = discoverShowAlbumName,
-                            showArtistName = discoverShowArtistName,
-                            showYear = discoverShowYear,
-                            showPlayButton = discoverShowPlayButton,
-                            showGradient = discoverShowGradient,
-                            widthSizeClass = widthSizeClass,
-                            heightSizeClass = heightSizeClass
-                        )
-                    } else {
-                        Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
-                            ModernEmptyState(
-                                icon = RhythmIcons.AlbumFilled,
-                                title = context.getString(R.string.home_no_featured_albums),
-                                subtitle = context.getString(R.string.home_no_featured_albums_desc),
-                                iconSize = 32.dp
-                            )
-                        }
-                    }
-                }
-            }
-
-            val visibleSections = sectionOrder.filter { it != "DISCOVER" && isLocalSectionVisible(it) }
-            val leftSections = visibleSections.filterIndexed { index, _ -> index % 2 == 0 }
-            val rightSections = visibleSections.filterIndexed { index, _ -> index % 2 == 1 }
-
-            if (visibleSections.isNotEmpty()) {
-                item(key = "two_column_home_sections") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = horizontalPadding),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
-                        ) {
-                            for (sectionId in leftSections) {
-                                RenderLocalSection(sectionId)
-                            }
-                        }
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(sectionSpacing)
-                        ) {
-                            for (sectionId in rightSections) {
-                                RenderLocalSection(sectionId)
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            sectionOrder.forEach { sectionId ->
-                when (sectionId) {
-                    "DISCOVER" -> {
-                        if (showDiscoverCarousel) {
-                            item(key = "section_discover") {
-                                Column {
-                                    if (currentFeaturedAlbums.isNotEmpty()) {
-                                        ModernFeaturedSection(
-                                            albums = currentFeaturedAlbums,
-                                            onAlbumClick = onAlbumClick,
-                                            showAlbumName = discoverShowAlbumName,
-                                            showArtistName = discoverShowArtistName,
-                                            showYear = discoverShowYear,
-                                            showPlayButton = discoverShowPlayButton,
-                                            showGradient = discoverShowGradient,
-                                            widthSizeClass = widthSizeClass,
-                                            heightSizeClass = heightSizeClass
-                                        )
-                                    } else {
-                                        Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
-                                            ModernEmptyState(
-                                                icon = RhythmIcons.AlbumFilled,
-                                                title = context.getString(R.string.home_no_featured_albums),
-                                                subtitle = context.getString(R.string.home_no_featured_albums_desc),
-                                                iconSize = 32.dp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else -> {
-                        if (isLocalSectionVisible(sectionId)) {
-                            item(key = "section_${sectionId.lowercase()}") {
-                                Box(modifier = Modifier.padding(horizontal = horizontalPadding)) {
-                                    RenderLocalSection(sectionId)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-            item {
-                Spacer(modifier = Modifier.height(30.dp))
-            }
-        }
-        }
-    }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

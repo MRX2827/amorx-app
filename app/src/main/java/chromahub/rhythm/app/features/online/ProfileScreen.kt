@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,6 +50,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
+import chromahub.rhythm.app.features.online.feed.FeedProfileGrid
+import chromahub.rhythm.app.features.online.feed.SocialProfileHeader
 import coil.compose.AsyncImage
 import java.io.File
 
@@ -152,16 +153,6 @@ fun ProfileScreenBody(
         )
     }
 
-    var showChats by remember { ProfileNavState.chats }
-    val unread by ChatNotifier.unread.collectAsState()
-    val openReq by ChatNotifier.openChats.collectAsState()
-    LaunchedEffect(openReq) {
-        if (openReq) {
-            showChats = true
-            ChatNotifier.openChats.value = false
-        }
-    }
-
     LazyColumn(
         modifier = modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 180.dp)
@@ -171,46 +162,18 @@ fun ProfileScreenBody(
         }
 
         item {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                RoundAvatar(
-                    imageModel = avatar?.let { File(it) },
-                    label = name,
-                    size = 112.dp,
-                    onClick = { picker.launch("image/*") }
-                )
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = name.ifBlank { "Без имени" },
-                    style = MaterialTheme.typography.headlineMedium,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.size(4.dp))
-                Text(
-                    text = bio.ifBlank { "Расскажите о себе" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.size(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { showEdit = true }) { Text("Редактировать") }
-                    FilledTonalButton(onClick = { picker.launch("image/*") }) { Text("Сменить фото") }
+            SocialProfileHeader(authorId = null, name = name, bio = bio, avatar = {
+                RoundAvatar(imageModel = avatar?.let { File(it) }, label = name, size = 82.dp,
+                    onClick = { picker.launch("image/*") })
+            }, actions = {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = { showEdit = true }, modifier = Modifier.weight(1f)) { Text("Редактировать") }
+                    FilledTonalButton(onClick = { showPeople = true }, modifier = Modifier.weight(1f)) { Text("Найти людей") }
                 }
-            }
+            })
         }
-
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard("Любимых песен", favSongs.size, Modifier.weight(1f))
-                StatCard("Артистов", artists.size, Modifier.weight(1f))
-                StatCard("Недавно играло", recent.size, Modifier.weight(1f))
-            }
+            FeedProfileGrid(authorId = null, modifier = Modifier.padding(vertical = 18.dp))
         }
 
         item {
@@ -244,13 +207,6 @@ fun ProfileScreenBody(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 8.dp)
                         )
-                    }
-                    Spacer(Modifier.size(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        FilledTonalButton(onClick = { showPeople = true }) { Text("Найти людей") }
-                        FilledTonalButton(onClick = { showChats = true }) {
-                            Text(if (unread > 0) "Сообщения ($unread)" else "Сообщения")
-                        }
                     }
                     ChatBackgroundSettings()
                 }
@@ -384,29 +340,6 @@ private fun RoundAvatar(
                 text = label.trim().take(1).uppercase().ifBlank { "?" },
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatCard(title: String, value: Int, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(value.toString(), style = MaterialTheme.typography.headlineSmall)
-            Text(
-                title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 2
             )
         }
     }
