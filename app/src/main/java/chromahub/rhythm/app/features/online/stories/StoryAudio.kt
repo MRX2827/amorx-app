@@ -4,9 +4,11 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -15,6 +17,7 @@ import chromahub.rhythm.app.features.online.ArtworkUtil
 import chromahub.rhythm.app.features.online.CloudProfiles
 import chromahub.rhythm.app.features.online.CloudSong
 import chromahub.rhythm.app.features.online.OnlineDownloads
+import chromahub.rhythm.app.features.online.SupabaseConfig
 import chromahub.rhythm.app.features.online.toSong
 import chromahub.rhythm.app.infrastructure.service.player.AudioCacheManager
 import chromahub.rhythm.app.shared.data.model.Song
@@ -30,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 @OptIn(UnstableApi::class)
@@ -100,13 +104,40 @@ internal object StoryAudio {
             )
             .build()
 
+    suspend fun storyItem(context: Context, story: Story): MediaItem? {
+        val path = story.audioPath
+        if (path != null) {
+            return MediaItem.Builder()
+                .setMediaId(story.id)
+                .setUri(CloudStories.AUDIO_DOWNLOAD_PREFIX + path)
+                .setMimeType(MimeTypes.AUDIO_MP4)
+                .build()
+        }
+        val song = story.song ?: return null
+        val found = withTimeoutOrNull(LOAD_TIMEOUT_MS) { resolve(context, song) } ?: return null
+        return clip(found, story.id, story.clipStartMs, story.clipEndMs)
+    }
+
     fun dataSourceFactory(context: Context): DefaultDataSource.Factory {
         val upstream = DefaultHttpDataSource.Factory()
         val cache = CacheDataSource.Factory()
             .setCache(AudioCacheManager.getCache(context))
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-        return DefaultDataSource.Factory(context, cache)
+        val source = ResolvingDataSource.Factory(cache) { spec ->
+            if (!spec.uri.toString().startsWith(CloudStories.AUDIO_DOWNLOAD_PREFIX)) {
+                spec
+            } else {
+                val (token, uid) = CloudProfiles.session()
+                spec.buildUpon()
+                    .setKey("story-audio:$uid:${spec.uri}")
+                    .setHttpRequestHeaders(
+                        spec.httpRequestHeaders + mapOf("apikey" to SupabaseConfig.KEY, "Authorization" to "Bearer $token")
+                    )
+                    .build()
+            }
+        }
+        return DefaultDataSource.Factory(context, source)
     }
 
     fun loadControl(): DefaultLoadControl = DefaultLoadControl.Builder()
@@ -135,9 +166,7 @@ internal class StoryAudioPreloader(private val context: Context) {
         obsolete.forEach { id -> items.remove(id)?.let { manager.remove(it) } }
         targets.forEachIndexed { index, story ->
             launch {
-                val song = resolveSlots.withPermit { StoryAudio.resolve(context, checkNotNull(story.song)) }
-                    ?: return@launch
-                val item = StoryAudio.clip(song, story.id, story.clipStartMs, story.clipEndMs)
+                val item = resolveSlots.withPermit { StoryAudio.storyItem(context, story) } ?: return@launch
                 val previous = items[story.id]
                 if (previous == item) return@launch
                 if (previous != null) manager.remove(previous)
@@ -148,8 +177,7 @@ internal class StoryAudioPreloader(private val context: Context) {
         }
     }
 
-    fun setClip(player: ExoPlayer, story: Story, song: Song) {
-        val item = StoryAudio.clip(song, story.id, story.clipStartMs, story.clipEndMs)
+    fun setClip(player: ExoPlayer, item: MediaItem) {
         val source = manager.getMediaSource(item)
         if (source != null) player.setMediaSource(source) else player.setMediaItem(item)
     }

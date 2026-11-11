@@ -13,7 +13,8 @@ data class Story(
     val expiresAtMs: Long,
     /** Выбранный фрагмент песни в миллисекундах от начала трека. */
     val clipStartMs: Long = 0L,
-    val clipEndMs: Long = 0L
+    val clipEndMs: Long = 0L,
+    val audioPath: String? = null
 ) {
     val isVideo: Boolean get() = videoUrl != null
 }

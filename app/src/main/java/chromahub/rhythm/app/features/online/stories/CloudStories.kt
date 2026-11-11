@@ -28,7 +28,11 @@ import java.util.UUID
 object CloudStories {
     private const val PREFS = "amorx_stories"
     private const val STORAGE = SupabaseConfig.URL + "/storage/v1/object"
+    private const val VIDEO_BUCKET = "stories"
     private const val PUBLIC_MARK = "/public/stories/"
+    private const val AUDIO_BUCKET = "story-audio"
+    internal const val AUDIO_DOWNLOAD_PREFIX = "$STORAGE/authenticated/$AUDIO_BUCKET/"
+    private val audioFileName = Regex("[0-9a-f-]{36}\\.m4a")
     const val MAX_ACTIVE = 5
 
     private var prefs: SharedPreferences? = null
@@ -59,25 +63,36 @@ object CloudStories {
 
     // ----- свои загрузки: помним файлы, чтобы убрать их из хранилища после 24 часов -----
 
-    private data class Mine(val id: String, val path: String?, val exp: Long)
+    private data class Mine(val id: String, val path: String?, val exp: Long, val bucket: String = VIDEO_BUCKET)
 
     private fun loadMine(): List<Mine> = runCatching {
         val a = JSONArray(prefs?.getString("mine", "[]") ?: "[]")
         (0 until a.length()).map { i ->
             val o = a.getJSONObject(i)
-            Mine(o.getString("id"), if (o.isNull("path")) null else o.getString("path"), o.getLong("exp"))
+            Mine(
+                o.getString("id"),
+                if (o.isNull("path")) null else o.getString("path"),
+                o.getLong("exp"),
+                o.optString("bucket", VIDEO_BUCKET)
+            )
         }
     }.getOrDefault(emptyList())
 
     private fun saveMine(list: List<Mine>) {
         val a = JSONArray()
         list.forEach {
-            a.put(JSONObject().put("id", it.id).put("path", it.path ?: JSONObject.NULL).put("exp", it.exp))
+            a.put(
+                JSONObject().put("id", it.id).put("path", it.path ?: JSONObject.NULL)
+                    .put("exp", it.exp).put("bucket", it.bucket)
+            )
         }
         prefs?.edit()?.putString("mine", a.toString())?.apply()
     }
 
-    private fun addMine(m: Mine) = saveMine(loadMine().filter { it.id != m.id } + m)
+    @Synchronized
+    private fun addMine(m: Mine, replacingId: String = m.id) =
+        saveMine(loadMine().filter { it.id != replacingId && it.id != m.id } + m)
+    @Synchronized
     private fun removeMine(id: String) = saveMine(loadMine().filter { it.id != id })
 
     // ----- сеть -----
@@ -93,11 +108,12 @@ object CloudStories {
 
     private fun parseStory(o: JSONObject): Story? {
         val kind = o.optString("kind")
+        val ownerId = o.getString("owner_id")
+        val track = if (kind == "song") o.optJSONObject("track") else null
         val video = if (kind == "video" && !o.isNull("video_path")) {
             SupabaseConfig.URL + "/storage/v1/object" + PUBLIC_MARK + o.getString("video_path")
         } else null
-        val song = if (kind == "song" && !o.isNull("track")) {
-            val t = o.getJSONObject("track")
+        val song = track?.let { t ->
             CloudSong(
                 t.optString("id"),
                 t.optString("title"),
@@ -105,32 +121,31 @@ object CloudStories {
                 if (t.isNull("artwork")) null else t.optString("artwork").takeIf { it.isNotBlank() },
                 t.optLong("dur", 0L)
             )
-        } else null
+        }
         if (video == null && song == null) return null
-        var clipStart = 0L
-        var clipEnd = 0L
-        if (song != null) {
-            val t = o.getJSONObject("track")
-            clipStart = t.optLong("start", 0L).coerceAtLeast(0L)
-            clipEnd = t.optLong("end", 0L)
-            if (clipEnd <= clipStart) clipEnd = clipStart + StoryAudio.DEFAULT_CLIP_MS
+        val clipStart = track?.optLong("start")?.coerceAtLeast(0L) ?: 0L
+        val clipEnd = track?.optLong("end")?.takeIf { it > clipStart }
+            ?: if (song != null) clipStart + StoryAudio.DEFAULT_CLIP_MS else 0L
+        val audioPath = track?.optString("audio_path")?.takeIf {
+            it.substringBefore('/') == ownerId && audioFileName.matches(it.substringAfter('/', ""))
         }
         return Story(
             id = o.getString("id"),
-            ownerId = o.getString("owner_id"),
+            ownerId = ownerId,
             videoUrl = video,
             song = song,
             caption = if (o.isNull("caption")) "" else o.getString("caption"),
             createdAtMs = parseTime(o.optString("created_at")),
             expiresAtMs = parseTime(o.optString("expires_at")),
             clipStartMs = clipStart,
-            clipEndMs = clipEnd
+            clipEndMs = clipEnd,
+            audioPath = audioPath
         )
     }
 
-    private fun deleteFile(token: String, path: String): Boolean = runCatching {
+    private fun deleteFile(token: String, bucket: String, path: String): Boolean = runCatching {
         val req = Request.Builder()
-            .url("$STORAGE/stories/$path")
+            .url("$STORAGE/$bucket/$path")
             .header("apikey", SupabaseConfig.KEY)
             .header("Authorization", "Bearer $token")
             .delete()
@@ -145,7 +160,7 @@ object CloudStories {
         if (old.isEmpty()) return
         val (token, _) = CloudProfiles.session()
         old.forEach { m ->
-            val done = m.path == null || deleteFile(token, m.path)
+            val done = m.path == null || deleteFile(token, m.bucket, m.path)
             if (done) removeMine(m.id)
         }
     }
@@ -212,13 +227,15 @@ object CloudStories {
         else -> "Ошибка публикации ($code)"
     }
 
+    private class StoryInsertRejected(message: String) : IOException(message)
+
     private fun insertRow(token: String, row: JSONObject): Pair<String, Long> {
         val req = rest(token, "stories")
             .header("Prefer", "return=representation")
             .post(row.toString().toRequestBody(CloudProfiles.JSON_TYPE))
             .build()
         val (code, body) = CloudProfiles.exec(req)
-        if (code !in 200..299) throw IOException(insertError(code, body))
+        if (code !in 200..299) throw StoryInsertRejected(insertError(code, body))
         val o = JSONArray(body).getJSONObject(0)
         return o.getString("id") to parseTime(o.optString("expires_at"))
     }
@@ -232,16 +249,7 @@ object CloudStories {
         runCatching {
             val (token, uid) = CloudProfiles.session()
             val path = "$uid/${UUID.randomUUID()}.mp4"
-            val up = Request.Builder()
-                .url("$STORAGE/stories/$path")
-                .header("apikey", SupabaseConfig.KEY)
-                .header("Authorization", "Bearer $token")
-                .post(file.asRequestBody("video/mp4".toMediaType()))
-                .build()
-            val (uc, _) = CloudProfiles.exec(up)
-            if (uc !in 200..299) {
-                throw IOException(if (uc == 413) "Видео слишком большое" else "Не удалось загрузить видео ($uc)")
-            }
+            uploadStoryFile(token, VIDEO_BUCKET, path, file, "video/mp4", "видео")
             try {
                 val row = JSONObject()
                     .put("owner_id", uid)
@@ -251,15 +259,42 @@ object CloudStories {
                 val (id, exp) = insertRow(token, row)
                 addMine(Mine(id, path, exp))
             } catch (e: Exception) {
-                deleteFile(token, path)
+                deleteFile(token, VIDEO_BUCKET, path)
                 throw e
             }
         }.also { if (it.isSuccess) refresh() }
     }
 
-    suspend fun postSong(song: CloudSong, caption: String, clipStartMs: Long, clipEndMs: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    private fun uploadStoryFile(
+        token: String,
+        bucket: String,
+        path: String,
+        file: File,
+        mimeType: String,
+        label: String
+    ) {
+        val request = Request.Builder()
+            .url("$STORAGE/$bucket/$path")
+            .header("apikey", SupabaseConfig.KEY)
+            .header("Authorization", "Bearer $token")
+            .post(file.asRequestBody(mimeType.toMediaType()))
+            .build()
+        val (code, _) = CloudProfiles.exec(request)
+        if (code !in 200..299) {
+            throw IOException(if (code == 413) "Файл слишком большой" else "Не удалось загрузить $label ($code)")
+        }
+    }
+
+    internal suspend fun postSong(
+        song: CloudSong,
+        file: File,
+        caption: String,
+        clipStartMs: Long,
+        clipEndMs: Long
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val (token, uid) = CloudProfiles.session()
+            val path = "$uid/${UUID.randomUUID()}.m4a"
             val row = JSONObject()
                 .put("owner_id", uid)
                 .put("kind", "song")
@@ -273,10 +308,25 @@ object CloudStories {
                         .put("dur", song.dur)
                         .put("start", clipStartMs)
                         .put("end", clipEndMs)
+                        .put("audio_path", path)
                 )
                 .put("caption", captionValue(caption))
-            val (id, exp) = insertRow(token, row)
-            addMine(Mine(id, null, exp))
+            val pending = Mine(path, path, System.currentTimeMillis() + 25L * 60 * 60 * 1000, AUDIO_BUCKET)
+            addMine(pending)
+            var uploaded = false
+            try {
+                uploadStoryFile(token, AUDIO_BUCKET, path, file, "audio/mp4", "фрагмент")
+                uploaded = true
+                val (id, exp) = insertRow(token, row)
+                addMine(Mine(id, path, exp, AUDIO_BUCKET), replacingId = pending.id)
+            } catch (e: Exception) {
+                // При обрыве связи сервер мог уже сохранить историю, поэтому её звук оставляем до истечения срока.
+                if (!uploaded || e is StoryInsertRejected) {
+                    if (deleteFile(token, AUDIO_BUCKET, path)) removeMine(pending.id)
+                    else addMine(pending.copy(exp = System.currentTimeMillis() - 1))
+                }
+                throw e
+            }
         }.also { if (it.isSuccess) refresh() }
     }
 
@@ -285,8 +335,14 @@ object CloudStories {
             val (token, _) = CloudProfiles.session()
             val (code, _) = CloudProfiles.exec(rest(token, "stories?id=eq.${story.id}").delete().build())
             if (code !in 200..299) throw IOException("Не удалось удалить ($code)")
-            story.videoUrl?.substringAfter(PUBLIC_MARK, "")?.takeIf { it.isNotEmpty() }?.let { deleteFile(token, it) }
-            removeMine(story.id)
+            val audioPath = story.audioPath
+            val path = audioPath ?: story.videoUrl?.substringAfter(PUBLIC_MARK, "")?.takeIf { it.isNotEmpty() }
+            val bucket = if (audioPath != null) AUDIO_BUCKET else VIDEO_BUCKET
+            if (path == null || deleteFile(token, bucket, path)) {
+                removeMine(story.id)
+            } else {
+                addMine(Mine(story.id, path, System.currentTimeMillis() - 1, bucket))
+            }
         }.also { if (it.isSuccess) refresh() }
     }
 

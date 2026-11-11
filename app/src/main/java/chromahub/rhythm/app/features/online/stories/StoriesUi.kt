@@ -149,6 +149,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.io.IOException
 
 private const val SONG_STORY_MS = 7000f
 
@@ -608,14 +609,12 @@ private fun StoryViewer(
             song != null -> {
                 player.pause()
                 player.clearMediaItems()
-                val found = withTimeoutOrNull(StoryAudio.LOAD_TIMEOUT_MS) {
-                    StoryAudio.resolve(context, song)
-                }
+                val clip = StoryAudio.storyItem(context, story)
                 if (audio == StoryAudioState.HANDOFF) return@LaunchedEffect
-                if (found == null) {
+                if (clip == null) {
                     audio = StoryAudioState.FAILED
                 } else {
-                    audioPreloader.setClip(player, story, found)
+                    audioPreloader.setClip(player, clip)
                     player.prepare()
                     player.playWhenReady = !pausedNow
                 }
@@ -1398,6 +1397,18 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
         onDismiss()
     }
 
+    suspend fun publishSong(song: CloudSong, caption: String, startMs: Long, endMs: Long): Result<Unit> {
+        val source = withTimeoutOrNull(StoryAudio.LOAD_TIMEOUT_MS) { StoryAudio.resolve(context, song) }
+            ?: return Result.failure(IOException("Не удалось загрузить песню для публикации"))
+        val file = StorySongExporter.export(context, source, startMs, endMs)
+            .getOrElse { return Result.failure(it) }
+        return try {
+            CloudStories.postSong(song, file, caption, startMs, endMs)
+        } finally {
+            file.delete()
+        }
+    }
+
     fun publish() {
         if (posting) return
         scope.launch {
@@ -1406,7 +1417,7 @@ private fun StoryComposer(musicViewModel: MusicViewModel, onDismiss: () -> Unit)
             val song = pickedSong?.song
             val result = when {
                 step == "video" && video != null -> CloudStories.postVideo(video.file, caption)
-                song != null -> CloudStories.postSong(song, caption, clipStart, clipStart + clipLen)
+                song != null -> publishSong(song, caption, clipStart, clipStart + clipLen)
                 else -> Result.failure(IllegalStateException("Нечего публиковать"))
             }
             posting = false
