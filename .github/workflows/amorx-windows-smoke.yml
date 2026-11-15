@@ -1,0 +1,58 @@
+name: AmorX Windows launch smoke
+on:
+  push:
+    branches: [codex/amorx-windows-smoke]
+permissions:
+  contents: read
+jobs:
+  launch:
+    runs-on: windows-2025
+    timeout-minutes: 16
+    steps:
+      - name: Run the published EXE on Windows
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:LOCALAPPDATA 'AmorX'
+          $source = $env:ANDROID_SDK_ROOT
+          if (-not $source) { $source = $env:ANDROID_HOME }
+          $sdk = Join-Path $root 'sdk'
+          $exe = Join-Path $env:RUNNER_TEMP 'AmorX-5.5.499.1318-Windows-x64.exe'
+          $base = 'https://mrx2827.github.io/amorxsyte/'
+          $release = Invoke-RestMethod ($base + 'windows-update.json')
+          curl.exe -fsSL $release.exe.url -o $exe
+          if ($LASTEXITCODE -or (Get-FileHash $exe).Hash -ne $release.exe.sha256) { throw 'EXE digest mismatch' }
+          Write-Host "Verified public EXE with SHA-256 $($release.exe.sha256)"
+          New-Item -ItemType Directory -Force -Path $sdk | Out-Null
+          New-Item -ItemType Junction -Path "$sdk\emulator" -Target "$source\emulator" | Out-Null
+          New-Item -ItemType Junction -Path "$sdk\platform-tools" -Target "$source\platform-tools" | Out-Null
+          $result = (& "$sdk\emulator\emulator.exe" -accel-check 2>&1 | Out-String)
+          Write-Host $result
+          $feature = Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform
+          Write-Host "WHPX feature $($feature.State)"
+          if ($result -notmatch 'accel:\s+0\s' -and $feature.State -ne 'Enabled') {
+            $enabled = Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -All -NoRestart -ErrorAction Continue
+            Write-Host "WHPX enable requires restart: $($enabled.RestartNeeded)"
+            $result = (& "$sdk\emulator\emulator.exe" -accel-check 2>&1 | Out-String)
+            Write-Host $result
+          }
+          if ($result -notmatch 'accel:\s+0\s') { throw 'This Windows runner cannot run an accelerated Android VM.' }
+          $image = Join-Path $sdk 'system-images\android-36\default'
+          New-Item -ItemType Directory -Force -Path $image | Out-Null
+          $archive = Join-Path $env:RUNNER_TEMP 'android-x64.zip'
+          curl.exe -fsSL --retry 2 'https://dl.google.com/android/repository/sys-img/android/x86_64-36_r02.zip' -o $archive
+          if ($LASTEXITCODE -or (Get-FileHash $archive).Hash -ne 'e1b9d9fb665001ef27b16e57d8762a2d54aec6bff617e17506edb8676667b9da') { throw 'Android image digest mismatch' }
+          tar.exe -xf $archive -C $image
+          if ($LASTEXITCODE) { throw 'Android image extraction failed' }
+          $app = Start-Process -FilePath $exe -ArgumentList '--software' -PassThru
+          $deadline = (Get-Date).AddMinutes(5)
+          $logFile = Join-Path $root 'launcher.log'
+          do {
+            Start-Sleep -Seconds 4
+            $log = if (Test-Path $logFile) { Get-Content $logFile -Raw }
+            if ($log -match 'Status: ok' -and $log -match 'Activity: chromahub.rhythm.app/.activities.MainActivity') { break }
+          } while ((Get-Date) -lt $deadline -and -not $app.HasExited)
+          if (Test-Path $logFile) { Get-Content $logFile -Tail 35 | Where-Object { $_ -notmatch 'adb.pubkey' } }
+          if ($log -notmatch 'Status: ok') { throw 'AmorX did not open on Windows' }
+          $adb = "$sdk\platform-tools\adb.exe"
+          & $adb -P 17537 -s emulator-5568 shell dumpsys activity activities | Select-String 'topResumedActivity'
+          & $adb -P 17537 -s emulator-5568 emu kill
