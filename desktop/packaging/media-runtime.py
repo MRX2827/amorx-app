@@ -43,7 +43,7 @@ def prepare_macos(out, source):
         dependencies = subprocess.check_output(["otool", "-L", binary], text=True)
         if "@rpath/libvlccore.dylib (" in dependencies:
             relative = "@loader_path/libvlccore.dylib" if binary.parent == libraries else "@loader_path/../lib/libvlccore.dylib"
-            subprocess.run(["install_name_tool", "-change", "@rpath/libvlccore.dylib", relative, binary], check=True)
+            subprocess.run(["install_name_tool", "-change", "@rpath/libvlccore.dylib", relative, binary], check=True, capture_output=True)
     for binary in [*libraries.glob("*.dylib"), *plugins.glob("*.dylib")]:
         subprocess.run(["codesign", "--force", "--sign", "-", binary], check=True, capture_output=True)
 

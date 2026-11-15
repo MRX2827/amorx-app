@@ -29,6 +29,7 @@ fun main(args: Array<String>) {
             error("Packaged audio engine did not begin playback")
         } catch (error: Throwable) {
             error.printStackTrace()
+            Engine.release()
             exitProcess(1)
         }
     }

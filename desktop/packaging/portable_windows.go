@@ -25,9 +25,12 @@ func main() {
 		app := exec.Command(program, os.Args[1:]...)
 		app.Dir = filepath.Dir(program)
 		if len(os.Args) > 1 && os.Args[1] == "--verify-audio" {
-			if err = app.Run(); err == nil {
-				return
+			app.Stdout, app.Stderr = os.Stdout, os.Stderr
+			if err = app.Run(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
 			}
+			return
 		} else if err = app.Start(); err == nil {
 			return
 		}

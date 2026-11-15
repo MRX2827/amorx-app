@@ -2,6 +2,7 @@ package amorx
 
 import com.sun.jna.NativeLibrary
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
+import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import java.io.File
@@ -13,10 +14,19 @@ object Engine {
             "Папка аудиодвижка AmorX не найдена."
         }
         val vlc = File(resources, "vlc")
-        val libraries = if (System.getProperty("os.name").startsWith("Windows")) vlc else File(vlc, "lib")
-        check(libraries.isDirectory) { "В сборке AmorX отсутствует аудиодвижок." }
+        val windows = System.getProperty("os.name").startsWith("Windows")
+        val libraries = if (windows) vlc else File(vlc, "lib")
+        val binary = File(libraries, if (windows) "libvlc.dll" else "libvlc.dylib")
+        check(binary.isFile) { "В сборке AmorX отсутствует аудиодвижок." }
+        NativeLibrary.getInstance(binary.absolutePath)
         NativeLibrary.addSearchPath("vlc", libraries.absolutePath)
-        MediaPlayerFactory("--no-video", "--ignore-config", "--no-media-library", "--no-plugins-cache")
+        if (!windows) {
+            val setenv = NativeLibrary.getProcess().getFunction("setenv")
+            check(setenv.invokeInt(arrayOf("VLC_PLUGIN_PATH", File(vlc, "plugins").absolutePath, 1)) == 0)
+        }
+        val options = mutableListOf("--no-video", "--ignore-config", "--no-media-library", "--no-plugins-cache")
+        if (System.getenv("AMORX_SMOKE_AUDIO_DUMMY") == "1") options.add("--aout=dummy")
+        MediaPlayerFactory(null as NativeDiscovery?, options)
     }
     private val playerDelegate = lazy {
         factory.mediaPlayers().newMediaPlayer().also {
@@ -35,7 +45,9 @@ object Engine {
 
     fun play(url: String) {
         player.audio().setVolume(SettingsStore.current.value.volume)
-        check(player.media().play(url)) { "Не удалось открыть аудио." }
+        val file = File(url)
+        val media = if (file.isFile) file.toURI().toASCIIString() else url
+        check(player.media().play(media)) { "Не удалось открыть аудио." }
     }
 
     fun setPause(pause: Boolean) { player.controls().setPause(pause) }
