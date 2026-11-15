@@ -28,7 +28,7 @@ private val tabIcons: List<ImageVector> = listOf(
 )
 
 @Composable
-fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit) {
+fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () -> Unit) {
     AmorxTheme {
         val player = remember { PlayerState() }
         var tab by remember { mutableStateOf(0) }
@@ -78,6 +78,7 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit) {
                     }
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                         DesktopControls(player, openAudio, fullscreen)
+                        DesktopUpdateBanner(onInstalled)
                         // Переходы вкладок как в NavHost телефона: fade 300 мс + сдвиг 350 мс, EaseInOutQuart
                         AnimatedContent(
                             targetState = tab,

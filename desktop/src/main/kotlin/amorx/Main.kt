@@ -33,6 +33,7 @@ fun main(args: Array<String>) {
             exitProcess(1)
         }
     }
+    if (DesktopUpdate.openInstalled()) return
     application {
         val state = rememberWindowState(placement = WindowPlacement.Maximized, size = DpSize(1100.dp, 720.dp))
         fun toggleFullscreen() {
@@ -55,7 +56,10 @@ fun main(args: Array<String>) {
             }
         ) {
             window.minimumSize = Dimension(480, 380)
-            App({ chooseAudio(window) }, ::toggleFullscreen)
+            App({ chooseAudio(window) }, ::toggleFullscreen) {
+                Engine.release()
+                exitApplication()
+            }
         }
     }
 }

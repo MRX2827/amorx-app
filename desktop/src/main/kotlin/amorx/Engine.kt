@@ -46,7 +46,7 @@ object Engine {
     fun play(url: String) {
         player.audio().setVolume(SettingsStore.current.value.volume)
         val file = File(url)
-        val media = if (file.isFile) file.toURI().toASCIIString() else url
+        val media = if (file.isFile) file.toPath().toUri().toASCIIString() else url
         check(player.media().play(media)) { "Не удалось открыть аудио." }
     }
 
