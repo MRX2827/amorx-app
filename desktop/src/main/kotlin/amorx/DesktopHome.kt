@@ -40,6 +40,7 @@ internal fun DesktopHome(player: PlayerState, openChats: () -> Unit, openPeople:
     val scope = rememberCoroutineScope()
     val profile by MyProfileStore.data
     var posts by remember(account) { mutableStateOf(emptyList<FeedPost>()) }
+    var pendingLikes by remember(account) { mutableStateOf(emptySet<String>()) }
     var session by remember(account) { mutableStateOf<FeedSession?>(null) }
     var more by remember(account) { mutableStateOf(false) }
     var loading by remember(account) { mutableStateOf(false) }
@@ -144,14 +145,21 @@ internal fun DesktopHome(player: PlayerState, openChats: () -> Unit, openPeople:
                 val current = session
                 if (current != null) items(posts, key = { it.id }) { post ->
                     FeedPostCard(post, current, onVideo = { video = post }, onAuthor = { author = post },
-                        onComments = { selectedPost = post }, onLike = {
-                            scope.launch {
-                                val liked = !post.liked
-                                CloudFeed.setLiked(post, liked).onSuccess {
-                                    posts = posts.map { item -> if (item.id == post.id) item.copy(
-                                        liked = liked, likes = (item.likes + if (liked) 1 else -1).coerceAtLeast(0)
-                                    ) else item }
-                                }.onFailure { failure = it.message }
+                        onComments = { selectedPost = post }, likeEnabled = post.id !in pendingLikes, onLike = {
+                            if (post.id !in pendingLikes) {
+                                pendingLikes = pendingLikes + post.id
+                                scope.launch {
+                                    try {
+                                        val liked = !post.liked
+                                        CloudFeed.setLiked(post, liked).onSuccess {
+                                            posts = posts.map { item -> if (item.id == post.id && item.liked != liked) item.copy(
+                                                liked = liked, likes = (item.likes + if (liked) 1 else -1).coerceAtLeast(0)
+                                            ) else item }
+                                        }.onFailure { failure = it.message }
+                                    } finally {
+                                        pendingLikes = pendingLikes - post.id
+                                    }
+                                }
                             }
                         }, onDelete = {
                             scope.launch { CloudFeed.delete(post).onSuccess { posts = posts.filterNot { it.id == post.id } }
@@ -171,7 +179,9 @@ internal fun DesktopHome(player: PlayerState, openChats: () -> Unit, openPeople:
 
     if (signIn) AccountDialog { signIn = false }
     if (writePost) CreatePostDialog(profile.name) { writePost = false }
-    if (writeStory) CreateStoryDialog(player.current) { writeStory = false }
+    if (writeStory) CreateStoryDialog(player.current?.takeIf(Track::isReal)?.copy(seconds = player.duration)) {
+        writeStory = false
+    }
     storyGroup?.let { group -> StoryViewer(group, player) { storyGroup = null } }
     selectedPost?.let { post -> CommentsDialog(post, profile.name, onAdded = {
         posts = posts.map { if (it.id == post.id) it.copy(comments = it.comments + 1) else it }
@@ -210,7 +220,7 @@ internal fun StoryPill(name: String, avatar: String?, unseen: Boolean, add: Bool
 @Composable
 private fun FeedPostCard(
     post: FeedPost, session: FeedSession, onVideo: () -> Unit, onAuthor: () -> Unit, onComments: () -> Unit,
-    onLike: () -> Unit, onDelete: () -> Unit
+    likeEnabled: Boolean, onLike: () -> Unit, onDelete: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     ElevatedCard(shape = RoundedCornerShape(25.dp), modifier = Modifier.fillMaxWidth(),
@@ -238,7 +248,7 @@ private fun FeedPostCard(
         } else FeedPhoto(session, post.path, frame, contentScale = ContentScale.Fit)
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 9.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onLike) {
+                TextButton(onClick = onLike, enabled = likeEnabled) {
                     Icon(if (post.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Нравится")
                     Spacer(Modifier.width(5.dp))
                     Text(post.likes.toString())

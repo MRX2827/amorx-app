@@ -39,7 +39,7 @@ jobs:
       - name: Play audio through the bundled engine
         shell: pwsh
         run: |
-          python -c "import math, struct, wave; f=wave.open('build/native-smoke.wav','wb'); f.setparams((1,2,16000,0,'NONE','none')); f.writeframes(b''.join(struct.pack('<h', int(3000*math.sin(i*2*math.pi*440/16000))) for i in range(64000))); f.close()"
+          python -c "import math, struct, wave; f=wave.open('build/native-smoke.wav','wb'); f.setparams((1,2,16000,0,'NONE','none')); f.writeframes(b''.join(struct.pack('<h', int(3000*math.sin(i*2*math.pi*440/16000))) for i in range(192000))); f.close()"
           $audio = (Resolve-Path build/native-smoke.wav).Path
           $exe = (Resolve-Path build/AmorX-Desktop-Windows-x64.exe).Path
           $root = Join-Path $env:RUNNER_TEMP 'amorx-native-profile'
@@ -52,6 +52,11 @@ jobs:
           if (-not $app.WaitForExit(60000)) { throw 'Native portable app did not start audio within a minute' }
           Get-Content $stdout, $stderr
           if ($app.ExitCode -ne 0) { throw "Native portable launch failed: $($app.ExitCode)" }
+          $clip = Join-Path $env:RUNNER_TEMP 'amorx-story-clip.m4a'
+          $process = Start-Process -FilePath $exe -ArgumentList '--verify-story-clip', $audio, $clip -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          if (-not $process.WaitForExit(65000)) { throw 'Story clip export timed out' }
+          Get-Content $stdout, $stderr
+          if ($process.ExitCode -ne 0 -or -not (Test-Path $clip) -or (Get-Item $clip).Length -lt 1024) { throw 'Story clip export failed' }
           Remove-Item Env:AMORX_SMOKE_AUDIO_DUMMY
           Start-Process -FilePath $exe
           for ($i=0; $i -lt 40; $i++) {

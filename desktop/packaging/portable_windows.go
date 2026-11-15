@@ -24,7 +24,7 @@ func main() {
 	if err == nil {
 		app := exec.Command(program, os.Args[1:]...)
 		app.Dir = filepath.Dir(program)
-		if len(os.Args) > 1 && os.Args[1] == "--verify-audio" {
+		if len(os.Args) > 1 && (os.Args[1] == "--verify-audio" || os.Args[1] == "--verify-story-clip") {
 			app.Stdout, app.Stderr = os.Stdout, os.Stderr
 			if err = app.Run(); err != nil {
 				fmt.Fprintln(os.Stderr, err)

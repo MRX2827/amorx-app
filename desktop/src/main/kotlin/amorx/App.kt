@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
@@ -76,14 +77,14 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
                         ) {
                             if (expandedRail) {
                                 Surface(color = MaterialTheme.colorScheme.surfaceContainer,
-                                    modifier = Modifier.width(176.dp).fillMaxHeight()) {
+                                    modifier = Modifier.width(202.dp).fillMaxHeight()) {
                                     Column(Modifier.padding(horizontal = 12.dp),
                                         verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                         Text("AmorX", style = MaterialTheme.typography.titleLarge,
                                             modifier = Modifier.padding(start = 14.dp, top = 24.dp, bottom = 20.dp))
                                         names.forEachIndexed { i, n ->
                                             NavigationDrawerItem(
-                                                label = { Text(n) }, selected = tab == i,
+                                                label = { Text(n, maxLines = 1, overflow = TextOverflow.Ellipsis) }, selected = tab == i,
                                                 onClick = { selectTab(i) }, icon = { Icon(tabIcons[i], null) }
                                             )
                                         }
