@@ -1,0 +1,55 @@
+name: AmorX native Windows build
+on:
+  push:
+    branches: [codex/amorx-native]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/amorx-native-windows.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 16
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.x'
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Package bundled runtime and portable EXE
+        shell: pwsh
+        run: |
+          python packaging/media-runtime.py
+          if ($LASTEXITCODE) { throw 'VLC runtime packaging failed' }
+          .\gradlew.bat createDistributable --no-daemon --console=plain
+          if ($LASTEXITCODE) { throw 'Native app packaging failed' }
+          python packaging/portable.py build/compose/binaries/main/app/AmorX build/AmorX-Desktop-Windows-x64.exe
+          if ($LASTEXITCODE) { throw 'Portable EXE packaging failed' }
+      - name: Play audio through the bundled engine
+        shell: pwsh
+        run: |
+          python -c "import math, struct, wave; f=wave.open('build/native-smoke.wav','wb'); f.setparams((1,2,16000,0,'NONE','none')); f.writeframes(b''.join(struct.pack('<h', int(3000*math.sin(i*2*math.pi*440/16000))) for i in range(64000))); f.close()"
+          $audio = (Resolve-Path build/native-smoke.wav).Path
+          $exe = (Resolve-Path build/AmorX-Desktop-Windows-x64.exe).Path
+          $root = Join-Path $env:RUNNER_TEMP 'amorx-native-profile'
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $env:JAVA_TOOL_OPTIONS = "-Damorx.data.dir=$root"
+          $app = Start-Process -FilePath $exe -ArgumentList '--verify-audio', $audio -PassThru
+          if (-not $app.WaitForExit(60000)) { throw 'Native portable app did not start audio within a minute' }
+          if ($app.ExitCode -ne 0) { throw "Native portable launch failed: $($app.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmorX-Desktop-Windows-x64
+          path: desktop/build/AmorX-Desktop-Windows-x64.exe
+          if-no-files-found: error
