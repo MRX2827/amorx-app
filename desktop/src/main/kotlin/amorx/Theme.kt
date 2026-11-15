@@ -7,7 +7,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Цвета взяты из Rhythm (Color.kt), seed #6750A4
 private val LightScheme = lightColorScheme(
     primary = Color(0xFF6750A4), onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFEADDFF), onPrimaryContainer = Color(0xFF21005D),
@@ -29,23 +28,24 @@ private val LightScheme = lightColorScheme(
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = Color(0xFFD0BCFF), onPrimary = Color(0xFF381E72),
-    primaryContainer = Color(0xFF4F378B), onPrimaryContainer = Color(0xFFEADDFF),
-    secondary = Color(0xFFCCC2DC), onSecondary = Color(0xFF332D41),
-    secondaryContainer = Color(0xFF4A4458), onSecondaryContainer = Color(0xFFE8DEF8),
-    tertiary = Color(0xFFEFB8C8), onTertiary = Color(0xFF492532),
-    tertiaryContainer = Color(0xFF633B48), onTertiaryContainer = Color(0xFFFFD8E4),
-    error = Color(0xFFF2B8B5), onError = Color(0xFF601410),
-    errorContainer = Color(0xFF8C1D18), onErrorContainer = Color(0xFFF9DEDC),
-    background = Color(0xFF141218), onBackground = Color(0xFFE6E1E5),
-    surface = Color(0xFF141218), onSurface = Color(0xFFE6E1E5),
-    surfaceVariant = Color(0xFF49454F), onSurfaceVariant = Color(0xFFCAC4D0),
-    outline = Color(0xFF938F99), outlineVariant = Color(0xFF49454F),
-    surfaceContainerLowest = Color(0xFF0D0B10), surfaceContainerLow = Color(0xFF1A1820),
-    surfaceContainer = Color(0xFF201E25), surfaceContainerHigh = Color(0xFF2A282F),
-    surfaceContainerHighest = Color(0xFF35333A),
-    inverseSurface = Color(0xFFE6E1E5), inverseOnSurface = Color(0xFF313033),
-    inversePrimary = Color(0xFF6750A4)
+    primary = Color(0xFFF7F7F7), onPrimary = Color(0xFF0C0C0C),
+    primaryContainer = Color(0xFF222222), onPrimaryContainer = Color(0xFFF7F7F7),
+    secondary = Color(0xFFDBDBDB), onSecondary = Color(0xFF151515),
+    secondaryContainer = Color(0xFF222222), onSecondaryContainer = Color(0xFFF0F0F0),
+    tertiary = Color(0xFFC9C9C9), onTertiary = Color(0xFF151515),
+    tertiaryContainer = Color(0xFF292929), onTertiaryContainer = Color(0xFFE8E8E8),
+    error = Color(0xFFFFADAA), onError = Color(0xFF620F16),
+    errorContainer = Color(0xFF581B1B), onErrorContainer = Color(0xFFFFDDDB),
+    background = Color(0xFF0C0C0C), onBackground = Color(0xFFF7F7F7),
+    surface = Color(0xFF0C0C0C), onSurface = Color(0xFFF7F7F7),
+    surfaceTint = Color.Transparent,
+    surfaceVariant = Color(0xFF191919), onSurfaceVariant = Color(0xFFAAAAAA),
+    outline = Color(0xFF737373), outlineVariant = Color(0xFF282828),
+    surfaceContainerLowest = Color(0xFF0B0B0B), surfaceContainerLow = Color(0xFF111111),
+    surfaceContainer = Color(0xFF171717), surfaceContainerHigh = Color(0xFF202020),
+    surfaceContainerHighest = Color(0xFF282828),
+    inverseSurface = Color(0xFFF7F7F7), inverseOnSurface = Color(0xFF0C0C0C),
+    inversePrimary = Color(0xFF313131)
 )
 
 @Composable

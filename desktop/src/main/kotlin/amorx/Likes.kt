@@ -29,7 +29,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
-data class LikedSong(val id: String, val title: String, val artist: String, val seconds: Int, val artwork: String?)
+data class LikedSong(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val seconds: Int,
+    val artwork: String?,
+    val localPath: String? = null
+)
 
 /** Понравившиеся песни на Mac. Если профиль опубликован, список сам уходит на сервер. */
 object Likes {
@@ -49,7 +56,8 @@ object Likes {
         items.value = if (isLiked(t.id)) {
             items.value.filter { it.id != t.id }
         } else {
-            listOf(LikedSong(t.id, t.title, t.artist, t.seconds, t.artwork)) + items.value
+            val path = t.localPath?.takeIf { t.id.startsWith("file:") }
+            listOf(LikedSong(t.id, t.title, t.artist, t.seconds, t.artwork, path)) + items.value
         }
         runCatching { file.writeText(gson.toJson(items.value)) }
         republish()
@@ -62,7 +70,7 @@ object Likes {
     }
 
     /** Формат телефона: id вида online_<videoId>, чтобы там песня играла точно, а не по поиску. */
-    fun asCloud(): List<CloudSong> = items.value.take(50).map {
+    fun asCloud(): List<CloudSong> = items.value.filterNot { it.id.startsWith("file:") }.take(50).map {
         CloudSong("online_" + it.id, it.title, it.artist, it.artwork?.takeIf { u -> u.startsWith("http") }, it.seconds * 1000L)
     }
 
@@ -81,11 +89,15 @@ object Likes {
     }
 }
 
-private fun LikedSong.toTrack(): Track =
-    Downloads.find(id)?.toTrack() ?: Track(
-        id = id, title = title, artist = artist, seconds = seconds, color = colorFor(id),
-        artwork = artwork, videoUrl = "https://www.youtube.com/watch?v=$id"
-    )
+internal fun LikedSong.toTrack(): Track? {
+    Downloads.find(id)?.let { return it.toTrack() }
+    if (id.startsWith("file:")) {
+        val audio = localPath?.let(::File) ?: runCatching { File(java.net.URI(id)) }.getOrNull()
+        if (audio?.isFile != true) return null
+        return Track(id, title, artist, seconds, colorFor(id), artwork, localPath = audio.absolutePath)
+    }
+    return Track(id, title, artist, seconds, colorFor(id), artwork, videoUrl = "https://www.youtube.com/watch?v=$id")
+}
 
 @Composable
 fun LikeButton(t: Track) {
@@ -106,6 +118,7 @@ fun LikeButton(t: Track) {
 @Composable
 fun LikedScreen(p: PlayerState, onBack: () -> Unit) {
     val list = Likes.items.value
+    val tracks = list.mapNotNull { it.toTrack() }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Row(Modifier.padding(top = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, null) }
@@ -117,14 +130,13 @@ fun LikedScreen(p: PlayerState, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 12.dp)
             )
-        } else {
+        } else if (tracks.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
                 Button(onClick = {
-                    val q = list.map { it.toTrack() }
-                    p.play(q.first(), q)
+                    p.play(tracks.first(), tracks)
                 }) { Text("Играть всё") }
                 FilledTonalButton(onClick = {
-                    val q = list.map { it.toTrack() }.shuffled()
+                    val q = tracks.shuffled()
                     p.play(q.first(), q)
                 }) { Text("Вперемешку") }
             }
@@ -137,8 +149,7 @@ fun LikedScreen(p: PlayerState, onBack: () -> Unit) {
             items(list, key = { it.id }) { s ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable {
-                        val q = list.map { it.toTrack() }
-                        p.play(s.toTrack(), q)
+                        s.toTrack()?.let { p.play(it, tracks) }
                     },
                     shape = RoundedCornerShape(20.dp),
                     color = MaterialTheme.colorScheme.surfaceContainer

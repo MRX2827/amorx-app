@@ -3,102 +3,94 @@ package amorx
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-object OnlineState {
+internal class DesktopSearchState(private val scope: CoroutineScope) {
     var query by mutableStateOf("")
-    var results by mutableStateOf<List<Track>>(emptyList())
+    var submitted by mutableStateOf("")
+        private set
+    var results by mutableStateOf(emptyList<Track>())
+        private set
     var loading by mutableStateOf(false)
+        private set
     var error by mutableStateOf<String?>(null)
+        private set
+    private var job: Job? = null
+    private var request = 0
+
+    fun submit(): Boolean {
+        val value = query.trim()
+        if (value.isEmpty()) return false
+        if (loading && submitted == value) return true
+        val id = ++request
+        job?.cancel()
+        submitted = value
+        results = emptyList()
+        error = null
+        loading = true
+        job = scope.launch {
+            try {
+                results = Repo.search(value)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = "Не удалось выполнить поиск. Попробуйте ещё раз."
+            } finally {
+                if (id == request) loading = false
+            }
+        }
+        return true
+    }
 }
 
 @Composable
-fun OnlineScreen(p: PlayerState) {
-    val scope = rememberCoroutineScope()
-    val s = OnlineState
-
-    fun doSearch() {
-        val q = s.query.trim()
-        if (q.isEmpty() || s.loading) return
-        scope.launch {
-            s.loading = true
-            s.error = null
-            try {
-                val r = Repo.search(q)
-                s.results = r
-                if (r.isEmpty()) s.error = "Ничего не найдено"
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                s.error = "Ошибка поиска: ${e.javaClass.simpleName}: ${e.message}"
-            } finally {
-                s.loading = false
-            }
-        }
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+internal fun OnlineScreen(player: PlayerState, search: DesktopSearchState) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Text(
-            "Онлайн",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
+            "Поиск музыки",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
         )
-        OutlinedTextField(
-            value = s.query,
-            onValueChange = { s.query = it },
-            modifier = Modifier.fillMaxWidth().onPreviewKeyEvent {
-                if (it.key == Key.Enter && it.type == KeyEventType.KeyDown) {
-                    doSearch(); true
-                } else false
-            },
-            placeholder = { Text("Найти песню или исполнителя") },
-            leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            trailingIcon = {
-                if (s.query.isNotBlank()) TextButton(onClick = { doSearch() }) { Text("Найти") }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(28.dp)
+        if (search.submitted.isNotBlank()) Text(
+            search.submitted,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp)
         )
-        Spacer(Modifier.height(12.dp))
         when {
-            s.loading -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            search.loading -> Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
             }
-            s.error != null && s.results.isEmpty() -> Text(
-                s.error ?: "",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp)
-            )
-            s.results.isEmpty() -> Text(
-                "Введите название и нажмите Enter",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp)
-            )
+            search.results.isEmpty() -> Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                Text(
+                    search.error ?: if (search.submitted.isEmpty()) "Введите название трека или исполнителя вверху."
+                        else "По этому запросу ничего не найдено.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                items(s.results, key = { it.id }) { t ->
-                    AnimateIn(Modifier.animateItem()) {
-                        TrackRow(t, p.current?.id == t.id && p.playing, onClick = { p.play(t, s.results) }) {
-                            DownloadButton(t)
-                        }
+                items(search.results, key = { it.id }) { track ->
+                    TrackRow(
+                        track, player.current?.id == track.id && player.playing,
+                        modifier = Modifier.animateItem(),
+                        onClick = { player.play(track, search.results) }
+                    ) {
+                        DownloadButton(track)
+                        LibraryTrackMenu(track)
                     }
                 }
             }

@@ -20,7 +20,7 @@ internal fun writeLocalJson(file: File, json: String) {
     }
 }
 
-internal data class DesktopSettings(val appearance: String = "system", val volume: Int = 100)
+internal data class DesktopSettings(val appearance: String = "dark", val volume: Int = 100)
 
 internal object SettingsStore {
     private val gson = Gson()
@@ -28,6 +28,12 @@ internal object SettingsStore {
     val current = mutableStateOf(
         runCatching { gson.fromJson(file.readText(), DesktopSettings::class.java) }.getOrNull() ?: DesktopSettings()
     )
+
+    fun setVolume(volume: Int) {
+        val value = volume.coerceIn(0, 100)
+        if (current.value.volume != value) save(current.value.copy(volume = value))
+        Engine.setVolume(value)
+    }
 
     fun save(settings: DesktopSettings) {
         writeLocalJson(file, gson.toJson(settings))

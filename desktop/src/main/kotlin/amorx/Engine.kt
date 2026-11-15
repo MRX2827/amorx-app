@@ -54,6 +54,10 @@ object Engine {
         check(player.media().play(media)) { "Не удалось открыть аудио." }
     }
 
+    fun stop() {
+        if (playerDelegate.isInitialized()) player.controls().stop()
+    }
+
     fun setPause(pause: Boolean) { player.controls().setPause(pause) }
     fun seek(ms: Long) { player.controls().setTime(ms) }
     fun timeMs(): Long = player.status().time()

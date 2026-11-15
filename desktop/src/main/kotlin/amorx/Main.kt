@@ -64,8 +64,8 @@ fun main(args: Array<String>) {
         Window(
             onCloseRequest = { Engine.release(); exitApplication() },
             state = state, title = "AmorX",
-            onPreviewKeyEvent = {
-                if (it.type != KeyEventType.KeyUp) false
+            onKeyEvent = {
+                if (it.type != KeyEventType.KeyDown) false
                 else when (it.key) {
                     Key.F11 -> { toggleFullscreen(); true }
                     Key.Escape -> if (state.placement == WindowPlacement.Fullscreen) {
