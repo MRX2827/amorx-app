@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun ProfileSocialStats(authorId: String?) {
-    val account by CloudProfiles.connectedAccount
+    val account by CloudProfiles.activeAccount
     val changes by CloudFeed.changes.collectAsState()
     var counts by remember(authorId, account) { mutableStateOf<FeedCounts?>(null) }
     LaunchedEffect(authorId, account, changes) {
@@ -41,7 +41,7 @@ internal fun ProfileSocialStats(authorId: String?) {
 
 @Composable
 internal fun FollowAndFriendButtons(authorId: String) {
-    val account by CloudProfiles.connectedAccount
+    val account by CloudProfiles.activeAccount
     if (account == null) return
     val scope = rememberCoroutineScope()
     val friends by CloudFriends.state.collectAsState()
@@ -89,7 +89,7 @@ internal fun FollowAndFriendButtons(authorId: String) {
 
 @Composable
 internal fun ProfilePostGallery(authorId: String?, player: PlayerState) {
-    val account by CloudProfiles.connectedAccount
+    val account by CloudProfiles.activeAccount
     if (account == null) return
     val changes by CloudFeed.changes.collectAsState()
     var page by remember(authorId, account) { mutableStateOf<FeedPage?>(null) }

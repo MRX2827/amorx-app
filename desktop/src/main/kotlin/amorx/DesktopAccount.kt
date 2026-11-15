@@ -12,14 +12,14 @@ private enum class AccountStep { Login, Register, Verify }
 
 @Composable
 internal fun AccountDialog(onDismiss: () -> Unit) {
-    var email by remember { mutableStateOf(CloudProfiles.email.orEmpty()) }
+    var email by remember { mutableStateOf(CloudProfiles.activeAccount.value?.email.orEmpty()) }
     var password by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var step by remember { mutableStateOf(AccountStep.Login) }
     val scope = rememberCoroutineScope()
-    val connected by CloudProfiles.connectedAccount
+    val connected by CloudProfiles.activeAccount
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -30,8 +30,8 @@ internal fun AccountDialog(onDismiss: () -> Unit) {
         }) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (connected != null) Text(connected.orEmpty())
-                else {
+                connected?.let { Text(it.email) }
+                if (connected == null) {
                     OutlinedTextField(email, { email = it }, label = { Text("Почта") },
                         enabled = step != AccountStep.Verify && !busy, singleLine = true, modifier = Modifier.fillMaxWidth())
                     if (step == AccountStep.Verify) {
@@ -70,7 +70,14 @@ internal fun AccountDialog(onDismiss: () -> Unit) {
         },
         dismissButton = {
             if (connected == null) TextButton(onClick = onDismiss, enabled = !busy) { Text("Закрыть") }
-            else TextButton(onClick = { CloudProfiles.signOut(); onDismiss() }) { Text("Выйти") }
+            else TextButton(enabled = !busy, onClick = {
+                scope.launch {
+                    busy = true
+                    CloudProfiles.signOut().onSuccess { onDismiss() }
+                        .onFailure { status = it.message ?: "Не удалось выйти из аккаунта" }
+                    busy = false
+                }
+            }) { Text("Выйти") }
         }
     )
 }

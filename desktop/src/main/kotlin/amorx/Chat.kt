@@ -306,7 +306,7 @@ fun ThreadScreen(peer: ChatPeer, p: PlayerState, onBack: () -> Unit) {
     fun send(track: CloudSong?) {
         val body = text.trim()
         if (sending || (body.isEmpty() && track == null)) return
-        val name = MyProfileStore.data.value.name
+        val name = CloudProfiles.ownProfile.value.profile.name
         if (name.length < 2) {
             err = "Сначала задайте имя в профиле и нажмите «Сохранить»"
             return

@@ -29,6 +29,10 @@ object CloudFriends {
     private val _state = MutableStateFlow(FriendsState())
     val state: StateFlow<FriendsState> = _state.asStateFlow()
 
+    internal fun resetState() {
+        _state.value = FriendsState()
+    }
+
     fun statusOf(id: String): FriendStatus {
         val s = _state.value
         return when {
@@ -82,11 +86,13 @@ object CloudFriends {
             }
             fun entry(id: String) = people[id] ?: FriendEntry(id, "Без имени", null)
 
-            _state.value = FriendsState(
+            val friends = FriendsState(
                 friends = rows.filter { it.status == "accepted" }.map { entry(it.other) }.sortedBy { it.name.lowercase() },
                 incoming = rows.filter { it.status == "pending" && !it.mine }.map { entry(it.other) },
                 outgoing = rows.filter { it.status == "pending" && it.mine }.map { entry(it.other) }
             )
+            CloudProfiles.runForActiveSession(uid) { _state.value = friends }
+            Unit
         }
     }
 

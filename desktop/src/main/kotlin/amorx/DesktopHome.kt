@@ -33,12 +33,13 @@ import java.util.UUID
 
 @Composable
 internal fun DesktopHome(player: PlayerState, openChats: () -> Unit, openPeople: () -> Unit) {
-    val account by CloudProfiles.connectedAccount
+    val account by CloudProfiles.activeAccount
     val changes by CloudFeed.changes.collectAsState()
     val groups by CloudStories.feed.collectAsState()
     val seen by CloudStories.seen.collectAsState()
     val scope = rememberCoroutineScope()
-    val profile by MyProfileStore.data
+    val ownProfile by CloudProfiles.ownProfile
+    val profile = ownProfile.profile
     var posts by remember(account) { mutableStateOf(emptyList<FeedPost>()) }
     var pendingLikes by remember(account) { mutableStateOf(emptySet<String>()) }
     var session by remember(account) { mutableStateOf<FeedSession?>(null) }

@@ -35,11 +35,17 @@ object CloudStories {
     private val _feed = MutableStateFlow<List<StoryGroup>>(emptyList())
     val feed: StateFlow<List<StoryGroup>> = _feed.asStateFlow()
 
-    private val _seen = MutableStateFlow(runCatching {
-        val rows = JSONArray(seenFile.readText())
-        (0 until rows.length()).map { rows.getString(it) }.toSet()
-    }.getOrDefault(emptySet()))
-    val seen: StateFlow<Set<String>> = _seen.asStateFlow()
+    private val _seen by lazy {
+        MutableStateFlow(runCatching {
+            val rows = JSONArray(seenFile.readText())
+            (0 until rows.length()).map { rows.getString(it) }.toSet()
+        }.getOrDefault(emptySet()))
+    }
+    val seen: StateFlow<Set<String>> by lazy { _seen.asStateFlow() }
+
+    internal fun resetFeed() {
+        _feed.value = emptyList()
+    }
 
     @Synchronized
     fun markSeen(id: String) {
@@ -203,7 +209,7 @@ object CloudStories {
                     .thenByDescending { g -> g.stories.any { it.id !in seenNow } }
                     .thenByDescending { g -> g.stories.maxOf { it.createdAtMs } }
             )
-            _feed.value = groups
+            if (!CloudProfiles.runForActiveSession(uid) { _feed.value = groups }) return@runCatching
 
             val alive = stories.map { it.id }.toSet()
             val pruned = _seen.value.filter { it in alive }.toSet()

@@ -25,7 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -43,7 +42,7 @@ object Likes {
     private val file = File(AppDir.root, "likes.json")
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var job: Job? = null
+    private var pendingSync: Job? = null
     val items = mutableStateOf(load())
 
     private fun load(): List<LikedSong> =
@@ -52,39 +51,42 @@ object Likes {
     fun isLiked(id: String) = items.value.any { it.id == id }
 
     fun toggle(t: Track) {
-        if (t.videoUrl == null && t.localPath == null) return
-        items.value = if (isLiked(t.id)) {
-            items.value.filter { it.id != t.id }
-        } else {
-            val path = t.localPath?.takeIf { t.id.startsWith("file:") }
-            listOf(LikedSong(t.id, t.title, t.artist, t.seconds, t.artwork, path)) + items.value
+        if (!t.isReal) return
+        val saved = items.value.firstOrNull { it.id == t.id }
+        if (saved != null) {
+            remove(t.id)
+            return
         }
-        runCatching { file.writeText(gson.toJson(items.value)) }
-        republish()
+        val path = t.localPath?.takeIf { t.id.startsWith("file:") }
+        val song = LikedSong(t.id, t.title, t.artist, t.seconds, t.artwork, path)
+        save(listOf(song) + items.value)
+        syncFavorite(song, liked = true)
     }
 
     fun remove(id: String) {
-        items.value = items.value.filter { it.id != id }
-        runCatching { file.writeText(gson.toJson(items.value)) }
-        republish()
+        val removed = items.value.firstOrNull { it.id == id } ?: return
+        save(items.value.filter { it.id != id })
+        syncFavorite(removed, liked = false)
     }
 
-    /** Формат телефона: id вида online_<videoId>, чтобы там песня играла точно, а не по поиску. */
-    fun asCloud(): List<CloudSong> = items.value.filterNot { it.id.startsWith("file:") }.take(50).map {
-        CloudSong("online_" + it.id, it.title, it.artist, it.artwork?.takeIf { u -> u.startsWith("http") }, it.seconds * 1000L)
+    private fun save(songs: List<LikedSong>) {
+        items.value = songs
+        runCatching { writeLocalJson(file, gson.toJson(songs)) }
     }
 
-    private fun republish() {
-        val me = MyProfileStore.data.value
-        if (!me.isPublic || me.name.length < 2) return
-        job?.cancel()
-        job = scope.launch {
-            delay(2000)
-            CloudProfiles.publish(
-                me.name, me.bio, me.avatar, true,
-                WaveStore.artists.value.map { CloudArtist(it.name, it.avatar) },
-                asCloud()
-            )
+    private fun LikedSong.toCloud(): CloudSong? = if (id.startsWith("file:")) null
+        else CloudSong("online_" + id, title, artist, artwork?.takeIf { it.startsWith("http") }, seconds * 1000L)
+
+    fun asCloud(): List<CloudSong> = items.value.mapNotNull { it.toCloud() }.take(50)
+
+    private fun syncFavorite(song: LikedSong, liked: Boolean) {
+        val cloudSong = song.toCloud() ?: return
+        val state = CloudProfiles.ownProfile.value
+        if (!state.ready || !state.profile.isPublic) return
+        val previous = pendingSync
+        pendingSync = scope.launch {
+            previous?.join()
+            CloudProfiles.setFavorite(state.account, cloudSong, liked)
         }
     }
 }

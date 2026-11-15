@@ -39,6 +39,7 @@ internal enum class DesktopPage(val title: String, val icon: ImageVector) {
 @Composable
 fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val accountIdentity by CloudProfiles.activeAccount
     val player = remember(scope) { PlayerState(scope) }
     var page by remember { mutableStateOf(DesktopPage.Home) }
     var fullPlayer by remember { mutableStateOf(false) }
@@ -63,6 +64,9 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
         navigate(destination)
     }
 
+    LaunchedEffect(accountIdentity) {
+        accountIdentity?.let { CloudProfiles.syncOwnProfile(it) }
+    }
     LaunchedEffect(player) {
         rootFocus.requestFocus()
         while (true) {
@@ -155,17 +159,24 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
                                     label = "desktop navigation"
                                 ) { destination ->
                                     when (destination) {
-                                        DesktopPage.Home -> DesktopHome(
-                                            player,
-                                            openChats = { navigate(DesktopPage.Chats) },
-                                            openPeople = { navigate(DesktopPage.People) }
-                                        )
+                                        DesktopPage.Home -> key(accountIdentity) {
+                                            DesktopHome(
+                                                player,
+                                                openChats = { navigate(DesktopPage.Chats) },
+                                                openPeople = { navigate(DesktopPage.People) }
+                                            )
+                                        }
                                         DesktopPage.Search -> OnlineScreen(player, search)
                                         DesktopPage.Library -> DownloadsScreen(player, openAudio = openAudio)
                                         DesktopPage.Wave -> WaveScreen(player)
-                                        DesktopPage.People -> ProfileScreen(player, ProfileEntry.People)
-                                        DesktopPage.Chats -> ProfileScreen(player, ProfileEntry.Chats)
-                                        DesktopPage.Profile -> ProfileScreen(player)
+                                        DesktopPage.People, DesktopPage.Chats, DesktopPage.Profile -> key(accountIdentity) {
+                                            val entry = when (destination) {
+                                                DesktopPage.People -> ProfileEntry.People
+                                                DesktopPage.Chats -> ProfileEntry.Chats
+                                                else -> ProfileEntry.Profile
+                                            }
+                                            ProfileScreen(player, entry)
+                                        }
                                     }
                                 }
                             }

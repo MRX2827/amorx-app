@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,11 +34,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.google.gson.Gson
 import com.google.gson.JsonArray
-import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -53,11 +56,13 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.TimeUnit
 import javax.imageio.ImageIO
 
-// ---------- Облако (те же таблицы Supabase, что на телефоне; вход анонимный, id у Mac свой) ----------
+// ---------- Профили и сессия Supabase ----------
 
 object CloudConfig {
     const val URL = "https://nxnshkyvpsvckwxquqxm.supabase.co"
@@ -75,13 +80,22 @@ data class RemoteProfile(
     val songs: List<CloudSong>
 )
 
-class CloudSess(
-    var access: String? = null,
-    var refresh: String? = null,
-    var exp: Long = 0L,
-    var uid: String? = null,
-    var published: Boolean = false,
-    var email: String? = null
+private data class CloudSess(
+    val access: String? = null,
+    val refresh: String? = null,
+    val exp: Long = 0L,
+    val uid: String? = null,
+    val email: String? = null
+)
+
+internal data class DesktopCloudAccount(val uid: String, val email: String, val revision: Long)
+
+internal data class OwnProfileState(
+    val account: DesktopCloudAccount?,
+    val profile: MyProfile,
+    val syncing: Boolean = account != null,
+    val ready: Boolean = account == null,
+    val problem: String? = null
 )
 
 object CloudProfiles {
@@ -92,14 +106,50 @@ object CloudProfiles {
     internal val JSON = "application/json; charset=utf-8".toMediaType()
     private val gson = Gson()
     private val file = File(AppDir.root, "cloud.json")
-    private var sess: CloudSess = runCatching { gson.fromJson(file.readText(), CloudSess::class.java) }.getOrNull() ?: CloudSess()
+    @Volatile private var sess =
+        runCatching { gson.fromJson(file.readText(), CloudSess::class.java) }.getOrNull() ?: CloudSess()
+    private var revision = 0L
+    private var profileRequest = 0L
+    private val initialAccount = accountOf(sess, revision)
+    private var guestProfile = MyProfileCache.loadGuest(allowLegacy = initialAccount == null)
+    private val own = mutableStateOf(OwnProfileState(initialAccount, initialAccount?.let(MyProfileCache::load) ?: guestProfile))
+    internal val ownProfile: State<OwnProfileState> get() = own
+    internal val activeAccount = derivedStateOf { own.value.account }
+    private val remote = CloudProfileRemote(::exec)
+    private val profileWrites = Mutex()
 
-    internal val connectedAccount = mutableStateOf(sess.email)
-    internal val email: String? get() = sess.email
+    private fun accountOf(session: CloudSess, revision: Long): DesktopCloudAccount? {
+        val uid = session.uid ?: return null
+        val email = session.email?.takeIf(String::isNotBlank) ?: return null
+        return DesktopCloudAccount(uid, email, revision)
+    }
 
     fun myId(): String? = sess.uid
 
-    private fun save() { writeLocalJson(file, gson.toJson(sess)) }
+    private fun saveSession(next: CloudSess) {
+        writeLocalJson(file, gson.toJson(next))
+        sess = next
+    }
+
+    @Synchronized
+    private fun activate(next: CloudSess) {
+        val account = accountOf(next, ++revision)
+        val profile = account?.let(MyProfileCache::load) ?: guestProfile
+        saveSession(next)
+        ++profileRequest
+        Snapshot.withMutableSnapshot {
+            CloudStories.resetFeed()
+            CloudFriends.resetState()
+            own.value = OwnProfileState(account, profile)
+        }
+    }
+
+    @Synchronized
+    internal fun runForActiveSession(uid: String, action: () -> Unit): Boolean {
+        if (sess.uid != uid) return false
+        action()
+        return true
+    }
 
     internal suspend fun emailAuth(mode: String, email: String, password: String, code: String): Result<Boolean> =
         withContext(Dispatchers.IO) {
@@ -126,21 +176,16 @@ object CloudProfiles {
                     throw IOException(if (mode == "Login") "Проверьте почту и пароль" else
                         json.str("msg") ?: json.str("message") ?: "Не удалось подтвердить аккаунт")
                 }
-                if (!json.has("access_token") && mode == "Register") return@runCatching false
-                synchronized(this@CloudProfiles) {
-                    sess = CloudSess(email = address)
-                    store(json)
-                    connectedAccount.value = address
-                }
+                if (json.str("access_token") == null && mode == "Register") return@runCatching false
+                val session = parseSession(json, address)
+                ensureActive()
+                activate(session)
                 true
             }
         }
 
-    @Synchronized
-    internal fun signOut() {
-        sess = CloudSess()
-        save()
-        connectedAccount.value = null
+    internal suspend fun signOut(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching { activate(CloudSess()) }
     }
 
     internal fun response(req: Request): okhttp3.Response = client.newCall(req).execute()
@@ -160,32 +205,37 @@ object CloudProfiles {
     private fun JsonObject.str(key: String): String? =
         get(key)?.takeIf { !it.isJsonNull }?.asString?.takeIf { it.isNotBlank() }
 
-    private fun store(o: JsonObject) {
-        sess.access = o.get("access_token").asString
-        sess.refresh = o.str("refresh_token") ?: ""
-        sess.exp = System.currentTimeMillis() / 1000 + (o.get("expires_in")?.takeIf { !it.isJsonNull }?.asLong ?: 3600L)
-        sess.uid = o.getAsJsonObject("user").get("id").asString
-        save()
+    private fun parseSession(o: JsonObject, email: String? = null): CloudSess {
+        val user = o.getAsJsonObject("user")
+        return CloudSess(
+            access = o.str("access_token") ?: throw IOException("Сервер не вернул токен входа"),
+            refresh = o.str("refresh_token"),
+            exp = System.currentTimeMillis() / 1000 + (o.get("expires_in")?.takeIf { !it.isJsonNull }?.asLong ?: 3600L),
+            uid = user.str("id") ?: throw IOException("Сервер не вернул ID аккаунта"),
+            email = user.str("email")?.takeIf { email != null } ?: email
+        )
     }
 
     @Synchronized
     internal fun session(): Pair<String, String> {
+        val current = sess
         val now = System.currentTimeMillis() / 1000
-        val access = sess.access
-        val uid = sess.uid
-        if (access != null && uid != null && sess.exp - 60 > now) return access to uid
+        if (current.access != null && current.uid != null && current.exp - 60 > now) return current.access to current.uid
 
-        val refresh = sess.refresh
+        val refresh = current.refresh
         if (!refresh.isNullOrBlank()) {
             val body = JsonObject().apply { addProperty("refresh_token", refresh) }.toString()
             val (code, resp) = authPost("/auth/v1/token?grant_type=refresh_token", body)
             if (code in 200..299) {
-                store(JsonParser.parseString(resp).asJsonObject)
-                return sess.access!! to sess.uid!!
+                val next = parseSession(JsonParser.parseString(resp).asJsonObject, current.email)
+                if (current.uid != null && current.uid != next.uid) throw IOException("Войдите в аккаунт снова")
+                saveSession(next)
+                return next.access!! to next.uid!!
             }
-            if (code !in 400..499) throw IOException("Сервер недоступен ($code)")
-            if (sess.email != null) throw IOException("Войдите в аккаунт снова")
+            if (code !in 400..499 || code == 429) throw IOException("Сервер недоступен ($code)")
         }
+        if (current.email != null) throw IOException("Войдите в аккаунт снова")
+
         val (code, resp) = authPost("/auth/v1/signup", "{}")
         if (code !in 200..299) {
             throw IOException(
@@ -193,81 +243,88 @@ object CloudProfiles {
                 else "Не удалось войти ($code)"
             )
         }
-        store(JsonParser.parseString(resp).asJsonObject)
-        return sess.access!! to sess.uid!!
+        val next = parseSession(JsonParser.parseString(resp).asJsonObject)
+        saveSession(next)
+        return next.access!! to next.uid!!
     }
 
-    suspend fun publish(
-        name: String, bio: String, avatarB64: String?, isPublic: Boolean, artists: List<CloudArtist>,
-        songs: List<CloudSong> = emptyList()
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val (token, uid) = session()
-            val body = JsonObject().apply {
-                addProperty("id", uid)
-                addProperty("username", name.trim())
-                addProperty("bio", bio.trim())
-                if (avatarB64 != null) addProperty("avatar_b64", avatarB64) else add("avatar_b64", JsonNull.INSTANCE)
-                addProperty("is_public", isPublic)
-                addProperty("updated_at", java.time.Instant.now().toString())
-                val arr = JsonArray()
-                artists.take(50).forEach { a ->
-                    arr.add(JsonObject().apply {
-                        addProperty("name", a.name)
-                        if (a.avatar != null) addProperty("avatar", a.avatar) else add("avatar", JsonNull.INSTANCE)
-                    })
-                }
-                add("favorite_artists", arr)
-                val sarr = JsonArray()
-                songs.take(50).forEach { s ->
-                    sarr.add(JsonObject().apply {
-                        addProperty("id", s.id)
-                        addProperty("title", s.title)
-                        addProperty("artist", s.artist)
-                        if (s.artwork != null) addProperty("artwork", s.artwork) else add("artwork", JsonNull.INSTANCE)
-                        addProperty("dur", s.dur)
-                    })
-                }
-                add("favorite_songs", sarr)
-            }
-            val req = Request.Builder()
-                .url(CloudConfig.URL + "/rest/v1/profiles")
-                .header("apikey", CloudConfig.KEY)
-                .header("Authorization", "Bearer $token")
-                .header("Prefer", "resolution=merge-duplicates,return=minimal")
-                .post(body.toString().toRequestBody(JSON))
-                .build()
-            val (code, resp) = exec(req)
-            if (code !in 200..299) {
-                throw IOException(
-                    when {
-                        resp.contains("23505") -> "Это имя уже занято, выберите другое"
-                        code == 404 -> "Таблица profiles не найдена в Supabase"
-                        else -> "Ошибка публикации ($code)"
-                    }
-                )
-            }
-            sess.published = true
-            save()
+    @Synchronized
+    private fun sessionFor(account: DesktopCloudAccount?): Pair<String, String> {
+        if (own.value.account != account) throw IOException("Аккаунт изменился")
+        val credentials = session()
+        if (account != null && credentials.second != account.uid) throw IOException("Аккаунт изменился")
+        return credentials
+    }
+
+    internal suspend fun syncOwnProfile(account: DesktopCloudAccount) = withContext(Dispatchers.IO) {
+        val request = synchronized(this@CloudProfiles) {
+            if (own.value.account != account) return@withContext
+            own.value = own.value.copy(syncing = true, problem = null)
+            ++profileRequest
         }
-    }
-
-    suspend fun unpublishIfNeeded() = withContext(Dispatchers.IO) {
-        runCatching {
-            if (!sess.published) return@runCatching
-            val (token, uid) = session()
-            val req = Request.Builder()
-                .url(CloudConfig.URL + "/rest/v1/profiles?id=eq." + uid)
-                .header("apikey", CloudConfig.KEY)
-                .header("Authorization", "Bearer $token")
-                .header("Prefer", "return=minimal")
-                .patch(JsonObject().apply { addProperty("is_public", false) }.toString().toRequestBody(JSON))
-                .build()
-            val (code, _) = exec(req)
-            if (code in 200..299) { sess.published = false; save() }
+        val result = try {
+            val (token, uid) = sessionFor(account)
+            val profile = remote.fetch(token, uid)
+            ensureActive()
+            Result.success(profile)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+        synchronized(this@CloudProfiles) {
+            if (own.value.account != account || profileRequest != request) return@withContext
+            result.onSuccess { profile ->
+                MyProfileCache.save(account, profile)
+                own.value = OwnProfileState(account, profile, syncing = false, ready = true)
+            }.onFailure {
+                own.value = own.value.copy(syncing = false, problem = "Не удалось синхронизировать профиль. ${it.message.orEmpty()}".trim())
+            }
         }
         Unit
     }
+
+    internal suspend fun saveProfile(account: DesktopCloudAccount?, profile: MyProfile): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            profileWrites.withLock {
+                runCatching {
+                    val current = own.value
+                    if (current.account != account || !current.ready || current.syncing) {
+                        throw IOException("Дождитесь синхронизации профиля")
+                    }
+                    if (account != null || profile.isPublic || current.profile.isPublic) {
+                        val (token, uid) = sessionFor(account)
+                        if (account != null) remote.save(token, uid, profile)
+                        else remote.save(token, uid, profile, WaveStore.artists.value.map {
+                            CloudArtist(it.name, it.avatar)
+                        }, Likes.asCloud())
+                    }
+                    synchronized(this@CloudProfiles) {
+                        if (own.value.account != account) throw IOException("Аккаунт изменился")
+                        ++profileRequest
+                        if (account == null) guestProfile = profile
+                        MyProfileCache.save(account, profile)
+                        own.value = OwnProfileState(account, profile, syncing = false, ready = true)
+                    }
+                }
+            }
+        }
+
+    internal suspend fun setFavorite(account: DesktopCloudAccount?, song: CloudSong, liked: Boolean) =
+        withContext(Dispatchers.IO) {
+            profileWrites.withLock {
+                val current = own.value
+                if (current.account != account || !current.ready || !current.profile.isPublic) return@withLock
+                try {
+                    val (token, uid) = sessionFor(account)
+                    remote.setFavorite(token, uid, song, liked)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // The local like is kept when the published collection is unavailable.
+                }
+            }
+        }
 
     private fun parse(arr: JsonArray): List<RemoteProfile> = arr.map { e ->
         val o = e.asJsonObject
@@ -309,7 +366,7 @@ object CloudProfiles {
     }
 }
 
-// ---------- Свой профиль на Mac (локально) ----------
+// ---------- Кеш профиля для каждого аккаунта ----------
 
 data class MyProfile(
     val name: String = "",
@@ -318,17 +375,37 @@ data class MyProfile(
     val isPublic: Boolean = false
 )
 
-object MyProfileStore {
-    private val file = File(AppDir.root, "profile.json")
+private object MyProfileCache {
+    private val guest = File(AppDir.root, "profile-guest.json")
+    private val legacy = File(AppDir.root, "profile.json")
+    private val directory = File(AppDir.root, "account-profiles")
     private val gson = Gson()
-    val data = mutableStateOf(load())
 
-    private fun load(): MyProfile =
+    private fun file(account: DesktopCloudAccount?): File {
+        if (account == null) return guest
+        val key = MessageDigest.getInstance("SHA-256").digest(account.uid.toByteArray(Charsets.UTF_8))
+        return File(directory, "${HexFormat.of().formatHex(key)}.json")
+    }
+
+    private fun loadFile(file: File): MyProfile =
         runCatching { gson.fromJson(file.readText(), MyProfile::class.java) }.getOrNull() ?: MyProfile()
 
-    fun save(p: MyProfile) {
-        data.value = p
-        runCatching { file.writeText(gson.toJson(p)) }
+    fun loadGuest(allowLegacy: Boolean): MyProfile {
+        if (guest.isFile) return loadFile(guest)
+        if (!legacy.isFile) return MyProfile()
+        val profile = if (allowLegacy) loadFile(legacy) else MyProfile()
+        save(null, profile)
+        return profile
+    }
+
+    fun load(account: DesktopCloudAccount): MyProfile = loadFile(file(account))
+
+    fun save(account: DesktopCloudAccount?, profile: MyProfile) {
+        val file = file(account)
+        runCatching {
+            file.parentFile.mkdirs()
+            writeLocalJson(file, gson.toJson(profile))
+        }
     }
 }
 
@@ -394,7 +471,10 @@ internal fun ProfileScreen(p: PlayerState, entry: ProfileEntry = ProfileEntry.Pr
         cur != null -> PersonScreen(cur, p, { person = null }) { thread = ChatPeer(cur.id, cur.username, cur.avatarB64) }
         liked -> LikedScreen(p) { liked = false }
         chats -> ChatsScreen({ chats = false }) { thread = it }
-        people -> PeopleScreen({ people = false }) { person = it }
+        people -> PeopleScreen({ people = false }) { selected ->
+            if (selected.id == CloudProfiles.myId()) people = false
+            else person = selected
+        }
         else -> MyProfileScreen(p, { people = true }, { chats = true }, unread) { liked = true }
     }
 }
@@ -402,12 +482,13 @@ internal fun ProfileScreen(p: PlayerState, entry: ProfileEntry = ProfileEntry.Pr
 @Composable
 private fun MyProfileScreen(player: PlayerState, onPeople: () -> Unit, onChats: () -> Unit, unread: Int, onLiked: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val saved = MyProfileStore.data.value
-    var name by remember { mutableStateOf(saved.name) }
-    var bio by remember { mutableStateOf(saved.bio) }
-    var avatar by remember { mutableStateOf(saved.avatar) }
-    var isPublic by remember { mutableStateOf(saved.isPublic) }
-    var editing by remember { mutableStateOf(saved.name.isBlank()) }
+    val state by CloudProfiles.ownProfile
+    val saved = state.profile
+    var name by remember(saved) { mutableStateOf(saved.name) }
+    var bio by remember(saved) { mutableStateOf(saved.bio) }
+    var avatar by remember(saved) { mutableStateOf(saved.avatar) }
+    var isPublic by remember(saved) { mutableStateOf(saved.isPublic) }
+    var editing by remember(state.ready) { mutableStateOf(state.ready && saved.name.isBlank()) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     val artists by WaveStore.artists
@@ -424,17 +505,15 @@ private fun MyProfileScreen(player: PlayerState, onPeople: () -> Unit, onChats: 
         val n = name.trim()
         if (n.length !in 2..30) { msg = "Имя: от 2 до 30 символов"; return }
         val b = bio.take(120)
-        MyProfileStore.save(MyProfile(n, b, avatar, isPublic))
+        val profile = MyProfile(n, b, avatar, isPublic)
+        val account = state.account
         scope.launch {
             busy = true
             msg = null
-            if (isPublic) {
-                val r = CloudProfiles.publish(n, b, avatar, true, artists.map { CloudArtist(it.name, it.avatar) }, Likes.asCloud())
-                msg = r.fold({ "Профиль опубликован" }, { it.message ?: "Ошибка публикации" })
-            } else {
-                CloudProfiles.unpublishIfNeeded()
-                msg = "Профиль сохранён"
-            }
+            CloudProfiles.saveProfile(account, profile).fold(
+                { msg = "Профиль сохранён" },
+                { msg = it.message ?: "Не удалось сохранить профиль" }
+            )
             busy = false
         }
     }
@@ -450,9 +529,16 @@ private fun MyProfileScreen(player: PlayerState, onPeople: () -> Unit, onChats: 
                 B64Avatar(saved.avatar, 100.dp, saved.name.ifBlank { "?" })
                 Text(saved.name.ifBlank { "Мой профиль" }, style = MaterialTheme.typography.headlineMedium)
                 if (saved.bio.isNotBlank()) Text(saved.bio, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (state.syncing) Text("Синхронизируем профиль…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                state.problem?.let { problem ->
+                    Text(problem, color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = { state.account?.let { scope.launch { CloudProfiles.syncOwnProfile(it) } } }) {
+                        Text("Повторить")
+                    }
+                }
                 ProfileSocialStats(null)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { editing = !editing }) {
+                    FilledTonalButton(enabled = state.ready && !state.syncing, onClick = { editing = !editing }) {
                         Text(if (editing) "Скрыть настройки" else "Редактировать профиль")
                     }
                     FilledTonalButton(onClick = onPeople) {
@@ -484,19 +570,19 @@ private fun MyProfileScreen(player: PlayerState, onPeople: () -> Unit, onChats: 
                     Column(Modifier.weight(1f)) {
                         Text("Показывать мой профиль другим", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Имя, фото, «о себе» и артисты «Моей волны» увидят другие в «Найти людей»",
+                            "Имя, фото и описание увидят другие в «Найти людей»",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Switch(checked = isPublic, onCheckedChange = { isPublic = it })
                 }
-                Text(
+                if (state.account == null) Text(
                     "Артисты в профиле: " + (if (artists.isEmpty()) "пока нет (добавьте во вкладке «Волна»)" else artists.size.toString()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(onClick = { save() }, enabled = !busy) { Text(if (busy) "Сохраняю…" else "Сохранить") }
+                Button(onClick = { save() }, enabled = !busy && state.ready && !state.syncing) { Text(if (busy) "Сохраняю…" else "Сохранить") }
                 msg?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
