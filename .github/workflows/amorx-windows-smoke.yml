@@ -7,8 +7,9 @@ permissions:
 jobs:
   launch:
     runs-on: windows-2025
-    timeout-minutes: 16
+    timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v7
       - name: Run the published EXE on Windows
         shell: pwsh
         run: |
@@ -43,16 +44,84 @@ jobs:
           if ($LASTEXITCODE -or (Get-FileHash $archive).Hash -ne 'e1b9d9fb665001ef27b16e57d8762a2d54aec6bff617e17506edb8676667b9da') { throw 'Android image digest mismatch' }
           tar.exe -xf $archive -C $image
           if ($LASTEXITCODE) { throw 'Android image extraction failed' }
-          $app = Start-Process -FilePath $exe -ArgumentList '--software' -PassThru
-          $deadline = (Get-Date).AddMinutes(5)
+          $older = '5.5.499.1317'
+          $oldAPK = Join-Path $env:RUNNER_TEMP "AmorX-$older-githubRelease-x86_64.apk"
+          curl.exe -fsSL "https://github.com/MRX2827/amorxsyte/releases/download/$older/AmorX-$older-githubRelease-x86_64.apk" -o $oldAPK
+          if ($LASTEXITCODE) { throw 'Older APK download failed' }
+          $oldManifest = Join-Path $env:RUNNER_TEMP 'older-android.json'
+          @{version=$older; apk=@{x86_64=@{sha256=(Get-FileHash $oldAPK).Hash.ToLowerInvariant()}}} |
+            ConvertTo-Json -Depth 5 | Set-Content $oldManifest
+          $oldEXE = Join-Path $env:RUNNER_TEMP "AmorX-$older-Windows-x64.exe"
+          python windows/build.py $oldAPK $oldEXE --android-manifest $oldManifest --version-code 554991317
+          if ($LASTEXITCODE) { throw 'Older Windows test launcher build failed' }
+          $app = Start-Process -FilePath $oldEXE -ArgumentList '--software','--no-launcher-update' -PassThru
+          if (-not $app.WaitForExit(320000)) { throw 'Older Windows launcher timed out' }
           $logFile = Join-Path $root 'launcher.log'
-          do {
-            Start-Sleep -Seconds 4
-            $log = if (Test-Path $logFile) { Get-Content $logFile -Raw }
-            if ($log -match 'Status: ok' -and $log -match 'Activity: chromahub.rhythm.app/.activities.MainActivity') { break }
-          } while ((Get-Date) -lt $deadline -and -not $app.HasExited)
-          if (Test-Path $logFile) { Get-Content $logFile -Tail 35 | Where-Object { $_ -notmatch 'adb.pubkey' } }
-          if ($log -notmatch 'Status: ok') { throw 'AmorX did not open on Windows' }
+          if ((Get-Content $logFile -Raw) -notmatch 'Status: ok') { throw 'Older AmorX did not launch' }
           $adb = "$sdk\platform-tools\adb.exe"
-          & $adb -P 17537 -s emulator-5568 shell dumpsys activity activities | Select-String 'topResumedActivity'
-          & $adb -P 17537 -s emulator-5568 emu kill
+          $pkg = 'chromahub.rhythm.app'
+          $target = @('-P','17537','-s','emulator-5568')
+          function Guest { & $adb @target @args; if ($LASTEXITCODE) { throw "ADB command failed" } }
+          $oldPackage = Guest shell dumpsys package $pkg
+          if (($oldPackage | Out-String) -notmatch 'versionCode=554991317') { throw 'Expected older APK' }
+          Guest root
+          Guest wait-for-device
+          Guest shell svc wifi disable
+          Guest shell svc data disable
+          Guest shell am force-stop $pkg
+          $fixtures = @{
+            amorx_cloud='<map><string name="access">test-access-offline</string><string name="refresh">test-refresh-offline</string><string name="uid">98765432-abcd-4def-9876-123456789abc</string><long name="exp" value="2147483647" /></map>'
+            amorx_account='<map><boolean name="setup_done" value="true" /><boolean name="auto" value="false" /></map>'
+            rhythm_preferences='<map><boolean name="onboarding_completed" value="true" /><boolean name="dark_mode" value="true" /><float name="app_volume" value="0.37" /></map>'
+          }
+          foreach ($entry in $fixtures.GetEnumerator()) {
+            $fixture = Join-Path $env:RUNNER_TEMP "$($entry.Key).xml"
+            '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>' + "`n" + $entry.Value | Set-Content $fixture
+            Guest push $fixture "/sdcard/$($entry.Key).xml"
+          }
+          Guest shell 'd=/data/user/0/chromahub.rhythm.app; mkdir -p "$d/shared_prefs"; for n in amorx_cloud amorx_account rhythm_preferences; do cp "/sdcard/$n.xml" "$d/shared_prefs/"; done; owner=$(stat -c %u "$d"); chown -R "$owner:$owner" "$d/shared_prefs"; chmod 700 "$d/shared_prefs"; chmod 600 "$d"/shared_prefs/*.xml; restorecon -RF "$d/shared_prefs"'
+
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class AmorXPrompt {
+              [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string t);
+              [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr dialog, int id);
+              [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+          }
+          '@
+          $oldRun = Start-Process -FilePath $oldEXE -ArgumentList '--software' -PassThru
+          $accepted = $false
+          for ($i = 0; $i -lt 50; $i++) {
+            Start-Sleep -Milliseconds 300
+            $dialog = [AmorXPrompt]::FindWindow('#32770', 'AmorX')
+            if ($dialog -eq [IntPtr]::Zero) { continue }
+            $yes = [AmorXPrompt]::GetDlgItem($dialog, 6)
+            if ($yes -eq [IntPtr]::Zero) { continue }
+            $accepted = [AmorXPrompt]::PostMessage($dialog, 0x111, [IntPtr]6, $yes)
+            if ($accepted) { break }
+          }
+          if (-not $accepted) { throw 'The Windows update dialog did not appear' }
+          $deadline = (Get-Date).AddSeconds(180)
+          do {
+            Start-Sleep -Seconds 3
+            $newPackage = Guest shell dumpsys package $pkg
+            if (($newPackage | Out-String) -match 'versionCode=554991318') { break }
+          } while ((Get-Date) -lt $deadline)
+          if (($newPackage | Out-String) -notmatch 'versionCode=554991318') {
+            Get-Content $logFile -Tail 35 | Where-Object { $_ -notmatch 'adb.pubkey' }
+            throw 'The new EXE did not upgrade the APK'
+          }
+          $cached = Join-Path $root "windows-releases\$($release.version)\AmorX-$($release.version)-Windows-x64.exe"
+          if ((Get-FileHash $cached).Hash -ne $release.exe.sha256) { throw 'Updater did not use the published EXE' }
+          $dir = "/data/user/0/$pkg/shared_prefs"
+          $auth = Guest shell cat "$dir/amorx_cloud.xml"
+          $account = Guest shell cat "$dir/amorx_account.xml"
+          $settings = Guest shell cat "$dir/rhythm_preferences.xml"
+          if (($auth | Out-String) -notmatch 'test-refresh-offline' -or ($auth | Out-String) -notmatch '98765432-abcd-4def-9876-123456789abc') { throw 'Stored login changed' }
+          if (($account | Out-String) -notmatch 'name="setup_done" value="true"' -or ($account | Out-String) -notmatch 'name="auto" value="false"') { throw 'Account preferences changed' }
+          if (($settings | Out-String) -notmatch 'name="dark_mode" value="true"' -or ($settings | Out-String) -notmatch 'name="app_volume" value="0.37"') { throw 'Player preferences changed' }
+          $running = Guest shell dumpsys activity activities
+          if (($running | Out-String) -notmatch 'topResumedActivity=.*chromahub.rhythm.app') { throw 'Updated AmorX is not in the foreground' }
+          Write-Host 'Published Windows EXE upgraded 5.5.499.1317 to 5.5.499.1318, opened AmorX, and kept the seeded account ID, saved login, and player settings.'
+          Guest emu kill
