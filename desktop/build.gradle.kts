@@ -14,6 +14,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("uk.co.caprica:vlcj:4.8.3")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("org.json:json:20250517")
 }
 
 compose.desktop {

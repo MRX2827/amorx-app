@@ -9,7 +9,10 @@ import java.io.File
 
 /** Plays local files and streams through the engine shipped with AmorX. */
 object Engine {
-    private val factoryDelegate = lazy {
+    private val factoryDelegate = lazy { newFactory(audioOnly = true) }
+    private val videoDelegate = lazy { newFactory(audioOnly = false) }
+
+    private fun newFactory(audioOnly: Boolean): MediaPlayerFactory {
         val resources = checkNotNull(System.getProperty("compose.application.resources.dir")) {
             "Папка аудиодвижка AmorX не найдена."
         }
@@ -24,9 +27,10 @@ object Engine {
             val setenv = NativeLibrary.getProcess().getFunction("setenv")
             check(setenv.invokeInt(arrayOf("VLC_PLUGIN_PATH", File(vlc, "plugins").absolutePath, 1)) == 0)
         }
-        val options = mutableListOf("--no-video", "--ignore-config", "--no-media-library", "--no-plugins-cache")
+        val options = mutableListOf("--ignore-config", "--no-media-library", "--no-plugins-cache")
+        if (audioOnly) options.add("--no-video")
         if (System.getenv("AMORX_SMOKE_AUDIO_DUMMY") == "1") options.add("--aout=dummy")
-        MediaPlayerFactory(null as NativeDiscovery?, options)
+        return MediaPlayerFactory(null as NativeDiscovery?, options)
     }
     private val playerDelegate = lazy {
         factory.mediaPlayers().newMediaPlayer().also {
@@ -53,6 +57,10 @@ object Engine {
     fun setPause(pause: Boolean) { player.controls().setPause(pause) }
     fun seek(ms: Long) { player.controls().setTime(ms) }
     fun timeMs(): Long = player.status().time()
+    internal fun videoFactory(): MediaPlayerFactory = videoDelegate.value
+
+    internal fun newAudioPlayer(): MediaPlayer = factory.mediaPlayers().newMediaPlayer()
+
     fun setVolume(volume: Int) {
         if (playerDelegate.isInitialized()) player.audio().setVolume(volume)
     }
@@ -61,5 +69,6 @@ object Engine {
     fun release() {
         if (playerDelegate.isInitialized()) runCatching { player.release() }
         if (factoryDelegate.isInitialized()) runCatching { factory.release() }
+        if (videoDelegate.isInitialized()) runCatching { videoDelegate.value.release() }
     }
 }

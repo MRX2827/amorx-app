@@ -1,5 +1,6 @@
 package amorx
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -142,8 +143,10 @@ object CloudProfiles {
         connectedAccount.value = null
     }
 
+    internal fun response(req: Request): okhttp3.Response = client.newCall(req).execute()
+
     internal fun exec(req: Request): Pair<Int, String> =
-        client.newCall(req).execute().use { r -> r.code to (r.body?.string() ?: "") }
+        response(req).use { r -> r.code to (r.body?.string() ?: "") }
 
     private fun authPost(path: String, body: String): Pair<Int, String> =
         exec(
@@ -367,10 +370,12 @@ fun B64Avatar(b64: String?, size: Dp, name: String, modifier: Modifier = Modifie
 
 // ---------- Экраны ----------
 
+internal enum class ProfileEntry { Profile, Chats, People }
+
 @Composable
-fun ProfileScreen(p: PlayerState) {
-    var people by remember { mutableStateOf(false) }
-    var chats by remember { mutableStateOf(false) }
+internal fun ProfileScreen(p: PlayerState, entry: ProfileEntry = ProfileEntry.Profile) {
+    var people by remember(entry) { mutableStateOf(entry == ProfileEntry.People) }
+    var chats by remember(entry) { mutableStateOf(entry == ProfileEntry.Chats) }
     var liked by remember { mutableStateOf(false) }
     var person by remember { mutableStateOf<RemoteProfile?>(null) }
     var thread by remember { mutableStateOf<ChatPeer?>(null) }
@@ -390,18 +395,19 @@ fun ProfileScreen(p: PlayerState) {
         liked -> LikedScreen(p) { liked = false }
         chats -> ChatsScreen({ chats = false }) { thread = it }
         people -> PeopleScreen({ people = false }) { person = it }
-        else -> MyProfileScreen({ people = true }, { chats = true }, unread) { liked = true }
+        else -> MyProfileScreen(p, { people = true }, { chats = true }, unread) { liked = true }
     }
 }
 
 @Composable
-private fun MyProfileScreen(onPeople: () -> Unit, onChats: () -> Unit, unread: Int, onLiked: () -> Unit) {
+private fun MyProfileScreen(player: PlayerState, onPeople: () -> Unit, onChats: () -> Unit, unread: Int, onLiked: () -> Unit) {
     val scope = rememberCoroutineScope()
     val saved = MyProfileStore.data.value
     var name by remember { mutableStateOf(saved.name) }
     var bio by remember { mutableStateOf(saved.bio) }
     var avatar by remember { mutableStateOf(saved.avatar) }
     var isPublic by remember { mutableStateOf(saved.isPublic) }
+    var editing by remember { mutableStateOf(saved.name.isBlank()) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     val artists by WaveStore.artists
@@ -437,57 +443,66 @@ private fun MyProfileScreen(onPeople: () -> Unit, onChats: () -> Unit, unread: I
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(8.dp))
-        B64Avatar(avatar, 112.dp, name.ifBlank { "?" }, Modifier.clickable { pickAvatar() })
-        TextButton(onClick = { pickAvatar() }) { Text("Выбрать фото") }
-        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it.take(30) },
-                label = { Text("Имя") }, singleLine = true, modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = bio, onValueChange = { bio = it.take(120) },
-                label = { Text("О себе") }, supportingText = { Text("${bio.length}/120") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Показывать мой профиль другим", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Имя, фото, «о себе» и артисты «Моей волны» увидят другие в «Найти людей»",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(28.dp),
+            modifier = Modifier.widthIn(max = 820.dp).fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                B64Avatar(saved.avatar, 100.dp, saved.name.ifBlank { "?" })
+                Text(saved.name.ifBlank { "Мой профиль" }, style = MaterialTheme.typography.headlineMedium)
+                if (saved.bio.isNotBlank()) Text(saved.bio, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ProfileSocialStats(null)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { editing = !editing }) {
+                        Text(if (editing) "Скрыть настройки" else "Редактировать профиль")
+                    }
+                    FilledTonalButton(onClick = onPeople) {
+                        Text("Найти людей")
+                    }
                 }
-                Switch(checked = isPublic, onCheckedChange = { isPublic = it })
-            }
-            Text(
-                "Артисты в профиле: " + (if (artists.isEmpty()) "пока нет (добавьте во вкладке «Волна»)" else artists.size.toString()),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { save() }, enabled = !busy) { Text(if (busy) "Сохраняю…" else "Сохранить") }
-                FilledTonalButton(onClick = onPeople) {
-                    Icon(Icons.Rounded.Group, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Найти людей")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onChats) {
+                        Text(if (unread > 0) "Сообщения ($unread)" else "Сообщения")
+                    }
+                    TextButton(onClick = onLiked) { Text("Понравившиеся") }
                 }
-                FilledTonalButton(onClick = onChats) {
-                    Icon(Icons.Rounded.Chat, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (unread > 0) "Сообщения ($unread)" else "Сообщения")
-                }
-            }
-            FilledTonalButton(onClick = onLiked) {
-                Icon(Icons.Rounded.Favorite, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Понравившиеся (" + Likes.items.value.size + ")")
-            }
-            msg?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
+        Spacer(Modifier.height(16.dp))
+        AnimatedVisibility(editing) {
+            Column(Modifier.widthIn(max = 520.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = { pickAvatar() }) { Text("Выбрать фото") }
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it.take(30) },
+                    label = { Text("Имя") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = bio, onValueChange = { bio = it.take(120) },
+                    label = { Text("О себе") }, supportingText = { Text("${bio.length}/120") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Показывать мой профиль другим", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Имя, фото, «о себе» и артисты «Моей волны» увидят другие в «Найти людей»",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = isPublic, onCheckedChange = { isPublic = it })
+                }
+                Text(
+                    "Артисты в профиле: " + (if (artists.isEmpty()) "пока нет (добавьте во вкладке «Волна»)" else artists.size.toString()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = { save() }, enabled = !busy) { Text(if (busy) "Сохраняю…" else "Сохранить") }
+                msg?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+        ProfilePostGallery(null, player)
     }
 }
 
@@ -590,10 +605,12 @@ private fun PersonScreen(r: RemoteProfile, p: PlayerState, onBack: () -> Unit, o
             if (r.bio.isNotBlank()) {
                 Text(r.bio, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            ProfileSocialStats(r.id)
         }
         if (r.id != CloudProfiles.myId()) {
             Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                FollowAndFriendButtons(r.id)
                 Button(onClick = onWrite) {
                     Icon(Icons.Rounded.Chat, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -601,6 +618,7 @@ private fun PersonScreen(r: RemoteProfile, p: PlayerState, onBack: () -> Unit, o
                 }
             }
         }
+        ProfilePostGallery(r.id, p)
         if (r.artists.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
             Text("Любимые артисты", style = MaterialTheme.typography.titleMedium)

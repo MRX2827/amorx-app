@@ -7,6 +7,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
+import kotlinx.coroutines.runBlocking
 import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
@@ -14,6 +15,26 @@ import java.io.File
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
+    if (args.size == 3 && args.first() == "--verify-story-clip") {
+        try {
+            val input = File(args[1])
+            check(input.isFile)
+            val track = Track(input.name, "Тестовый фрагмент", "AmorX", 12, colorFor(input.name), localPath = input.absolutePath)
+            val clip = runBlocking { exportDesktopStory(track, 2_000L, 7_000L) }
+            try {
+                clip.copyTo(File(args[2]), overwrite = true)
+                println("Story clip verified: " + clip.length() + " bytes")
+            } finally {
+                clip.delete()
+            }
+            Engine.release()
+            exitProcess(0)
+        } catch (error: Throwable) {
+            error.printStackTrace()
+            Engine.release()
+            exitProcess(1)
+        }
+    }
     if (args.size == 2 && args.first() == "--verify-audio") {
         try {
             Engine.play(args[1])
