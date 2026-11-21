@@ -5,6 +5,8 @@
 
 package chromahub.rhythm.app.features.local.presentation.viewmodel
 
+import amorx.playback.playbackIdentity
+import amorx.playback.uniquePlaybackTracks
 import android.app.Activity
 import android.app.Application
 import android.content.BroadcastReceiver
@@ -4137,6 +4139,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
 
+                            if (_isShuffleEnabled.value) normalizeShuffledControllerQueue()
+
                             // Restore saved playback speed and pitch
                             val savedSpeed = appSettings.playbackSpeed.value
                             val savedPitch = appSettings.playbackPitch.value
@@ -4548,6 +4552,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "Shuffle mode changed: $shuffleModeEnabled")
 
             if (appSettings.shuffleUsesExoplayer.value) {
+                if (shuffleModeEnabled) normalizeShuffledControllerQueue()
                 // Only update if the state actually changed to avoid unnecessary updates
                 if (_isShuffleEnabled.value != shuffleModeEnabled) {
                     _isShuffleEnabled.value = shuffleModeEnabled
@@ -6028,8 +6033,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         
+        val shuffleRequested = enableShuffle ?: _isShuffleEnabled.value
+        val requestedSong = songs.getOrNull(startIndex.coerceIn(0, songs.lastIndex))
+        val playbackSongs = if (shuffleRequested) uniquePlaybackTracks(songs, Song::id, requestedSong?.id) else songs
+
         // Validate startIndex
-        val validStartIndex = startIndex.coerceIn(0, songs.size - 1)
+        val validStartIndex = playbackSongs.indexOfFirst { it.id == requestedSong?.id }.coerceAtLeast(0)
         if (startIndex != validStartIndex) {
             Log.w(TAG, "startIndex $startIndex out of bounds, using $validStartIndex")
         }
@@ -6038,12 +6047,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.Default) {
             try {
                 val useExoPlayerShuffle = appSettings.shuffleUsesExoplayer.value
-                val isManualShuffle = enableShuffle == true && !useExoPlayerShuffle
-                val shouldPinStart = pinStartIndex || (enableShuffle == true && validStartIndex > 0)
+                val isManualShuffle = shuffleRequested && !useExoPlayerShuffle
+                val shouldPinStart = pinStartIndex || (shuffleRequested && startIndex > 0)
 
                 // If manual shuffle is requested, pre-shuffle the list
                 val finalSongs = if (isManualShuffle) {
-                    val listToShuffle = songs.toMutableList()
+                    val listToShuffle = playbackSongs.toMutableList()
                     if (shouldPinStart) {
                         val startingSong = listToShuffle.getOrNull(validStartIndex)
                         if (startingSong != null) {
@@ -6058,14 +6067,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     listToShuffle
                 } else {
-                    songs
+                    playbackSongs
                 }
 
                 // If manual shuffle was applied, the starting index in the final list is 0.
                 // If ExoPlayer shuffle is used without a pinned starting song, pick a random start index so ExoPlayer's shuffle order doesn't always start on song 0.
                 val finalStartIndex = when {
                     isManualShuffle -> 0
-                    enableShuffle == true && !shouldPinStart && songs.size > 1 -> kotlin.random.Random.nextInt(songs.size)
+                    shuffleRequested && !shouldPinStart && playbackSongs.size > 1 -> kotlin.random.Random.nextInt(playbackSongs.size)
                     else -> validStartIndex
                 }
 
@@ -6081,21 +6090,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         // Clear existing queue
                         controller.clearMediaItems()
                         
-                        // Set shuffle mode BEFORE adding items if specified
-                        if (enableShuffle != null) {
-                            if (useExoPlayerShuffle) {
-                                controller.shuffleModeEnabled = enableShuffle
-                                _isShuffleEnabled.value = enableShuffle
-                            } else {
-                                controller.shuffleModeEnabled = false
-                                _isShuffleEnabled.value = enableShuffle
-                                if (appSettings.shuffleModePersistence.value) {
-                                    appSettings.setSavedShuffleState(enableShuffle)
-                                }
-                            }
-                            Log.d(TAG, "Set shuffle mode to $enableShuffle before building queue (useExoPlayerShuffle=$useExoPlayerShuffle)")
+                        controller.shuffleModeEnabled = shuffleRequested && useExoPlayerShuffle
+                        _isShuffleEnabled.value = shuffleRequested
+                        if (appSettings.shuffleModePersistence.value) appSettings.setSavedShuffleState(shuffleRequested)
+
+                        if (shuffleRequested && controller.repeatMode == Player.REPEAT_MODE_ONE) {
+                            controller.repeatMode = Player.REPEAT_MODE_ALL
                         }
-                        
+
                         // Add all media items at once
                         controller.addMediaItems(mediaItems)
                         
@@ -6106,8 +6108,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         _currentQueue.value = Queue(finalSongs, finalStartIndex)
                         
                         // Set original queue state if shuffle is enabled
-                        if (enableShuffle == true) {
-                            queueStateHolder.saveOriginalQueueState(songs, queueStateHolder.currentQueueSourceName.value)
+                        if (shuffleRequested) {
+                            queueStateHolder.saveOriginalQueueState(playbackSongs, queueStateHolder.currentQueueSourceName.value)
                         } else {
                             queueStateHolder.clearOriginalQueue()
                         }
@@ -6475,6 +6477,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun normalizeShuffledControllerQueue() {
+        val controller = mediaController ?: return
+        if (controller.mediaItemCount == 0) return
+        if (controller.repeatMode == Player.REPEAT_MODE_ONE) controller.repeatMode = Player.REPEAT_MODE_ALL
+        val items = (0 until controller.mediaItemCount).map { controller.getMediaItemAt(it) }
+        val currentId = controller.currentMediaItem?.mediaId
+        val unique = uniquePlaybackTracks(items, { it.mediaId }, currentId)
+        if (unique.size == items.size) return
+        val position = controller.currentPosition
+        val wasPlaying = controller.playWhenReady
+        val index = unique.indexOfFirst { it.mediaId == currentId }.coerceAtLeast(0)
+        controller.setMediaItems(unique, index, position)
+        controller.prepare()
+        controller.playWhenReady = wasPlaying
+        syncQueueWithMediaController()
+    }
+
     fun toggleShuffle() {
         commandSerializer.executeCommand {
             mediaController?.let { controller ->
@@ -6484,11 +6503,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 return@executeCommand
             }
 
-            val currentSongs = _currentQueue.value.songs
             val currentSong = _currentSong.value
+            val newShuffleMode = !_isShuffleEnabled.value
+            val beforeShuffle = _currentQueue.value.songs
+            val currentSongs = if (newShuffleMode) uniquePlaybackTracks(beforeShuffle, Song::id, currentSong?.id) else beforeShuffle
+            if (newShuffleMode && currentSongs.size != beforeShuffle.size) {
+                replacePlayerQueue(controller, currentSongs, currentSong?.id, controller.currentPosition)
+                updateQueueState(currentSongs)
+            }
+            if (newShuffleMode && controller.repeatMode == Player.REPEAT_MODE_ONE) controller.repeatMode = Player.REPEAT_MODE_ALL
             val currentQueueSourceName = queueStateHolder.currentQueueSourceName.value
             val useExoPlayerShuffle = shuffleUsesExoplayer.value
-            val newShuffleMode = !_isShuffleEnabled.value
 
             Log.d(TAG, "Toggle shuffle mode to: $newShuffleMode (useExoPlayerShuffle=$useExoPlayerShuffle)")
 
@@ -8657,6 +8682,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Add a song to the queue
      */
     fun addSongToQueue(song: Song, silent: Boolean = false) {
+        if (_isShuffleEnabled.value && _currentQueue.value.songs.any { playbackIdentity(it.id) == playbackIdentity(song.id) }) return
         Log.d(TAG, "Adding song to queue: ${song.title}")
         
         // Clear any previous error
@@ -9022,6 +9048,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             
+            val existingIds = _currentQueue.value.songs.map { playbackIdentity(it.id) }.toHashSet()
+            val additions = if (_isShuffleEnabled.value) uniquePlaybackTracks(songs, Song::id).filter { playbackIdentity(it.id) !in existingIds } else songs
+            if (additions.isEmpty()) return@launch
+
             // Clear any previous error
             _queueOperationError.value = null
             
@@ -9029,7 +9059,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     // Build media items in background to avoid UI freeze
                     val mediaItems = withContext(Dispatchers.Default) {
-                        songs.map { it.toMediaItem() }
+                        additions.map { it.toMediaItem() }
                     }
                     
                     // Add items in batches to prevent ANR
@@ -9059,7 +9089,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         // When shuffle is disabled, we can safely update the queue manually
                         val currentQueueSongs = _currentQueue.value.songs.toMutableList()
-                        currentQueueSongs.addAll(songs)
+                        currentQueueSongs.addAll(additions)
                         
                         // Use MediaController index for accuracy
                         val currentIndex = if (controller.currentMediaItemIndex >= 0) {

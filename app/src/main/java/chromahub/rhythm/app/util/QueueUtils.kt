@@ -6,6 +6,7 @@
 package chromahub.rhythm.app.util
 
 import chromahub.rhythm.app.shared.data.model.Song
+import amorx.playback.uniquePlaybackTracks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
@@ -40,7 +41,7 @@ object QueueUtils {
         result.removeAt(anchorIndex)
 
         // Shuffle the remaining songs using Fisher-Yates
-        val random = Random(System.currentTimeMillis())
+        val random = Random.Default
         for (i in result.size - 1 downTo 1) {
             val j = random.nextInt(i + 1)
             // Swap elements
@@ -77,10 +78,11 @@ object QueueUtils {
      * @return A new list with all songs randomly shuffled
      */
     fun buildShuffleQueue(originalQueue: List<Song>): List<Song> {
-        if (originalQueue.size <= 1) return originalQueue.toList()
+        val unique = uniquePlaybackTracks(originalQueue, Song::id)
+        if (unique.size <= 1) return unique
 
-        val result = originalQueue.toMutableList()
-        val random = Random(System.currentTimeMillis())
+        val result = unique.toMutableList()
+        val random = Random.Default
 
         // Fisher-Yates shuffle algorithm
         for (i in result.size - 1 downTo 1) {

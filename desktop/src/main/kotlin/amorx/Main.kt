@@ -35,6 +35,17 @@ fun main(args: Array<String>) {
             exitProcess(1)
         }
     }
+    if (args.size == 2 && args.first() == "--verify-player-controls") {
+        try {
+            runBlocking { verifyPlaybackControls(File(args[1])) }
+            Engine.release()
+            exitProcess(0)
+        } catch (failure: Throwable) {
+            failure.printStackTrace()
+            Engine.release()
+            exitProcess(1)
+        }
+    }
     if (args.size == 2 && args.first() == "--verify-audio") {
         try {
             Engine.play(args[1])

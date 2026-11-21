@@ -414,8 +414,7 @@ private fun LibraryTrackPane(
                         }
                         FilledTonalIconButton(
                             onClick = {
-                                val shuffled = results.shuffled()
-                                shuffled.firstOrNull()?.let { p.play(it, shuffled) }
+                                p.playShuffled(results)
                             },
                             enabled = results.isNotEmpty()
                         ) { Icon(Icons.Rounded.Shuffle, "Вперемешку") }

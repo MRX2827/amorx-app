@@ -7,6 +7,7 @@ plugins {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
@@ -40,3 +41,6 @@ compose.desktop {
         }
     }
 }
+
+// Pure Kotlin playback helpers are compiled by both Android and desktop.
+kotlin.sourceSets.named("main") { kotlin.srcDir("../app/src/main/java/amorx/playback") }
