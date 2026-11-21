@@ -77,7 +77,9 @@ fun ExpressiveMiniPlayer(
     onSkipPrevious: () -> Unit = {},
     onDismiss: () -> Unit = {},
     isMediaLoading: Boolean = false,
-    verticalDragEnabled: Boolean = true
+    verticalDragEnabled: Boolean = true,
+    isShuffleEnabled: Boolean = false,
+    onToggleShuffle: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -529,6 +531,7 @@ fun ExpressiveMiniPlayer(
                         }
 
                         // Play/Pause
+                        MiniPlayerShuffleButton(isShuffleEnabled, onToggleShuffle, enabled = song != null)
                         MorphingPlayPauseButton(
                             isPlaying = isPlaying,
                             onClick = {
@@ -668,6 +671,7 @@ fun ExpressiveMiniPlayer(
 
                         Spacer(modifier = Modifier.width(12.dp))
 
+                        MiniPlayerShuffleButton(isShuffleEnabled, onToggleShuffle, enabled = song != null)
                         MorphingPlayPauseButton(
                             isPlaying = isPlaying,
                             onClick = {

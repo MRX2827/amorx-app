@@ -5,6 +5,8 @@
 
 package chromahub.rhythm.app.features.local.presentation.viewmodel
 
+import chromahub.rhythm.app.util.ShufflePlaybackAction
+import chromahub.rhythm.app.util.shufflePlaybackAction
 import amorx.playback.playbackIdentity
 import amorx.playback.uniquePlaybackTracks
 import android.app.Activity
@@ -6017,6 +6019,34 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val queuePlaybackRequest = java.util.concurrent.atomic.AtomicLong()
+    private var pendingQueueLoad: Triple<Long, Set<String>, Boolean>? = null
+
+    fun playShuffledQueue(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        commandSerializer.executeCommand {
+            val controller = mediaController ?: return@executeCommand
+            val activeIds = (0 until controller.mediaItemCount).map { controller.getMediaItemAt(it).mediaId }
+            when (shufflePlaybackAction(songs.map { it.id }, activeIds, controller.shuffleModeEnabled,
+                controller.playbackState in setOf(Player.STATE_ENDED, Player.STATE_IDLE) || controller.playerError != null,
+                pendingQueueLoad?.second, pendingQueueLoad?.third ?: true)) {
+                ShufflePlaybackAction.WaitForPending -> Unit
+                ShufflePlaybackAction.StartQueue -> playQueue(songs, enableShuffle = true)
+                ShufflePlaybackAction.EnableCurrent, ShufflePlaybackAction.KeepCurrent -> {
+                    if (!canStartPlayback("playShuffledQueue")) return@executeCommand
+                    if (!queueStateHolder.hasOriginalQueue()) queueStateHolder.saveOriginalQueueState(
+                        _currentQueue.value.songs, queueStateHolder.currentQueueSourceName.value)
+                    normalizeShuffledControllerQueue()
+                    if (!controller.shuffleModeEnabled) controller.shuffleModeEnabled = true
+                    _isShuffleEnabled.value = true
+                    if (appSettings.shuffleModePersistence.value) appSettings.setSavedShuffleState(true)
+                    controller.play()
+                    syncQueueWithMediaController()
+                }
+            }
+        }
+    }
+
     fun playQueue(songs: List<Song>, enableShuffle: Boolean? = null, startIndex: Int = 0, pinStartIndex: Boolean = false) {
         Log.d(TAG, "Playing queue with ${songs.size} songs, shuffle: $enableShuffle, startIndex: $startIndex, pinStartIndex: $pinStartIndex")
 
@@ -6043,6 +6073,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             Log.w(TAG, "startIndex $startIndex out of bounds, using $validStartIndex")
         }
         
+        val generation = queuePlaybackRequest.incrementAndGet()
+        pendingQueueLoad = Triple(generation, playbackSongs.map { playbackIdentity(it.id) }.toSet(), shuffleRequested)
+
         // Build media items on a background thread to avoid blocking the main thread
         viewModelScope.launch(Dispatchers.Default) {
             try {
@@ -6083,6 +6116,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // Switch to main thread to interact with MediaController
                 withContext(Dispatchers.Main) {
+                    if (queuePlaybackRequest.get() != generation) return@withContext
                     mediaController?.let { controller ->
                         // Stop playback first to prevent issues
                         controller.stop()
@@ -6167,7 +6201,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Error playing queue", e)
                 // Reset queue state on error
                 withContext(Dispatchers.Main) {
-                    _currentQueue.value = Queue(emptyList(), -1)
+                    if (queuePlaybackRequest.get() == generation) _currentQueue.value = Queue(emptyList(), -1)
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    if (pendingQueueLoad?.first == generation) pendingQueueLoad = null
                 }
             }
         }

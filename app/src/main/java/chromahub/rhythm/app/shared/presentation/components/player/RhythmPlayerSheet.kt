@@ -247,6 +247,8 @@ fun RhythmPlayerSheet(
                         onDismiss = onMiniPlayerDismiss,
                         isMediaLoading = isMediaLoading,
                         verticalDragEnabled = false,
+                        isShuffleEnabled = isShuffleEnabled,
+                        onToggleShuffle = onToggleShuffle,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

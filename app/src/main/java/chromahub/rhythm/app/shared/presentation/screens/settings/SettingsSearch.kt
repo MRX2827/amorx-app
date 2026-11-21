@@ -1973,8 +1973,8 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
         // ======================== QUEUE & PLAYBACK SCREEN ========================
         add(SearchableSettingItem(
             id = "queue_exoplayer_shuffle",
-            title = context.getString(R.string.settings_use_exoplayer_shuffle),
-            description = context.getString(R.string.settings_use_exoplayer_shuffle_desc),
+            title = "Перемешивание",
+            description = "Единая очередь в приложении и шторке",
             keywords = listOf("shuffle", "exoplayer", "random", "playback", "algorithm", "shuffle engine", "shuffle timeline", "shuffle mode", "shuffle algorithm"),
             icon = RhythmIcons.Shuffle,
             route = SettingsRoutes.QUEUE,

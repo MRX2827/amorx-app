@@ -103,7 +103,8 @@ private object PlaylistActions {
         val have = OnlineDownloads.items.value
         val songs = PlaylistStore.tracks.value.mapNotNull { t -> have.firstOrNull { it.id == t.id }?.toSong() }
         if (songs.isEmpty()) toast(ctx, "Пока нет скачанных песен из плейлиста")
-        else vm.playQueue(songs, enableShuffle = shuffle, startIndex = 0)
+        else if (shuffle) vm.playShuffledQueue(songs)
+        else vm.playQueue(songs, enableShuffle = false, startIndex = 0)
     }
 
     fun playOne(ctx: Context, vm: MusicViewModel, scope: CoroutineScope, t: PlTrack, loading: (String?) -> Unit) {
@@ -247,10 +248,15 @@ private fun PlaylistScreen(vm: MusicViewModel, onBack: () -> Unit) {
     val pending by OnlineDownloads.pending.collectAsState()
     val running by PlaylistDownloader.running.collectAsState()
     val cur by vm.currentSong.collectAsState()
+    val shuffleEnabled by vm.isShuffleEnabled.collectAsState()
+    val queue by vm.currentQueue.collectAsState()
     var busy by remember { mutableStateOf(false) }
     var loadingId by remember { mutableStateOf<String?>(null) }
     val haveIds = remember(downloaded) { downloaded.map { it.id }.toHashSet() }
     val have = tracks.count { it.id in haveIds }
+    val downloadedPlaylistIds = tracks.filter { it.id in haveIds }.map { it.id }.toSet()
+    val shuffleActive = shuffleEnabled && downloadedPlaylistIds.isNotEmpty() &&
+        queue.songs.map { amorx.playback.playbackIdentity(it.id) }.toSet() == downloadedPlaylistIds
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp),
@@ -275,7 +281,13 @@ private fun PlaylistScreen(vm: MusicViewModel, onBack: () -> Unit) {
             Spacer(Modifier.size(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = { PlaylistActions.playAll(context, vm, false) }, enabled = have > 0) { Text("Играть") }
-                FilledTonalButton(onClick = { PlaylistActions.playAll(context, vm, true) }, enabled = have > 0) { Text("Вперемешку") }
+                FilledTonalButton(
+                    onClick = { PlaylistActions.playAll(context, vm, true) }, enabled = have > 0,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (shuffleActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (shuffleActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) { Text(if (shuffleActive) "Вперемешку ✓" else "Вперемешку") }
                 if (have < tracks.size) {
                     FilledTonalButton(onClick = { PlaylistActions.startDownloads(context) }, enabled = !running) {
                         Text(if (running) "Качаю…" else "Скачать")

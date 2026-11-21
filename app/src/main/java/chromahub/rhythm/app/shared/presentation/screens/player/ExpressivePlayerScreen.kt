@@ -1643,22 +1643,23 @@ fun ExpressivePlayerScreen(
                                 }
                             }
 
-                            val isCompactButtons = playerMergeControlsToBottom || activeButtons.size > 3
+                            val visibleButtons = if ("SHUFFLE" in activeButtons) activeButtons else listOf("SHUFFLE") + activeButtons
+                            val isCompactButtons = playerMergeControlsToBottom || visibleButtons.size > 3
                             val onButtonLongClick = {
                                 HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
                                 onEditBottomButtons()
                             }
 
                             if (isCompactButtons) {
-                                val pillMaxWidth = (activeButtons.size * 56 + 24).dp.coerceIn(200.dp, 400.dp)
+                                val pillMaxWidth = (visibleButtons.size * 56 + 24).dp.coerceIn(200.dp, 400.dp)
                                 RhythmGroupedButton(
                                     size = RhythmButtonSize.Small,
                                     isFillMaxWidth = false,
                                     modifier = Modifier.widthIn(max = pillMaxWidth)
                                 ) {
-                                    activeButtons.forEachIndexed { index, buttonId ->
+                                    visibleButtons.forEachIndexed { index, buttonId ->
                                         val isFirst = index == 0
-                                        val isLast = index == activeButtons.size - 1
+                                        val isLast = index == visibleButtons.size - 1
                                         when (buttonId) {
                                             "LYRICS" -> {
                                                 RhythmDetailActionButton(
@@ -1949,9 +1950,9 @@ fun ExpressivePlayerScreen(
                                         else -> MaterialTheme.typography.titleMedium
                                     }.copy(fontWeight = FontWeight.Bold)
 
-                                    activeButtons.forEachIndexed { index, buttonId ->
+                                    visibleButtons.forEachIndexed { index, buttonId ->
                                         val isFirst = index == 0
-                                        val isLast = index == activeButtons.size - 1
+                                        val isLast = index == visibleButtons.size - 1
                                         when (buttonId) {
                                             "DEVICE" -> {
                                                 RhythmDetailActionButton(

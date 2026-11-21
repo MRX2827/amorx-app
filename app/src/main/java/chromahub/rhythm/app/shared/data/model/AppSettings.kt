@@ -1269,7 +1269,9 @@ class AppSettings private constructor(context: Context) {
     val sleepTimerAction: StateFlow<String> = _sleepTimerAction.asStateFlow()
     
     // Queue & Playback Behavior Settings
-    private val _shuffleUsesExoplayer = MutableStateFlow(prefs.getBoolean(KEY_SHUFFLE_USES_EXOPLAYER, false))
+    // App controls and the Android media notification share the same playback timeline.
+    // Ignore the legacy manual-shuffle preference, including values in restored backups.
+    private val _shuffleUsesExoplayer = MutableStateFlow(true)
     val shuffleUsesExoplayer: StateFlow<Boolean> = _shuffleUsesExoplayer.asStateFlow()
     
     private val _autoAddToQueue = MutableStateFlow(prefs.getBoolean(KEY_AUTO_ADD_TO_QUEUE, true))
@@ -3229,11 +3231,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     }
     
     // Queue & Playback Behavior Methods
-    fun setShuffleUsesExoplayer(useExoplayer: Boolean) {
-        prefs.edit { putBoolean(KEY_SHUFFLE_USES_EXOPLAYER, useExoplayer) }
-        _shuffleUsesExoplayer.value = useExoplayer
-    }
-    
+
     fun setAutoAddToQueue(autoAdd: Boolean) {
         prefs.edit { putBoolean(KEY_AUTO_ADD_TO_QUEUE, autoAdd) }
         _autoAddToQueue.value = autoAdd

@@ -145,7 +145,9 @@ fun MaterialMiniPlayer(
     onSkipPrevious: () -> Unit = {},
     onDismiss: () -> Unit = {},
     isMediaLoading: Boolean = false,
-    verticalDragEnabled: Boolean = true
+    verticalDragEnabled: Boolean = true,
+    isShuffleEnabled: Boolean = false,
+    onToggleShuffle: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
@@ -748,6 +750,7 @@ fun MaterialMiniPlayer(
                             }
 
                             // Play/Pause button
+                            MiniPlayerShuffleButton(isShuffleEnabled, onToggleShuffle, enabled = song != null)
                             MorphingPlayPauseButton(
                                 isPlaying = isPlaying,
                                 onClick = {
@@ -953,6 +956,7 @@ fun MaterialMiniPlayer(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Play/pause button
+                            MiniPlayerShuffleButton(isShuffleEnabled, onToggleShuffle, enabled = song != null)
                             MorphingPlayPauseButton(
                                 isPlaying = isPlaying,
                                 onClick = {

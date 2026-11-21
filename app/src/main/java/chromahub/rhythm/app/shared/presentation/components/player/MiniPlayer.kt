@@ -26,7 +26,9 @@ fun MiniPlayer(
     onSkipPrevious: () -> Unit = {},
     onDismiss: () -> Unit = {},
     isMediaLoading: Boolean = false,
-    verticalDragEnabled: Boolean = true
+    verticalDragEnabled: Boolean = true,
+    isShuffleEnabled: Boolean = false,
+    onToggleShuffle: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
@@ -44,6 +46,8 @@ fun MiniPlayer(
             onDismiss = onDismiss,
             isMediaLoading = isMediaLoading,
             verticalDragEnabled = verticalDragEnabled,
+            isShuffleEnabled = isShuffleEnabled,
+            onToggleShuffle = onToggleShuffle,
             modifier = modifier
         )
     } else {
@@ -58,6 +62,8 @@ fun MiniPlayer(
             onDismiss = onDismiss,
             isMediaLoading = isMediaLoading,
             verticalDragEnabled = verticalDragEnabled,
+            isShuffleEnabled = isShuffleEnabled,
+            onToggleShuffle = onToggleShuffle,
             modifier = modifier
         )
     }
