@@ -49,6 +49,7 @@ jobs:
           path: |
             ios/build/AmorX-iOS-5.5.499.1327.ipa
             ios/build/ipa-verification.json
+            ios/build/simulator-verification.json
             ios/build/ios-launch.png
           if-no-files-found: error
           retention-days: 14
@@ -58,6 +59,7 @@ jobs:
           name: AmorX-iOS-build-diagnostics
           path: |
             ios/build/*.log
+            ios/build/simulator-environment.json
             ios/build/ios-launch.png
           if-no-files-found: ignore
           retention-days: 7
