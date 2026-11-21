@@ -50,6 +50,7 @@ internal class CloudMusicBackup(private val execute: (Request) -> Pair<Int, Stri
             val playlist = item.objectOrNull()
             if (playlist != null) {
                 val name = playlist.text("name")?.take(80) ?: "Плейлист ${index + 1}"
+                if (!isAmorxPlaylistName(name)) return@forEachIndexed
                 val sourceId = playlist.text("id") ?: "name-" + stableKey(name)
                 val tracks = playlist.array("songs").mapNotNull { song ->
                     val track = song.objectOrNull()?.track(allowBareId = false)
@@ -71,6 +72,7 @@ internal class CloudMusicBackup(private val execute: (Request) -> Pair<Int, Stri
             playlists += DesktopPlaylist(id, "Плейлист AmorX", tracks)
         }
         shared.forEach { playlist ->
+            if (!isAmorxPlaylistName(playlist.text("title").orEmpty()) && playlist.text("code") != ownPlaylist?.text("code")) return@forEach
             val code = playlist.text("code") ?: throw IOException("Не удалось определить облачный плейлист")
             val tracks = playlist.array("tracks").mapNotNull { item ->
                 val track = item.objectOrNull()?.track(allowBareId = true)
@@ -83,7 +85,10 @@ internal class CloudMusicBackup(private val execute: (Request) -> Pair<Int, Stri
                 tracks
             )
         }
-        return MusicRestorePlan(downloads, playlists.distinctBy(DesktopPlaylist::id), unavailable, warnings)
+        val amorx = if (playlists.isEmpty()) emptyList() else listOf(DesktopPlaylist(
+            "cloud:$uid:amorx", "Плейлист AmorX", playlists.flatMap { it.tracks }.distinctBy { it.id }
+        ))
+        return MusicRestorePlan(downloads, amorx, unavailable, warnings)
     }
 
     private fun backup(token: String, uid: String): JsonObject? {

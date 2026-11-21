@@ -140,7 +140,7 @@ internal fun DesktopMusicRestoreDialog(
                                                     includeDownloads, { includeDownloads = it }
                                                 )
                                                 RestoreChoice(
-                                                    Icons.AutoMirrored.Rounded.QueueMusic, "Песни из плейлистов",
+                                                    Icons.AutoMirrored.Rounded.QueueMusic, "Плейлист AmorX",
                                                     restorePlaylists(state.playlistCount), state.playlistCount > 0,
                                                     includePlaylists, { includePlaylists = it }
                                                 )
@@ -216,7 +216,7 @@ private fun RestoreHeading(phase: MusicRestorePhase) {
         MusicRestorePhase.Failed -> "Загрузка недоступна"
     }
     val description = when (phase) {
-        MusicRestorePhase.Discovering -> "Ищем сохранённые песни и плейлисты вашего аккаунта."
+        MusicRestorePhase.Discovering -> "Ищем все скачанные песни и ваш плейлист AmorX."
         MusicRestorePhase.Offer -> "Верните свои треки на этот компьютер и слушайте их без интернета."
         MusicRestorePhase.Restoring -> "Готовые треки сразу появятся в «Скачанном»."
         MusicRestorePhase.Finished -> "Откройте библиотеку, чтобы начать слушать."

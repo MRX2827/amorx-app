@@ -171,7 +171,7 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
                                         }
                                         DesktopPage.Search -> OnlineScreen(player, search)
                                         DesktopPage.Library, DesktopPage.Playlists -> DownloadsScreen(
-                                            player, openAudio = openAudio,
+                                            player, openAudio = openAudio, onSignIn = { account = true },
                                             initialSection = if (destination == DesktopPage.Playlists) "playlists" else "downloads",
                                             onRestore = {
                                                 if (accountIdentity == null) account = true

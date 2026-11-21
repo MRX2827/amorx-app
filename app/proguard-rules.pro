@@ -95,3 +95,7 @@
 # --- Скачанное: модель читается через Gson ---
 -keep class chromahub.rhythm.app.features.online.DownloadedTrack { *; }
 -keep class chromahub.rhythm.app.features.online.WaveArtist { *; }
+
+# These models are persisted as Android/cloud JSON and read with Gson reflection.
+-keep class chromahub.rhythm.app.shared.data.model.Song { *; }
+-keep class chromahub.rhythm.app.shared.data.model.Playlist { *; }

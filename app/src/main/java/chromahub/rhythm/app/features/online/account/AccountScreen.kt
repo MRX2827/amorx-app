@@ -78,6 +78,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -143,7 +146,8 @@ fun AccountScreen(
     val scope = rememberCoroutineScope()
     val f = remember { AccountForm() }
     var stage by remember { mutableStateOf<AccountStage>(AccountStage.Loading) }
-    var confirmRestore by remember { mutableStateOf(false) }
+    var restorePreview by remember { mutableStateOf<CloudMusicRestorePreview?>(null) }
+    var restoreAfterLogin by remember { mutableStateOf(false) }
     var shown by remember { mutableStateOf(false) }
     val autoSync by CloudAccount.autoSync.collectAsState()
 
@@ -155,6 +159,10 @@ fun AccountScreen(
         scope.launch {
             try {
                 block()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                f.error = CloudAccount.errorMessage(failure)
             } finally {
                 f.busy = false
             }
@@ -298,14 +306,11 @@ fun AccountScreen(
             stage = AccountStage.Done("Вход выполнен. В облаке пока не было копии. $saved")
             return@launchBusy
         }
-        val ok = runCatching { restoreBackup(backup.payload) }.getOrDefault(false)
-        if (!ok) {
-            stage = AccountStage.Done("Вход выполнен, но восстановить копию не удалось")
-            return@launchBusy
-        }
-        CloudAccount.markSynced(context)
-        stage = AccountStage.Done("Данные восстановлены. Приложение перезапускается…")
-        restartApp(context)
+        restoreCloudIdentity(context, backup.payload)
+        val preview = withContext(Dispatchers.Default) { CloudMusicRestorePreview.parse(backup.payload) }
+        restoreAfterLogin = true
+        stage = AccountStage.Done("Вход выполнен. Выберите музыку для восстановления")
+        restorePreview = preview
     }
 
     // ----- облачная копия
@@ -333,14 +338,8 @@ fun AccountScreen(
             f.notice = "В облаке пока нет копии"
             return@launchBusy
         }
-        val ok = runCatching { restoreBackup(backup.payload) }.getOrDefault(false)
-        if (!ok) {
-            f.error = "Не удалось восстановить копию"
-            return@launchBusy
-        }
-        CloudAccount.markSynced(context)
-        f.notice = "Данные восстановлены. Приложение перезапускается…"
-        restartApp(context)
+        restoreAfterLogin = false
+        restorePreview = withContext(Dispatchers.Default) { CloudMusicRestorePreview.parse(backup.payload) }
     }
 
     // ----- смена пароля и почты
@@ -487,7 +486,7 @@ fun AccountScreen(
                             autoSync = autoSync,
                             onAuto = { CloudAccount.setAutoSync(context, it) },
                             onSave = { saveNow() },
-                            onRestore = { confirmRestore = true },
+                            onRestore = { restoreNow() },
                             onChangePassword = {
                                 f.currentPassword = ""
                                 f.newPassword = ""
@@ -522,21 +521,27 @@ fun AccountScreen(
         }
     }
 
-    if (confirmRestore) {
-        AlertDialog(
-            onDismissRequest = { confirmRestore = false },
-            title = { Text("Восстановить из облака?") },
-            text = {
-                Text("Настройки, плейлисты и профиль на этом телефоне будут заменены копией из облака. Приложение перезапустится.")
+    restorePreview?.let { preview ->
+        CloudMusicRestoreDialog(preview, busy = f.busy, error = f.error,
+            onDismiss = {
+                if (!f.busy) {
+                    restorePreview = null
+                    if (restoreAfterLogin) stage = AccountStage.Done("Вход выполнен. Музыку можно восстановить позже в аккаунте")
+                }
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRestore = false
-                    restoreNow()
-                }) { Text("Восстановить") }
-            },
-            dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("Отмена") } }
-        )
+            onRestore = { ids, includePlaylist ->
+                launchBusy {
+                    val payload = withContext(Dispatchers.Default) { preview.selectedPayload(ids, includePlaylist) }
+                    if (!restoreBackup(payload)) {
+                        f.error = "Не удалось восстановить копию. Ваши треки остались на устройстве"
+                        return@launchBusy
+                    }
+                    CloudAccount.markSynced(context)
+                    restorePreview = null
+                    val message = "Музыка восстановлена. Выбранные треки скачиваются в разделе «Скачанное»"
+                    if (restoreAfterLogin) stage = AccountStage.Done(message) else f.notice = message
+                }
+            })
     }
 }
 

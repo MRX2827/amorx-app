@@ -1,9 +1,6 @@
 package chromahub.rhythm.app.features.online.account
 
 import android.content.Context
-import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.net.Uri
 import android.util.Base64
 import androidx.compose.foundation.clickable
@@ -209,8 +206,10 @@ private fun applyOnline(context: Context, o: JsonObject) {
                 id, track.str("title").orEmpty(), track.str("artist").orEmpty(), track.long("dur"), track.str("art")
             )
         }.orEmpty()
-        PlaylistStore.replace(songs)
-        PlaylistStore.setOwnCode(playlist.str("code"))
+        val merged = (songs + PlaylistStore.tracks.value).distinctBy { it.id }
+        if (merged.size > 1000) throw java.io.IOException("В плейлисте AmorX может быть до 1000 треков")
+        PlaylistStore.replace(merged)
+        PlaylistStore.setOwnCode(playlist.str("code") ?: PlaylistStore.ownCode.value)
     }
 
     val dl = o.get("downloads")?.takeIf { it.isJsonArray }?.asJsonArray
@@ -260,13 +259,19 @@ internal suspend fun createCloudBackup(context: Context, manager: BackupRestoreM
     return root.toString()
 }
 
+internal fun restoreCloudIdentity(context: Context, payload: String) {
+    val profile = JsonParser.parseString(payload).asJsonObject.get("amorx_profile")
+    if (profile != null && profile.isJsonObject) applyProfile(context, profile.asJsonObject)
+}
+
 internal suspend fun restoreCloudBackup(
     context: Context,
     payload: String,
     manager: BackupRestoreManager = managerFor(context)
 ): Boolean {
     val root = try {
-        JsonParser.parseString(payload).asJsonObject
+        val preview = CloudMusicRestorePreview.parse(payload)
+        JsonParser.parseString(preview.selectedPayload(preview.downloads.map { it.id }.toSet(), preview.hasPlaylist)).asJsonObject
     } catch (_: Exception) {
         return false
     }
@@ -352,15 +357,6 @@ fun AccountEntryCard(onClick: () -> Unit) {
             FilledTonalButton(onClick = onClick) { Text(if (member) "Открыть" else "Войти") }
         }
     }
-}
-
-/** Перезапускает приложение, чтобы восстановленные настройки и база применились целиком. */
-internal fun restartApp(context: Context) {
-    val app = context.applicationContext
-    val intent = app.packageManager.getLaunchIntentForPackage(app.packageName)
-        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK) ?: return
-    app.startActivity(intent)
-    Handler(Looper.getMainLooper()).postDelayed({ Runtime.getRuntime().exit(0) }, 500)
 }
 
 /**

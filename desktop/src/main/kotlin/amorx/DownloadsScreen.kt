@@ -72,7 +72,8 @@ internal fun DownloadsScreen(
     openAudio: () -> File? = { chooseAudio() },
     onRestore: (() -> Unit)? = null,
     restoreState: MusicRestoreState? = null,
-    initialSection: String = downloadsId
+    initialSection: String = downloadsId,
+    onSignIn: () -> Unit = {}
 ) {
     val stored by Downloads.items
     val pending by Downloads.pending
@@ -85,7 +86,7 @@ internal fun DownloadsScreen(
     )
     val account by CloudProfiles.activeAccount
     val accountPlaylists = library.playlists.filter {
-        !it.id.startsWith("cloud:") || account != null && it.id.startsWith("cloud:${account!!.uid}:")
+        !it.id.startsWith("cloud:") || account != null && it.id == "cloud:${account!!.uid}:amorx"
     }
     val playlists = accountPlaylists.map {
         LibrarySection(it.id, it.name, "Плейлист", Icons.Rounded.QueueMusic, it.tracks.size)
@@ -102,6 +103,10 @@ internal fun DownloadsScreen(
         }
     }
     var createPlaylist by remember { mutableStateOf(false) }
+    var addDownloads by remember { mutableStateOf(false) }
+    var backup by remember { mutableStateOf(false) }
+    var share by remember { mutableStateOf<DesktopPlaylist?>(null) }
+    LaunchedEffect(account) { backup = false; share = null }
     var toDelete by remember { mutableStateOf<Downloaded?>(null) }
     var deletePlaylist by remember { mutableStateOf<DesktopPlaylist?>(null) }
     val openFile = {
@@ -111,6 +116,10 @@ internal fun DownloadsScreen(
         }
         Unit
     }
+
+    if (addDownloads) DownloadedPlaylistDialog(accountPlaylists, { sectionId = it }, { addDownloads = false })
+    if (backup) DesktopMusicBackupDialog(account, stored.map { it.toTrack() }, accountPlaylists, onSignIn) { backup = false }
+    share?.let { DesktopPlaylistShareDialog(account, it, onSignIn) { share = null } }
 
     if (createPlaylist) {
         CreateLibraryPlaylist(
@@ -160,6 +169,11 @@ internal fun DownloadsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
+                }
+                TextButton(onClick = { backup = true }) {
+                    Icon(Icons.Rounded.CloudUpload, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Копия для Android")
                 }
                 TextButton(onClick = onRestore) {
                     Icon(Icons.Rounded.CloudDownload, null, Modifier.size(18.dp))
@@ -211,6 +225,8 @@ internal fun DownloadsScreen(
                         openFile = addFile,
                         playlist = playlist,
                         onDeletePlaylist = { deletePlaylist = playlist },
+                        onAddDownloads = if (id == downloadsId) ({ addDownloads = true }) else null,
+                        onShare = { share = playlist },
                         removeTrack = removeTrack
                     )
                 }
@@ -333,6 +349,8 @@ private fun LibraryTrackPane(
     openFile: (() -> Unit)?,
     playlist: DesktopPlaylist?,
     onDeletePlaylist: () -> Unit,
+    onAddDownloads: (() -> Unit)?,
+    onShare: () -> Unit,
     removeTrack: (Track) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -401,7 +419,15 @@ private fun LibraryTrackPane(
                             },
                             enabled = results.isNotEmpty()
                         ) { Icon(Icons.Rounded.Shuffle, "Вперемешку") }
+                        if (onAddDownloads != null) {
+                            FilledTonalIconButton(onClick = onAddDownloads, enabled = tracks.isNotEmpty()) {
+                                Icon(Icons.Rounded.PlaylistAdd, "Добавить все скачанные в плейлист")
+                            }
+                        }
                         if (playlist != null) {
+                            FilledTonalIconButton(onClick = onShare, enabled = playlist.tracks.isNotEmpty()) {
+                                Icon(Icons.Rounded.Share, "Поделиться плейлистом")
+                            }
                             Box {
                                 FilledTonalIconButton(onClick = { playlistMenu = true }) {
                                     Icon(Icons.Rounded.MoreHoriz, "Действия с плейлистом")
@@ -425,6 +451,11 @@ private fun LibraryTrackPane(
                                 }
                             }
                         }
+                    }
+                    if (onAddDownloads != null && !compact) TextButton(onClick = onAddDownloads, enabled = tracks.isNotEmpty()) {
+                        Icon(Icons.Rounded.PlaylistAdd, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Добавить все скачанные в плейлист")
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(
@@ -640,6 +671,7 @@ private fun Modifier.libraryInteraction(active: Boolean, onClick: () -> Unit): M
 internal fun LibraryTrackMenu(track: Track, removeLabel: String? = null, onRemove: () -> Unit = {}) {
     if (!track.isReal && removeLabel == null) return
     val library by DesktopLibrary.data
+    val account by CloudProfiles.activeAccount
     var menu by remember { mutableStateOf(false) }
     var create by remember { mutableStateOf(false) }
     Box {
@@ -648,7 +680,7 @@ internal fun LibraryTrackMenu(track: Track, removeLabel: String? = null, onRemov
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             if (track.isReal) {
-                library.playlists.forEach { playlist ->
+                library.playlists.filter { DesktopMusicCloud.visibleTo(it, account?.uid.orEmpty()) }.forEach { playlist ->
                     val added = playlist.tracks.any { it.id == track.id }
                     DropdownMenuItem(
                         text = { Text("В плейлист «${playlist.name}»", maxLines = 1, overflow = TextOverflow.Ellipsis) },

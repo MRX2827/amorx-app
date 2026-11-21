@@ -270,6 +270,36 @@ object CloudProfiles {
             forAccount(account) { plan }
         }
 
+    internal suspend fun saveMusicBackup(
+        account: DesktopCloudAccount, downloads: List<Track>, playlists: List<DesktopPlaylist>
+    ): MusicBackupResult = withContext(Dispatchers.IO) {
+        val (token, uid) = sessionFor(account)
+        val cloud = DesktopMusicCloud { request ->
+            ensureActive()
+            forAccount(account) { Unit }
+            exec(request)
+        }
+        val result = cloud.backup(token, uid, downloads, playlists)
+        ensureActive()
+        forAccount(account) { result }
+    }
+
+    internal suspend fun shareMusicPlaylist(account: DesktopCloudAccount, playlist: DesktopPlaylist): PlaylistShareResult =
+        withContext(Dispatchers.IO) {
+            val (token, uid) = sessionFor(account)
+            val cloud = DesktopMusicCloud { request ->
+                ensureActive()
+                forAccount(account) { Unit }
+                exec(request)
+            }
+            val (code, result) = cloud.share(token, uid, playlist, DesktopPlaylistLinks.get(uid, playlist))
+            ensureActive()
+            forAccount(account) {
+                DesktopPlaylistLinks.put(uid, playlist.id, code)
+                result
+            }
+        }
+
     internal suspend fun syncOwnProfile(account: DesktopCloudAccount) = withContext(Dispatchers.IO) {
         val request = synchronized(this@CloudProfiles) {
             if (own.value.account != account) return@withContext
