@@ -256,6 +256,20 @@ object CloudProfiles {
         return credentials
     }
 
+    @Synchronized
+    internal fun <T> forAccount(account: DesktopCloudAccount, action: () -> T): T {
+        if (own.value.account != account) throw IOException("Аккаунт изменился")
+        return action()
+    }
+
+    internal suspend fun loadMusicRestore(account: DesktopCloudAccount): MusicRestorePlan =
+        withContext(Dispatchers.IO) {
+            val (token, uid) = sessionFor(account)
+            val plan = CloudMusicBackup(::exec).fetch(token, uid)
+            ensureActive()
+            forAccount(account) { plan }
+        }
+
     internal suspend fun syncOwnProfile(account: DesktopCloudAccount) = withContext(Dispatchers.IO) {
         val request = synchronized(this@CloudProfiles) {
             if (own.value.account != account) return@withContext

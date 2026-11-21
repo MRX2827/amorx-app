@@ -67,7 +67,13 @@ private enum class LibrarySort(val text: String) {
 }
 
 @Composable
-fun DownloadsScreen(p: PlayerState, openAudio: () -> File? = { chooseAudio() }) {
+internal fun DownloadsScreen(
+    p: PlayerState,
+    openAudio: () -> File? = { chooseAudio() },
+    onRestore: (() -> Unit)? = null,
+    restoreState: MusicRestoreState? = null,
+    initialSection: String = downloadsId
+) {
     val stored by Downloads.items
     val pending by Downloads.pending
     val liked by Likes.items
@@ -77,10 +83,24 @@ fun DownloadsScreen(p: PlayerState, openAudio: () -> File? = { chooseAudio() }) 
         LibrarySection(downloadsId, "Скачанное", "Доступно без интернета", Icons.Rounded.Download, stored.size),
         LibrarySection(localId, "Локальные файлы", "Аудио с компьютера", Icons.Rounded.FolderOpen, library.local.size)
     )
-    val playlists = library.playlists.map {
+    val account by CloudProfiles.activeAccount
+    val accountPlaylists = library.playlists.filter {
+        !it.id.startsWith("cloud:") || account != null && it.id.startsWith("cloud:${account!!.uid}:")
+    }
+    val playlists = accountPlaylists.map {
         LibrarySection(it.id, it.name, "Плейлист", Icons.Rounded.QueueMusic, it.tracks.size)
     }
-    var sectionId by remember { mutableStateOf(downloadsId) }
+    var sectionId by remember(initialSection, account) { mutableStateOf(
+        if (initialSection == "playlists") accountPlaylists.firstOrNull {
+            it.name.contains("AmorX", ignoreCase = true)
+        }?.id ?: accountPlaylists.firstOrNull()?.id ?: "playlists" else downloadsId
+    ) }
+    LaunchedEffect(accountPlaylists.map { it.id }, initialSection) {
+        if (sectionId == "playlists" && accountPlaylists.isNotEmpty()) {
+            sectionId = accountPlaylists.firstOrNull { it.name.contains("AmorX", ignoreCase = true) }?.id
+                ?: accountPlaylists.first().id
+        }
+    }
     var createPlaylist by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<Downloaded?>(null) }
     var deletePlaylist by remember { mutableStateOf<DesktopPlaylist?>(null) }
@@ -129,80 +149,105 @@ fun DownloadsScreen(p: PlayerState, openAudio: () -> File? = { chooseAudio() }) 
         )
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
-        val split = maxWidth >= 690.dp
-        val select: (String) -> Unit = { sectionId = it }
-        val details: @Composable (Modifier) -> Unit = { modifier ->
-            AnimatedContent(
-                targetState = sectionId,
-                modifier = modifier,
-                transitionSpec = {
-                    (fadeIn(tween(220)) + slideInVertically(tween(230)) { it / 25 }) togetherWith fadeOut(tween(120))
-                },
-                label = "library section"
-            ) { id ->
-                val section = (sections + playlists).firstOrNull { it.id == id } ?: sections[1]
-                val playlist = library.playlists.firstOrNull { it.id == id }
-                val tracks = remember(id, stored, liked, library) {
-                    when (id) {
-                        favoritesId -> liked.mapNotNull { it.toTrack() }
-                        downloadsId -> stored.sortedByDescending { it.addedAt }.map { it.toTrack() }
-                        localId -> library.local.mapNotNull { it.toTrack() }
-                        else -> playlist?.tracks.orEmpty().mapNotNull { it.toTrack() }
-                    }
+    Column(Modifier.fillMaxSize()) {
+        if (onRestore != null) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (restoreState != null) {
+                    Text(
+                        "Восстановление · ${restoreState.completed + restoreState.failed}/${restoreState.total}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                val removeTrack: (Track) -> Unit = { track ->
-                    when (id) {
-                        downloadsId -> toDelete = stored.find { it.id == track.id }
-                        favoritesId -> Likes.remove(track.id)
-                        localId -> DesktopLibrary.removeLocal(track.id)
-                        else -> DesktopLibrary.removeFromPlaylist(id, track.id)
-                    }
+                TextButton(onClick = onRestore) {
+                    Icon(Icons.Rounded.CloudDownload, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (restoreState == null) "Восстановить из облака" else "Показать загрузку")
                 }
-                val addFile = openFile.takeIf { id == localId }
-                LibraryTrackPane(
-                    section, tracks, p,
-                    pending = if (id == downloadsId) pending.values.toList() else emptyList(),
-                    downloadSize = if (id == downloadsId && stored.isNotEmpty()) stored.sumOf { it.sizeBytes } else null,
-                    openFile = addFile,
-                    playlist = playlist,
-                    onDeletePlaylist = { deletePlaylist = playlist },
-                    removeTrack = removeTrack
-                )
             }
+            if (restoreState != null) LinearProgressIndicator(
+                progress = { restoreState.progress }, modifier = Modifier.fillMaxWidth()
+            )
         }
-        if (split) {
-            val railWidth = (maxWidth * 0.24f).coerceIn(230.dp, 300.dp)
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Surface(
-                    modifier = Modifier.width(railWidth).fillMaxHeight(),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                    Column(
-                        Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        LibrarySectionLabel("ТРЕКИ")
-                        sections.forEach { LibrarySectionRow(it, sectionId == it.id) { select(it.id) } }
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            LibrarySectionLabel("ПЛЕЙЛИСТЫ", Modifier.weight(1f))
-                            IconButton(onClick = { createPlaylist = true }) { Icon(Icons.Rounded.Add, "Создать плейлист") }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(12.dp)) {
+            val split = maxWidth >= 690.dp
+            val select: (String) -> Unit = { sectionId = it }
+            val details: @Composable (Modifier) -> Unit = { modifier ->
+                AnimatedContent(
+                    targetState = sectionId,
+                    modifier = modifier,
+                    transitionSpec = {
+                        (fadeIn(tween(220)) + slideInVertically(tween(230)) { it / 25 }) togetherWith fadeOut(tween(120))
+                    },
+                    label = "library section"
+                ) { id ->
+                    val section = (sections + playlists).firstOrNull { it.id == id }
+                        ?: if (id == "playlists") LibrarySection("playlists", "Плейлисты", "Плейлисты аккаунта", Icons.Rounded.QueueMusic, 0)
+                        else sections[1]
+                    val playlist = accountPlaylists.firstOrNull { it.id == id }
+                    val tracks = remember(id, stored, liked, library) {
+                        when (id) {
+                            favoritesId -> liked.mapNotNull { it.toTrack() }
+                            downloadsId -> stored.sortedByDescending { it.addedAt }.map { it.toTrack() }
+                            localId -> library.local.mapNotNull { it.toTrack() }
+                            else -> playlist?.tracks.orEmpty().mapNotNull { it.toTrack() }
                         }
-                        playlists.forEach { LibrarySectionRow(it, sectionId == it.id) { select(it.id) } }
                     }
+                    val removeTrack: (Track) -> Unit = { track ->
+                        when (id) {
+                            downloadsId -> toDelete = stored.find { it.id == track.id }
+                            favoritesId -> Likes.remove(track.id)
+                            localId -> DesktopLibrary.removeLocal(track.id)
+                            else -> DesktopLibrary.removeFromPlaylist(id, track.id)
+                        }
+                    }
+                    val addFile = openFile.takeIf { id == localId }
+                    LibraryTrackPane(
+                        section, tracks, p,
+                        pending = if (id == downloadsId) pending.values.toList() else emptyList(),
+                        downloadSize = if (id == downloadsId && stored.isNotEmpty()) stored.sumOf { it.sizeBytes } else null,
+                        openFile = addFile,
+                        playlist = playlist,
+                        onDeletePlaylist = { deletePlaylist = playlist },
+                        removeTrack = removeTrack
+                    )
                 }
-                details(Modifier.weight(1f).fillMaxHeight())
             }
-        } else {
-            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    CompactLibraryMenu(sections + playlists, sectionId, select, Modifier.weight(1f))
-                    IconButton(onClick = { createPlaylist = true }) {
-                        Icon(Icons.Rounded.Add, "Создать плейлист")
+            if (split) {
+                val railWidth = (maxWidth * 0.24f).coerceIn(230.dp, 300.dp)
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        modifier = Modifier.width(railWidth).fillMaxHeight(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LibrarySectionLabel("ТРЕКИ")
+                            sections.forEach { LibrarySectionRow(it, sectionId == it.id) { select(it.id) } }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                LibrarySectionLabel("ПЛЕЙЛИСТЫ", Modifier.weight(1f))
+                                IconButton(onClick = { createPlaylist = true }) { Icon(Icons.Rounded.Add, "Создать плейлист") }
+                            }
+                            playlists.forEach { LibrarySectionRow(it, sectionId == it.id) { select(it.id) } }
+                        }
                     }
+                    details(Modifier.weight(1f).fillMaxHeight())
                 }
-                details(Modifier.weight(1f).fillMaxWidth())
+            } else {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        CompactLibraryMenu(sections + playlists, sectionId, select, Modifier.weight(1f))
+                        IconButton(onClick = { createPlaylist = true }) {
+                            Icon(Icons.Rounded.Add, "Создать плейлист")
+                        }
+                    }
+                    details(Modifier.weight(1f).fillMaxWidth())
+                }
             }
         }
     }
@@ -218,7 +263,7 @@ private fun CompactLibraryMenu(
     var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
         FilledTonalButton(onClick = { expanded = true }, modifier = Modifier.widthIn(max = 250.dp)) {
-            Text(sections.firstOrNull { it.id == active }?.name ?: "Библиотека", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sections.firstOrNull { it.id == active }?.name ?: if (active == "playlists") "Плейлисты" else "Библиотека", maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(6.dp))
             Icon(Icons.Rounded.KeyboardArrowDown, "Разделы")
         }

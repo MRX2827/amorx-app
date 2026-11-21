@@ -31,7 +31,8 @@ internal enum class DesktopPage(val title: String, val icon: ImageVector) {
     Wave("Моя волна", Icons.Rounded.GraphicEq),
     Search("Поиск музыки", Icons.Rounded.MusicNote),
     People("Люди", Icons.Rounded.Group),
-    Library("Библиотека", Icons.Rounded.LibraryMusic),
+    Library("Скачанное", Icons.Rounded.Download),
+    Playlists("Плейлисты", Icons.Rounded.QueueMusic),
     Chats("Сообщения", Icons.AutoMirrored.Rounded.Chat),
     Profile("Профиль", Icons.Rounded.AccountCircle)
 }
@@ -40,6 +41,7 @@ internal enum class DesktopPage(val title: String, val icon: ImageVector) {
 fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () -> Unit) {
     val scope = rememberCoroutineScope()
     val accountIdentity by CloudProfiles.activeAccount
+    val musicRestore = remember(scope) { DesktopMusicRestore(scope) }
     val player = remember(scope) { PlayerState(scope) }
     var page by remember { mutableStateOf(DesktopPage.Home) }
     var fullPlayer by remember { mutableStateOf(false) }
@@ -65,6 +67,7 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
     }
 
     LaunchedEffect(accountIdentity) {
+        musicRestore.changeAccount(accountIdentity)
         accountIdentity?.let { CloudProfiles.syncOwnProfile(it) }
     }
     LaunchedEffect(player) {
@@ -167,7 +170,15 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
                                             )
                                         }
                                         DesktopPage.Search -> OnlineScreen(player, search)
-                                        DesktopPage.Library -> DownloadsScreen(player, openAudio = openAudio)
+                                        DesktopPage.Library, DesktopPage.Playlists -> DownloadsScreen(
+                                            player, openAudio = openAudio,
+                                            initialSection = if (destination == DesktopPage.Playlists) "playlists" else "downloads",
+                                            onRestore = {
+                                                if (accountIdentity == null) account = true
+                                                else musicRestore.show()
+                                            },
+                                            restoreState = musicRestore.state.takeIf { it.phase == MusicRestorePhase.Restoring }
+                                        )
                                         DesktopPage.Wave -> WaveScreen(player)
                                         DesktopPage.People, DesktopPage.Chats, DesktopPage.Profile -> key(accountIdentity) {
                                             val entry = when (destination) {
@@ -214,6 +225,16 @@ fun App(openAudio: () -> java.io.File?, fullscreen: () -> Unit, onInstalled: () 
                     )
                 }
             }
+            if (musicRestore.visible) DesktopMusicRestoreDialog(
+                musicRestore.state,
+                onAccept = musicRestore::accept,
+                onDecline = musicRestore::decline,
+                onRetry = musicRestore::retry,
+                onLibrary = {
+                    musicRestore.decline()
+                    navigate(DesktopPage.Library)
+                }
+            )
             if (settings) DesktopSettingsDialog { settings = false }
             if (account) AccountDialog { account = false }
         }

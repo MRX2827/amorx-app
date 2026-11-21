@@ -7,6 +7,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -43,6 +45,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -218,23 +221,33 @@ private fun DesktopSearchBar(
 @Composable
 internal fun DesktopRail(page: DesktopPage, select: (DesktopPage) -> Unit, settings: () -> Unit, player: PlayerState) {
     val destinations = listOf(DesktopPage.Home, DesktopPage.Wave, DesktopPage.Search,
-        DesktopPage.People, DesktopPage.Library)
+        DesktopPage.People, DesktopPage.Library, DesktopPage.Playlists)
     val history by PlaybackHistory.items
     val recents = history.filter { it.artwork != null }.take(4)
     BoxWithConstraints(Modifier.width(76.dp).fillMaxHeight()) {
         val spacious = maxHeight >= 540.dp
-        val recentCount = if (maxHeight >= 700.dp) 4 else 2
-        val gap = if (spacious) 14.dp else 4.dp
+        val showRecents = maxHeight >= 700.dp
+        val recentCount = if (showRecents) 4 else 2
+        val gap = if (spacious) 9.dp else 2.dp
+        val railModifier = if (maxHeight < 430.dp) Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            else Modifier.fillMaxSize()
         Column(
-            Modifier.fillMaxSize().padding(top = if (spacious) 16.dp else 4.dp, bottom = 3.dp),
+            railModifier.padding(top = if (spacious) 16.dp else 4.dp, bottom = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             destinations.forEach { destination ->
                 DesktopIconAction(destination.icon, destination.title, { select(destination) },
                     size = if (spacious) 44.dp else 34.dp, active = page == destination)
+                if (spacious && destination in listOf(DesktopPage.Library, DesktopPage.Playlists)) {
+                    Text(destination.title, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (spacious && destination in listOf(DesktopPage.Library, DesktopPage.Playlists)) Text(
+                    destination.title, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp
+                )
                 Spacer(Modifier.height(gap))
             }
-            if (spacious && recents.isNotEmpty()) {
+            if (showRecents && recents.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 recents.take(recentCount).forEach { track ->
                     Cover(

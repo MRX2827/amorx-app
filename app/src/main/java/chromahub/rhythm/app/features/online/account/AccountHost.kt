@@ -40,6 +40,8 @@ import chromahub.rhythm.app.features.online.CloudSong
 import chromahub.rhythm.app.features.online.OnlineDownloads
 import chromahub.rhythm.app.features.online.OnlineTrack
 import chromahub.rhythm.app.features.online.ProfileSongs
+import chromahub.rhythm.app.features.online.PlaylistStore
+import chromahub.rhythm.app.features.online.PlTrack
 import chromahub.rhythm.app.features.online.ProfileStore
 import chromahub.rhythm.app.features.online.WaveArtist
 import chromahub.rhythm.app.features.online.WaveStore
@@ -151,6 +153,21 @@ private fun onlineToJson(context: Context): JsonObject {
         dl.add(e)
     }
     o.add("downloads", dl)
+    PlaylistStore.init(context)
+    val playlist = JsonObject()
+    PlaylistStore.ownCode.value?.let { playlist.addProperty("code", it) }
+    playlist.add("tracks", JsonArray().apply {
+        PlaylistStore.tracks.value.forEach { track ->
+            add(JsonObject().apply {
+                addProperty("id", track.id)
+                addProperty("title", track.title)
+                addProperty("artist", track.artist)
+                addProperty("dur", track.durMs)
+                track.art?.let { addProperty("art", it) }
+            })
+        }
+    })
+    o.add("amorx_playlist", playlist)
     return o
 }
 
@@ -180,6 +197,20 @@ private fun applyOnline(context: Context, o: JsonObject) {
             WaveStore.artists.value.map { it.name }.forEach { WaveStore.remove(it) }
             list.forEach { WaveStore.add(it) }
         }
+    }
+
+    val playlist = o.get("amorx_playlist")?.takeIf { it.isJsonObject }?.asJsonObject
+    if (playlist != null) {
+        PlaylistStore.init(context)
+        val songs = playlist.get("tracks")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { item ->
+            val track = item.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val id = track.str("id") ?: return@mapNotNull null
+            PlTrack(
+                id, track.str("title").orEmpty(), track.str("artist").orEmpty(), track.long("dur"), track.str("art")
+            )
+        }.orEmpty()
+        PlaylistStore.replace(songs)
+        PlaylistStore.setOwnCode(playlist.str("code"))
     }
 
     val dl = o.get("downloads")?.takeIf { it.isJsonArray }?.asJsonArray

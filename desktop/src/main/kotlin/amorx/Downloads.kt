@@ -5,8 +5,12 @@ import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.schabi.newpipe.extractor.MediaFormat
@@ -47,7 +51,8 @@ object Downloads {
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder().readTimeout(60, TimeUnit.SECONDS).build()
-    private val active = HashSet<String>()
+    private val jobs = HashMap<String, Deferred<Result<Downloaded>>>()
+    private val videoId = Regex("[A-Za-z0-9_-]{11}")
 
     val items = mutableStateOf<List<Downloaded>>(emptyList())
     val pending = mutableStateOf<Map<String, Pending>>(emptyMap())
@@ -66,62 +71,98 @@ object Downloads {
 
     fun find(id: String): Downloaded? = items.value.firstOrNull { it.id == id && File(it.audioPath).exists() }
 
-    @Synchronized
-    private fun saveIndex() {
-        runCatching { File(dir, "index.json").writeText(gson.toJson(items.value)) }
+    private fun saveIndex(next: List<Downloaded>) {
+        writeLocalJson(File(dir, "index.json"), gson.toJson(next))
+        items.value = next
     }
 
-    fun download(t: Track) {
-        val url = t.videoUrl ?: return
-        if (find(t.id) != null) return
-        synchronized(active) { if (!active.add(t.id)) return }
-        pending.value = pending.value + (t.id to Pending(t, 0f))
-        scope.launch {
-            val part = File(dir, t.id + ".part")
+    fun download(track: Track) {
+        val job = startDownload(track)
+        job.start()
+    }
+
+    internal suspend fun awaitDownload(track: Track): Result<Downloaded> {
+        find(track.id)?.let { return Result.success(it) }
+        return startDownload(track).await()
+    }
+
+    @Synchronized
+    private fun startDownload(track: Track): Deferred<Result<Downloaded>> {
+        jobs[track.id]?.let { return it }
+        val job = scope.async(start = CoroutineStart.LAZY) {
             try {
-                NewPipeDownloader.init()
-                val info = StreamInfo.getInfo(ServiceList.YouTube, url)
-                val best = info.audioStreams
-                    .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-                    .maxWithOrNull(compareBy<AudioStream>({ it.format == MediaFormat.M4A }, { it.averageBitrate }))
-                    ?: error("Нет доступного аудиопотока")
-                var lastPct = -1
-                downloadFile(best.content, part) { f ->
-                    val pct = (f * 100).toInt()
-                    if (pct != lastPct) {
-                        lastPct = pct
-                        pending.value = pending.value + (t.id to Pending(t, f))
-                    }
-                }
-                val target = File(dir, t.id + "." + (best.format?.suffix ?: "m4a"))
-                if (target.exists()) target.delete()
-                if (!part.renameTo(target)) throw IOException("не удалось сохранить файл")
-                val art = downloadArtwork(t.artwork, File(dir, t.id + ".jpg"))
-                val entry = Downloaded(
-                    t.id, t.title, t.artist, t.seconds, target.absolutePath, art, target.length(), System.currentTimeMillis()
-                )
-                items.value = items.value.filter { it.id != t.id } + entry
-                saveIndex()
-                message.value = "Скачано: " + t.title
-            } catch (e: CancellationException) {
-                part.delete()
-                throw e
-            } catch (e: Throwable) {
-                part.delete()
-                message.value = "Не удалось скачать «" + t.title + "»: " + e.message
+                find(track.id)?.let { return@async Result.success(it) }
+                val source = track.videoUrl ?: throw IOException("Нет источника песни")
+                if (!videoId.matches(track.id)) throw IOException("Некорректный ID песни")
+                updateProgress(track, 0f)
+                val downloaded = fetchTrack(track, source)
+                message.value = "Скачано: " + track.title
+                Result.success(downloaded)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                message.value = "Не удалось скачать «" + track.title + "»: " + error.message
+                Result.failure(error)
             } finally {
-                synchronized(active) { active.remove(t.id) }
-                pending.value = pending.value - t.id
+                synchronized(this@Downloads) {
+                    pending.value = pending.value - track.id
+                    jobs.remove(track.id)
+                }
             }
+        }
+        jobs[track.id] = job
+        return job
+    }
+
+    @Synchronized
+    private fun updateProgress(track: Track, progress: Float) {
+        pending.value = pending.value + (track.id to Pending(track, progress.coerceIn(0f, 1f)))
+    }
+
+    private suspend fun fetchTrack(track: Track, source: String): Downloaded {
+        val part = File(dir, track.id + ".part")
+        try {
+            NewPipeDownloader.init()
+            val info = StreamInfo.getInfo(ServiceList.YouTube, source)
+            val best = info.audioStreams
+                .filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+                .maxWithOrNull(compareBy<AudioStream>({ it.format == MediaFormat.M4A }, { it.averageBitrate }))
+                ?: throw IOException("Нет доступного аудиопотока")
+            var lastPercent = -1
+            downloadFile(best.content, part) { progress ->
+                val percent = (progress * 100).toInt()
+                if (percent != lastPercent) {
+                    lastPercent = percent
+                    updateProgress(track, progress)
+                }
+            }
+            currentCoroutineContext().ensureActive()
+            val target = File(dir, track.id + "." + (best.format?.suffix ?: "m4a"))
+            java.nio.file.Files.move(part.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            val art = downloadArtwork(track.artwork, File(dir, track.id + ".jpg"))
+            val entry = Downloaded(
+                track.id, track.title, track.artist, track.seconds, target.absolutePath, art,
+                target.length(), System.currentTimeMillis()
+            )
+            synchronized(this) {
+                saveIndex(items.value.filterNot { it.id == entry.id } + entry)
+            }
+            return entry
+        } finally {
+            part.delete()
         }
     }
 
+    @Synchronized
     fun delete(id: String) {
-        val e = items.value.firstOrNull { it.id == id } ?: return
-        File(e.audioPath).delete()
-        e.artPath?.let { File(it).delete() }
-        items.value = items.value.filter { it.id != id }
-        saveIndex()
+        val entry = items.value.firstOrNull { it.id == id } ?: return
+        try {
+            saveIndex(items.value.filterNot { it.id == id })
+            File(entry.audioPath).delete()
+            entry.artPath?.let { File(it).delete() }
+        } catch (_: IOException) {
+            message.value = "Не удалось удалить песню. Повторите попытку."
+        }
     }
 
     /** Качаем кусками по 2 МБ: так YouTube не душит скорость. */
@@ -141,6 +182,7 @@ object Downloads {
                     val base = offset
                     if (resp.code == 200) {
                         val len = body.contentLength()
+                        if (offset > 0) fos.channel.truncate(0).position(0)
                         val got = copy(body.byteStream(), fos) { sum ->
                             onProgress(if (len > 0) sum.toFloat() / len else 0f)
                         }

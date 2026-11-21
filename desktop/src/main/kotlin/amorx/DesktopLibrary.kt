@@ -45,6 +45,7 @@ internal object DesktopLibrary {
         message.value = "Не удалось сохранить библиотеку"
     }.isSuccess
 
+    @Synchronized
     fun openLocal(file: File): Track? {
         if (!file.isFile || !file.canRead()) {
             message.value = "Файл недоступен"
@@ -57,11 +58,13 @@ internal object DesktopLibrary {
         return entry.toTrack()
     }
 
+    @Synchronized
     fun removeLocal(id: String) {
         val current = data.value
         save(current.copy(local = current.local.filterNot { it.id == id }))
     }
 
+    @Synchronized
     fun createPlaylist(name: String, first: Track?): DesktopPlaylist? {
         val cleanName = name.trim().take(80)
         if (cleanName.isEmpty()) return null
@@ -70,6 +73,7 @@ internal object DesktopLibrary {
         return playlist.takeIf { save(current.copy(playlists = current.playlists + playlist)) }
     }
 
+    @Synchronized
     fun addToPlaylist(id: String, track: Track) {
         val entry = track.toLibraryTrack() ?: return
         updatePlaylist(id) { playlist ->
@@ -78,13 +82,31 @@ internal object DesktopLibrary {
         }
     }
 
+    @Synchronized
     fun removeFromPlaylist(id: String, trackId: String) {
         updatePlaylist(id) { playlist -> playlist.copy(tracks = playlist.tracks.filterNot { it.id == trackId }) }
     }
 
+    @Synchronized
     fun deletePlaylist(id: String): Boolean {
         val current = data.value
         return save(current.copy(playlists = current.playlists.filterNot { it.id == id }))
+    }
+
+    @Synchronized
+    fun restorePlaylists(playlists: List<DesktopPlaylist>): Result<Unit> = runCatching {
+        val current = data.value
+        val merged = current.playlists.associateByTo(linkedMapOf()) { it.id }
+        playlists.forEach { incoming ->
+            val existing = merged[incoming.id]
+            merged[incoming.id] = if (existing == null) {
+                incoming.copy(tracks = incoming.tracks.distinctBy { it.id })
+            } else {
+                existing.copy(tracks = (existing.tracks + incoming.tracks).distinctBy { it.id })
+            }
+        }
+        val next = current.copy(playlists = merged.values.toList())
+        if (next != current && !save(next)) error("Не удалось сохранить восстановленные плейлисты")
     }
 
     private fun updatePlaylist(id: String, update: (DesktopPlaylist) -> DesktopPlaylist) {

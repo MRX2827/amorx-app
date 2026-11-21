@@ -28,7 +28,7 @@ internal data class DesktopArtifact(val url: String, val size: Long, val sha256:
 internal data class DesktopRelease(val version: String, val notes: String, val artifact: DesktopArtifact)
 
 internal object DesktopUpdate {
-    const val currentVersion = "5.5.499.1322"
+    const val currentVersion = "5.5.499.1323"
     private const val channel = "https://mrx2827.github.io/amorxsyte/desktop-update.json"
     private val client = OkHttpClient.Builder().connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS).build()
