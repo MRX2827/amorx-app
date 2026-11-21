@@ -108,7 +108,9 @@ struct PostCard: View {
             if !post.caption.isEmpty { Text(post.caption).font(.body) }
         }.padding(16).background(Color.primary.opacity(0.025)).clipShape(RoundedRectangle(cornerRadius: 28)).padding(.horizontal, 12)
             .sheet(isPresented: $comments) { CommentsScreen(post: post) { post.comments += 1 } }
-            .sheet(item: $person) { NavigationView { PersonScreen(person: $0) } }
+            .sheet(item: $person) { selectedPerson in
+                NavigationView { PersonScreen(person: selectedPerson) }
+            }
     }
 }
 struct CommentsScreen: View {

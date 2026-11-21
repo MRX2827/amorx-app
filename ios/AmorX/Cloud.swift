@@ -142,7 +142,7 @@ enum SessionVault {
         if chosen == nil {
             let fresh: [String: Any] = ["id": id, "username": "AmorX-" + String(id.prefix(6)), "bio": "", "is_public": false]
             try await write("profiles", fresh, query: ["on_conflict": "id"], prefer: "resolution=ignore-duplicates,return=minimal")
-            chosen = Person(fresh); isPublic = true
+            chosen = Person(fresh); isPublic = false
         }
         profile = chosen; profilePublic = isPublic
         favoriteSongs = (row?["favorite_songs"] as? [[String: Any]] ?? []).compactMap(Track.from)
@@ -163,10 +163,6 @@ enum SessionVault {
         songs.removeAll { $0.id == track.id }; if liked { songs.insert(track, at: 0) }
         _ = try await request("/rest/v1/profiles", method: "PATCH", body: ["favorite_songs": songs.map(\.cloudJSON)], query: ["id": "eq.\(uid)"])
         favoriteSongs = songs
-    }
-    private static func timestamp() -> String {
-        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: Date())
     }
     func saveProfile(name: String, bio: String, avatar: Data?, isPublic: Bool = true) async throws {
         guard let uid = uid else { throw AppIssue("Войдите в аккаунт") }
