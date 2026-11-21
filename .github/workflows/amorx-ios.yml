@@ -1,0 +1,63 @@
+name: AmorX iOS IPA
+on:
+  push:
+    branches: [codex/amorx-native]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/amorx-ios.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: amorx-ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  package:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check project generation and shared music contracts
+        run: |
+          set -euo pipefail
+          python3 ios/Tools/generate_project.py
+          git diff --exit-code -- ios/AmorX.xcodeproj
+          plutil -lint ios/AmorX/Info.plist ios/AmorX.xcodeproj/project.pbxproj
+          swift test --package-path ios --jobs 3
+      - name: Build unsigned Release for iPhone and iPad
+        run: |
+          set -euo pipefail
+          mkdir -p ios/build
+          xcodebuild -resolvePackageDependencies -project ios/AmorX.xcodeproj -scheme AmorX
+          xcodebuild -project ios/AmorX.xcodeproj -scheme AmorX -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ios/build/device-build.log
+          python3 ios/Tools/package_ipa.py
+      - name: Compile and launch iPhone simulator
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/AmorX.xcodeproj -scheme AmorX -configuration Release \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/DerivedData \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ios/build/simulator-build.log
+          python3 ios/Tools/simulator_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: AmorX-iOS-5.5.499.1327
+          path: |
+            ios/build/AmorX-iOS-5.5.499.1327.ipa
+            ios/build/ipa-verification.json
+            ios/build/ios-launch.png
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AmorX-iOS-build-diagnostics
+          path: |
+            ios/build/*.log
+            ios/build/ios-launch.png
+          if-no-files-found: ignore
+          retention-days: 7
