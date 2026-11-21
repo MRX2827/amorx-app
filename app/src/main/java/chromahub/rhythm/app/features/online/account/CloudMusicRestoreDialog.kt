@@ -8,8 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudDownload
+import chromahub.rhythm.app.features.online.OnlineIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,7 +34,7 @@ internal fun CloudMusicRestoreDialog(
     AlertDialog(
         modifier = Modifier.scale(scale),
         onDismissRequest = { if (!busy) onDismiss() },
-        icon = { Icon(Icons.Rounded.CloudDownload, null, Modifier.size(32.dp)) },
+        icon = { Icon(OnlineIcons.Download, null, Modifier.size(32.dp)) },
         title = { Text("Вернуть вашу музыку?") },
         text = {
             Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
