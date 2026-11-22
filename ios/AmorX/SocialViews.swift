@@ -50,8 +50,13 @@ struct HomeScreen: View {
             .sheet(item: $selectedStory) { story in StoryViewer(stories: cloud.stories.filter { $0.owner == story.owner }, first: 0) }
     }
     private func refresh() async {
+        if LayoutPreview.isActive { return }
         loading = true
-        do { try await cloud.refreshFeed(); try await cloud.refreshStories() }
+        do {
+            async let feed: Void = cloud.refreshFeed()
+            async let stories: Void = cloud.refreshStories()
+            _ = try await (feed, stories)
+        }
         catch { if !Task.isCancelled { cloud.issue = error.localizedDescription } }
         loading = false
     }
@@ -189,9 +194,9 @@ struct PersonScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                HStack(spacing: 24) { Artwork(source: person.avatar, size: 94, radius: 47); VStack(alignment: .leading, spacing: 8) { Text(person.name).font(.title.bold()); HStack { VStack { Text("\(counts["followers"] as? Int ?? 0)").bold(); Text("подписчиков").font(.caption) }; VStack { Text("\(counts["following"] as? Int ?? 0)").bold(); Text("подписок").font(.caption) } } } }
+                AdaptiveActions { Artwork(source: person.avatar, size: 94, radius: 47); VStack(alignment: .leading, spacing: 8) { Text(person.name).font(.title.bold()); HStack { VStack { Text("\(counts["followers"] as? Int ?? 0)").bold(); Text("подписчиков").font(.caption) }; VStack { Text("\(counts["following"] as? Int ?? 0)").bold(); Text("подписок").font(.caption) } } } }
                 if !person.bio.isEmpty { Text(person.bio).frame(maxWidth: .infinity, alignment: .leading) }
-                HStack {
+                AdaptiveActions {
                     Button(following ? "Вы подписаны" : "Подписаться") { cloud.run { try await cloud.follow(person.id, enabled: !following); following.toggle() } }.buttonStyle(.borderedProminent)
                     NavigationLink { ThreadScreen(peer: person) } label: { Text("Сообщение") }.buttonStyle(.bordered)
                 }

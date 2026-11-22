@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AccountScreen: View {
+    @Environment(\.amorxLayout) private var layout
     @EnvironmentObject var cloud: Cloud
     @EnvironmentObject var library: Library
     @ObservedObject var downloads = Downloads.shared
@@ -12,16 +13,16 @@ struct AccountScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
-                HStack { Text(cloud.name).font(.largeTitle.bold()); Spacer(); RoundButton(icon: "gearshape") { settings = true } }
-                HStack(spacing: 22) {
+                HStack { ScreenHeading(cloud.name); Spacer(); RoundButton(icon: "gearshape") { settings = true } }
+                AdaptiveActions {
                     Artwork(source: cloud.profile?.avatar, size: 104, radius: 52)
-                    HStack(spacing: 20) {
+                    HStack(spacing: layout.narrow ? 10 : 20) {
                         counter(posts.count, "публикаций"); counter(counts["followers"] as? Int ?? 0, "подписчиков"); counter(counts["following"] as? Int ?? 0, "подписок")
                     }.frame(maxWidth: .infinity)
                 }
                 if let bio = cloud.profile?.bio, !bio.isEmpty { Text(bio).frame(maxWidth: .infinity, alignment: .leading) }
                 Button("Редактировать профиль") { edit = true }.buttonStyle(.bordered).frame(maxWidth: .infinity)
-                HStack {
+                AdaptiveActions {
                     Button("Восстановить музыку", action: restore).buttonStyle(.borderedProminent)
                     Button("Сохранить копию") { cloud.run { try await cloud.saveBackup(downloads: downloads.tracks.filter { !$0.id.hasPrefix("local_") }, playlist: library.playlist, code: library.code); cloud.issue = "Копия музыки сохранена в облако" } }.buttonStyle(.bordered)
                 }
@@ -74,7 +75,7 @@ struct SettingsScreen: View {
                 Section("Оформление") { Picker("Тема", selection: $library.theme) { Text("Как в системе").tag("system"); Text("Светлая").tag("light"); Text("Тёмная").tag("dark") }.onChange(of: library.theme) { UserDefaults.standard.set($0, forKey: "theme") } }
                 Section("Аккаунт") { Text(cloud.session?.email ?? ""); Button("Выйти", role: .destructive) { signingOut = true } }
                 Section("AmorX") {
-                    Text("iOS 15+ · 5.5.499.1327")
+                    Text("iOS 15+ · 5.5.499.1328")
                     Button("Проверить обновления") {
                         cloud.run {
                             let (data, response) = try await URLSession.shared.data(from: URL(string: "https://mrx2827.github.io/amorxsyte/ios-update.json")!)
@@ -92,29 +93,41 @@ struct SettingsScreen: View {
 }
 struct RestoreScreen: View {
     let plan: MusicBackupPlan
+    @Environment(\.amorxLayout) private var layout
     @EnvironmentObject var library: Library
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var downloads = Downloads.shared
     @State private var includeDownloads = true
     @State private var includePlaylist = true
-    @State private var running = false
+    private var selected: [Track] { Track.unique((includeDownloads ? plan.downloads : []) + (includePlaylist ? plan.playlist : [])) }
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                WaveParticles(playing: true).frame(height: 130)
-                Text("Вернуть вашу музыку?").font(.largeTitle.bold()).multilineTextAlignment(.center)
-                Text("Все скачанные песни и один плейлист AmorX. Готовые песни сразу появятся в «Скачанном».").foregroundColor(.secondary).multilineTextAlignment(.center)
-                Toggle("Скачанные · \(plan.downloads.count)", isOn: $includeDownloads)
-                Toggle("Плейлист AmorX · \(plan.playlist.count)", isOn: $includePlaylist)
-                if running { ProgressView("Загружается: \(downloads.pending.count)") }
-                ScrollView { LazyVStack(alignment: .leading, spacing: 10) { ForEach(Track.unique((includeDownloads ? plan.downloads : []) + (includePlaylist ? plan.playlist : []))) { track in HStack { Artwork(source: track.artwork, size: 36); VStack(alignment: .leading) { Text(track.title).lineLimit(1); Text(track.artist).font(.caption).foregroundColor(.secondary) }; Spacer(); if downloads.local(track) != nil { Image(systemName: "checkmark.circle.fill").foregroundColor(.amorx) } } } } }
-                Button("Да, скачать") {
-                    let tracks = Track.unique((includeDownloads ? plan.downloads : []) + (includePlaylist ? plan.playlist : []))
-                    if includePlaylist { library.add(plan.playlist); library.code = plan.code ?? library.code; library.save() }
-                    Task { await downloads.downloadAll(tracks) }; dismiss()
-                }.buttonStyle(.borderedProminent).disabled(!includeDownloads && !includePlaylist)
-                Button("Не сейчас") { dismiss() }
-            }.padding(24).navigationBarHidden(true)
-        }
+            ScrollView {
+                VStack(spacing: layout.spacing) {
+                    WaveParticles(playing: true, height: layout.compact ? 60 : 130)
+                    ScreenHeading("Вернуть вашу музыку?").multilineTextAlignment(.center)
+                    Text("Все скачанные песни и один плейлист AmorX. Готовые песни появятся в «Скачанном».").foregroundColor(.secondary).multilineTextAlignment(.center)
+                    Toggle("Скачанные · \(plan.downloads.count)", isOn: $includeDownloads)
+                    Toggle("Плейлист AmorX · \(plan.playlist.count)", isOn: $includePlaylist)
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(selected) { track in HStack {
+                            Artwork(source: track.artwork, size: 36)
+                            VStack(alignment: .leading) { Text(track.title).lineLimit(1); Text(track.artist).font(.caption).foregroundColor(.secondary) }
+                            Spacer()
+                            if downloads.local(track) != nil { Image(systemName: "checkmark.circle.fill").foregroundColor(.amorx) }
+                        } }
+                    }
+                }.padding(layout.inset)
+            }.safeAreaInset(edge: .bottom) {
+                HStack {
+                    Button("Не сейчас") { dismiss() }.frame(minHeight: 44)
+                    Spacer(minLength: 4)
+                    Button("Да, скачать") {
+                        if includePlaylist { library.add(plan.playlist); library.code = plan.code ?? library.code; library.save() }
+                        let songs = selected; Task { await downloads.downloadAll(songs) }; dismiss()
+                    }.buttonStyle(.borderedProminent).disabled(!includeDownloads && !includePlaylist)
+                }.padding(.horizontal, layout.inset).padding(.vertical, 8).background(Color.surface).layoutProbe("restore.actions")
+            }.navigationBarHidden(true)
+        }.navigationViewStyle(.stack)
     }
 }

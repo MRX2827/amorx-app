@@ -1,6 +1,6 @@
 # AmorX for iPhone and iPad
 
-Native SwiftUI client, minimum iOS 15.0, arm64. Version 5.5.499.1327.
+Native SwiftUI client, minimum iOS 15.0, arm64. Version 5.5.499.1328.
 Uses the existing AmorX Supabase account and music backup contracts; no new SQL is required.
 
 The UI follows Android's Expressive player: blue primary color, pill navigation,
@@ -36,7 +36,7 @@ it does not verify account login, the music service or all UI screens.
 
 ## Installation
 
-The resulting `AmorX-iOS-5.5.499.1327.ipa` is **unsigned**. Import it into an appropriate
+The resulting `AmorX-iOS-5.5.499.1328.ipa` is **unsigned**. Import it into an appropriate
 sideload installer and sign it for your own device. Installer support, signing expiry,
 and device/OS restrictions belong to the chosen installation method. An IPA alone does
 not make TrollStore compatible with every iOS version.
@@ -54,3 +54,24 @@ backend access remains governed by authentication and RLS.
 App source: GPL-3.0-or-later (repository LICENSE). YouTubeKit is pinned to 0.4.10.
 See `THIRD_PARTY.md` and the bundled license notices. `Tools/ExportShapes.java` documents
 how the shared Android geometry was exported; the generated Swift curves are checked in.
+
+## Compact-screen update 1328
+
+Layouts use the available SwiftUI geometry, including the 320×568 iPhone SE (2016)
+viewport, with smaller artwork, scrollable content, a compact navigation bar and a
+side rail/two-column player in landscape. Tap targets remain at least 44 points for
+the player controls. Wave animation keeps its declared height and uses fewer particles
+on compact screens. Restore actions stay visible while its song list scrolls.
+
+Signed audio URLs are coalesced across playback and downloads and cached until shortly
+before expiration. The player resolves the next track's link ahead of time. Downloads
+use verified 2 MiB byte ranges, accept whole-file responses, retry transient failures,
+and refresh expired links; existing downloads from 1327 retain the background session.
+Story fragment preview starts playback without first downloading/exporting the whole song.
+The local file index avoids repeated directory creation and disk checks during list redraws.
+
+CI also checks offline layouts at small/large portrait and landscape sizes, plus native
+URLSession transfers against ranged, whole-file and malformed-range loopback responses.
+The test fixtures and local-network exception exist only in the simulator copy; they
+are not enabled in the device IPA. This geometry check does not claim a physical
+SE 2016 or iOS 15 runtime test, or measured speed improvements on the user's connection.

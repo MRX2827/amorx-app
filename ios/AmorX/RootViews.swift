@@ -7,19 +7,25 @@ struct RootScreen: View {
     @EnvironmentObject var player: Playback
     @EnvironmentObject var library: Library
     @ObservedObject private var downloads = Downloads.shared
+    @Environment(\.amorxLayout) private var layout
+    @State private var keyboardVisible = false
     @Environment(\.horizontalSizeClass) private var width
-    @State private var page = 0
+    @State private var page = LayoutPreview.page
+    private var landscapeRail: Bool { layout.height < 400 && layout.width > layout.height }
     @State private var fullPlayer = false
     @State private var restore: MusicBackupPlan?
     @State private var songStory: Track?
     var body: some View {
         Group {
-            if cloud.session == nil { LoginScreen() }
+            if cloud.session == nil && (!LayoutPreview.isActive || LayoutPreview.screen == "login") { LoginScreen() }
             else {
                 VStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        if width == .regular {
-                            VStack(spacing: 20) { Text("AmorX").font(.title.bold()); navButtons; Spacer() }.padding().frame(width: 140)
+                        if width == .regular || landscapeRail {
+                            VStack(spacing: landscapeRail ? 0 : 20) {
+                                if !landscapeRail { Text("AmorX").font(.title.bold()) }
+                                navButtons; Spacer(minLength: 0)
+                            }.padding(landscapeRail ? 4 : 16).frame(width: landscapeRail ? 56 : 140)
                         }
                         NavigationView {
                             Group {
@@ -33,12 +39,15 @@ struct RootScreen: View {
                             }.navigationBarHidden(true)
                         }.navigationViewStyle(.stack)
                     }
-                    MiniPlayerBar { withAnimation(.spring()) { fullPlayer = true } }
-                    if width != .regular { bottomNavigation }
+                    if !keyboardVisible {
+                        MiniPlayerBar { withAnimation(.spring()) { fullPlayer = true } }
+                        if width != .regular && !landscapeRail { bottomNavigation }
+                    }
                 }
             }
         }
         .task(id: cloud.uid) {
+            if LayoutPreview.isActive { return }
             fullPlayer = false; restore = nil; songStory = nil; page = 0
             player.clear(); library.changeUser(cloud.uid)
             guard cloud.uid != nil else { return }
@@ -61,9 +70,8 @@ struct RootScreen: View {
             else { songStory = track }
         }
         .onReceive(downloads.$issue) { issue in if let issue = issue { cloud.issue = issue; downloads.issue = nil } }
-        .onReceive(Downloads.shared.$issue) { error in
-            if let error = error { cloud.issue = error; Downloads.shared.issue = nil }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .onOpenURL { url in cloud.run { library.add(try await cloud.importPlaylist(url.absoluteString)) } }
         .alert("AmorX", isPresented: Binding(get: { cloud.issue != nil }, set: { if !$0 { cloud.issue = nil } })) {
             Button("Понятно", role: .cancel) { cloud.issue = nil }
@@ -72,28 +80,28 @@ struct RootScreen: View {
     private var navButtons: some View {
         ForEach(Array([("house.fill", "Главное"), ("square.stack", "Библиотека"), ("globe", "Онлайн"), ("arrow.down.circle.fill", "Скачанное"), ("person.crop.circle", "Профиль")].enumerated()), id: \.offset) { index, item in
             Button { withAnimation(.easeInOut(duration: 0.2)) { page = index } } label: {
-                VStack(spacing: 4) { Image(systemName: item.0).font(.system(size: 20)); Text(item.1).font(.system(size: 10, weight: .semibold)) }
-                    .foregroundColor(page == index ? .amorx : .secondary).frame(maxWidth: .infinity).padding(.vertical, 5)
+                VStack(spacing: 4) { Image(systemName: item.0).font(.system(size: 20)); if !landscapeRail { Text(item.1).font(.system(size: 10, weight: .semibold)) } }
+                    .foregroundColor(page == index ? .amorx : .secondary).frame(maxWidth: .infinity, minHeight: 44).padding(.vertical, landscapeRail ? 0 : 5)
             }.buttonStyle(PressScale())
         }
     }
     private var bottomNavigation: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 3) {
+        HStack(spacing: layout.narrow ? 6 : 12) {
+            HStack(spacing: 0) {
                 ForEach(0..<4) { index in
                     Button { withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { page = index } } label: {
                         HStack(spacing: 7) {
                             MXIcon(["house.fill", "square.stack", "globe", "arrow.down.circle.fill"][index], size: 25)
-                            if page == index { Text(["Главное", "Библиотека", "Онлайн", "Скачанное"][index]).font(.custom("Roboto-Medium", size: 12)).lineLimit(1).transition(.opacity.combined(with: .scale(scale: 0.8))) }
-                        }.foregroundColor(page == index ? .amorx : .secondary).padding(.horizontal, page == index ? 13 : 8).frame(maxWidth: .infinity, minHeight: 50)
+                            if page == index && layout.showNavigationLabel { Text(["Главное", "Библиотека", "Онлайн", "Скачанное"][index]).font(.custom("Roboto-Medium", size: 12)).lineLimit(1).transition(.opacity.combined(with: .scale(scale: 0.8))) }
+                        }.foregroundColor(page == index ? .amorx : .secondary).padding(.horizontal, layout.narrow ? 0 : 5).frame(maxWidth: .infinity, minHeight: 46)
                             .background(page == index ? Color.amorx.opacity(0.17) : .clear).clipShape(Capsule())
                     }.buttonStyle(PressStyle()).accessibilityLabel(["Главное", "Библиотека", "Онлайн", "Скачанное"][index])
                 }
             }.padding(6).background(Color.surface).clipShape(Capsule())
             Button { withAnimation(.spring()) { page = 4 } } label: {
-                MXIcon("person.crop.circle", size: 27).foregroundColor(.white).frame(width: 58, height: 58).background(Color.amorx).clipShape(Circle())
+                MXIcon("person.crop.circle", size: 27).foregroundColor(.white).frame(width: 52, height: 52).background(Color.amorx).clipShape(Circle())
             }.buttonStyle(PressStyle()).accessibilityLabel("Профиль")
-        }.padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 6)
+        }.padding(.horizontal, layout.narrow ? 8 : 12).padding(.top, 4).padding(.bottom, 4).layoutProbe("bottom.navigation")
     }
     private func loadRestore() { cloud.run { if let data = try await cloud.backupPayload() { restore = try MusicBackupPlan(data) } else { cloud.issue = "В облаке пока нет копии" } } }
 }
@@ -102,6 +110,9 @@ struct PressScale: ButtonStyle {
 }
 
 struct LoginScreen: View {
+    @Environment(\.amorxLayout) private var layout
+    private enum Field: Hashable { case email, password, code }
+    @FocusState private var field: Field?
     @EnvironmentObject var cloud: Cloud
     @State private var email = ""
     @State private var password = ""
@@ -112,14 +123,14 @@ struct LoginScreen: View {
     @State private var error: String?
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                Text("AmorX").font(.system(size: 44, weight: .bold, design: .rounded)).foregroundColor(.amorx)
-                WaveParticles().frame(height: 160)
-                Text(verify ? "Подтвердите почту" : register ? "Ваша музыка.\nВаши люди." : "С возвращением").font(.largeTitle.bold())
+            VStack(alignment: .leading, spacing: layout.spacing) {
+                Text("AmorX").font(.system(size: layout.compact ? 32 : 44, weight: .bold, design: .rounded)).foregroundColor(.amorx)
+                if field == nil { WaveParticles(height: layout.compact ? 68 : 160) }
+                ScreenHeading(verify ? "Подтвердите почту" : register ? "Ваша музыка.\nВаши люди." : "С возвращением")
                 Text("Музыка, истории и общение — в одном месте.").foregroundColor(.secondary)
-                TextField("Почта", text: $email).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabledCompat().padding().background(Color.primary.opacity(0.05)).cornerRadius(16)
-                if verify { TextField("Код из письма", text: $code).keyboardType(.numberPad).padding().background(Color.primary.opacity(0.05)).cornerRadius(16) }
-                else { SecureField("Пароль", text: $password).padding().background(Color.primary.opacity(0.05)).cornerRadius(16) }
+                TextField("Почта", text: $email).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabledCompat().focused($field, equals: .email).submitLabel(.next).onSubmit { field = verify ? .code : .password }.padding(layout.compact ? 12 : 16).background(Color.primary.opacity(0.05)).cornerRadius(16)
+                if verify { TextField("Код из письма", text: $code).focused($field, equals: .code).keyboardType(.numberPad).padding().background(Color.primary.opacity(0.05)).cornerRadius(16) }
+                else { SecureField("Пароль", text: $password).focused($field, equals: .password).submitLabel(.done).onSubmit { field = nil }.padding(layout.compact ? 12 : 16).background(Color.primary.opacity(0.05)).cornerRadius(16) }
                 if let error = error { Text(error).font(.caption).foregroundColor(.red) }
                 Button {
                     busy = true; error = nil
@@ -131,9 +142,9 @@ struct LoginScreen: View {
                         busy = false
                     }
                 } label: { HStack { if busy { ProgressView().tint(.white) }; Text(verify ? "Подтвердить" : register ? "Создать аккаунт" : "Войти").bold() }.frame(maxWidth: .infinity).padding() }
-                    .buttonStyle(.borderedProminent).disabled(busy || email.isEmpty || (verify ? code.count < 6 : password.count < 6))
+                    .buttonStyle(.borderedProminent).layoutProbe("login.submit").disabled(busy || email.isEmpty || (verify ? code.count < 6 : password.count < 6))
                 if !verify { Button(register ? "Уже есть аккаунт? Войти" : "Создать аккаунт") { register.toggle() } }
-            }.padding(28).frame(maxWidth: 500).frame(maxWidth: .infinity)
+            }.padding(layout.inset).frame(maxWidth: 500).frame(maxWidth: .infinity)
         }
     }
 }
@@ -147,7 +158,7 @@ struct SearchScreen: View {
     @State private var request = UUID()
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Найдите свою музыку").font(.largeTitle.bold()).padding(.top)
+            ScreenHeading("Найдите свою музыку").padding(.top)
             HStack { Image(systemName: "magnifyingglass"); TextField("Песня или исполнитель", text: $query).submitLabel(.search).onSubmit(search); if busy { ProgressView() }; Button("Найти", action: search) }
                 .padding().background(Color.primary.opacity(0.05)).cornerRadius(18)
             ScrollView { LazyVStack(spacing: 8) { ForEach(results) { MusicRow(track: $0, tracks: results) } }.padding(.vertical, 12) }
@@ -165,6 +176,7 @@ struct SearchScreen: View {
 }
 
 struct LibraryScreen: View {
+    @Environment(\.amorxLayout) private var layout
     @EnvironmentObject var player: Playback
     @EnvironmentObject var library: Library
     @EnvironmentObject var cloud: Cloud
@@ -181,7 +193,7 @@ struct LibraryScreen: View {
     private var songs: [Track] { (section == 0 ? downloads.tracks : section == 1 ? library.playlist : library.favorites).filter { query.isEmpty || ($0.title + " " + $0.artist).localizedCaseInsensitiveContains(query) } }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack { Text(section == 1 ? "Плейлист AmorX" : section == 2 ? "Любимое" : "Скачанное").font(.largeTitle.bold()); Spacer(); Menu {
+            HStack { ScreenHeading(section == 1 ? "Плейлист AmorX" : section == 2 ? "Любимое" : "Скачанное"); Spacer(); Menu {
                 Button("Добавить все скачанные в плейлист") { library.add(downloads.tracks.filter { !$0.id.hasPrefix("local_") }) }
                 Button("Открыть аудиофайл") { importFile = true }
                 Button("Импортировать плейлист по ссылке") { importLink = true }
@@ -189,12 +201,12 @@ struct LibraryScreen: View {
                 Button("Сохранить копию для Android") { cloud.run { try await cloud.saveBackup(downloads: downloads.tracks, playlist: library.playlist, code: library.code); cloud.issue = "Копия музыки сохранена в аккаунте" } }
             } label: { Image(systemName: "ellipsis.circle").font(.title2) } }.padding(.top)
             Picker("Раздел", selection: $section) { Text("Скачанное").tag(0); Text("AmorX").tag(1); Text("Любимое").tag(2) }.pickerStyle(.segmented)
-            HStack {
+            HStack(spacing: 6) {
                 Button("Играть") { if let track = songs.first { player.play(track, in: songs) } }.buttonStyle(.borderedProminent)
-                Button { player.playShuffled(songs) } label: { Label("Вперемешку", systemImage: "shuffle") }.buttonStyle(.bordered)
+                Button { player.playShuffled(songs) } label: { Label(layout.narrow ? "Смешать" : "Вперемешку", systemImage: "shuffle") }.buttonStyle(.bordered)
                 if section == 1 { Button { Task { await downloads.downloadAll(library.playlist) } } label: { Image(systemName: "arrow.down.circle") } }
                 if busy { ProgressView() }
-            }.disabled(songs.isEmpty || busy)
+            }.font(.subheadline).controlSize(.regular).layoutProbe("library.actions").disabled(songs.isEmpty || busy)
             if !downloads.pending.isEmpty { ProgressView("Загружается: \(downloads.pending.count)") }
             HStack { MXIcon("magnifyingglass"); TextField("Название или исполнитель", text: $query) }.padding(14).background(Color.surface).clipShape(Capsule())
             ScrollView { LazyVStack(spacing: 8) {
@@ -232,7 +244,7 @@ struct WaveScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack { Text("Моя волна").font(.largeTitle.bold()); Spacer(); RoundButton(icon: player.playing ? "pause.fill" : "play.fill", large: true, action: start) }
+                HStack { ScreenHeading("Моя волна"); Spacer(); RoundButton(icon: player.playing ? "pause.fill" : "play.fill", large: true, action: start) }
                 Text("Музыка ваших любимых исполнителей").foregroundColor(.secondary)
                 WaveParticles(playing: player.playing || busy)
                 TextField("Исполнители через запятую", text: $artists).textFieldStyle(.roundedBorder)
@@ -249,7 +261,21 @@ struct WaveScreen: View {
         guard !busy else { return }; busy = true
         UserDefaults.standard.set(artists, forKey: "wave-" + (cloud.uid ?? "local"))
         Task {
-            do { var songs: [Track] = []; for artist in names.prefix(6) { songs += try await MusicSearch.search(artist + " лучшие песни") }; results = Track.unique(songs); player.playShuffled(results) }
+            do {
+                let groups = try await withThrowingTaskGroup(of: [Track].self) { group -> [[Track]] in
+                    var remaining = names.prefix(6).makeIterator()
+                    for _ in 0..<min(3, names.count) {
+                        if let artist = remaining.next() { group.addTask { try await MusicSearch.search(artist + " лучшие песни") } }
+                    }
+                    var values: [[Track]] = []
+                    for try await songs in group {
+                        values.append(songs)
+                        if let artist = remaining.next() { group.addTask { try await MusicSearch.search(artist + " лучшие песни") } }
+                    }
+                    return values
+                }
+                results = Track.unique(groups.flatMap { $0 }); player.playShuffled(results)
+            }
             catch { cloud.issue = error.localizedDescription }; busy = false
         }
     }

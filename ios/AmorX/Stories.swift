@@ -58,6 +58,7 @@ struct StoryViewer: View {
     private func advance() { if first + 1 < stories.count { first += 1 } else { dismiss() } }
 }
 struct StoryPlayback: View {
+    @Environment(\.amorxLayout) private var layout
     let story: Story
     var onReady: () -> Void
     @EnvironmentObject var cloud: Cloud
@@ -66,7 +67,7 @@ struct StoryPlayback: View {
     var body: some View {
         ZStack {
             if let track = story.track {
-                VStack(spacing: 24) { Artwork(source: track.artwork, size: 280, radius: 32); Text(track.title).font(.title.bold()).multilineTextAlignment(.center); Text(track.artist).foregroundColor(.gray); WaveParticles() }.padding().foregroundColor(.white)
+                VStack(spacing: 12) { Artwork(source: track.artwork, size: min(280, layout.width - 40, layout.height * 0.38), radius: 32); Text(track.title).font(layout.compact ? .headline : .title.bold()).lineLimit(2).multilineTextAlignment(.center); Text(track.artist).foregroundColor(.gray).lineLimit(1); WaveParticles(height: layout.compact ? 60 : 150) }.padding().foregroundColor(.white)
             } else if let player = player { VideoPlayer(player: player).ignoresSafeArea() }
             if player == nil && failed == nil { ProgressView().tint(.white) }
             if let failed = failed { Text(failed).foregroundColor(.white).padding() }
@@ -106,6 +107,7 @@ struct ViewersScreen: View {
     }
 }
 struct SongStoryScreen: View {
+    @Environment(\.amorxLayout) private var layout
     let track: Track
     @EnvironmentObject var cloud: Cloud
     @EnvironmentObject var music: Playback
@@ -121,18 +123,18 @@ struct SongStoryScreen: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    Artwork(source: track.artwork, size: 240, radius: 32)
+                    Artwork(source: track.artwork, size: min(240, layout.width - 2 * layout.inset), radius: 32)
                     Text(track.title).font(.title2.bold()).multilineTextAlignment(.center); Text(track.artist).foregroundColor(.secondary)
                     Text("Фрагмент: \(timeLabel(start)) — \(timeLabel(start + length))")
                     Slider(value: $start, in: 0...max(1, track.duration - length)).onChange(of: start) { _ in reset() }
                     Picker("Длительность", selection: $length) { Text("15 секунд").tag(15.0); Text("30 секунд").tag(30.0) }.pickerStyle(.segmented).onChange(of: length) { _ in reset() }
                     TextField("Подпись", text: $caption).textFieldStyle(.roundedBorder)
-                    HStack {
+                    AdaptiveActions {
                         Button(busy ? "Готовим…" : "Послушать фрагмент") { prepare(publish: false) }.buttonStyle(.bordered)
                         Button("В историю") { prepare(publish: true) }.buttonStyle(.borderedProminent)
                     }.disabled(busy)
                     Text("В историю загружается сам аудиофрагмент. Друзьям не нужно ждать YouTube.").font(.caption).foregroundColor(.secondary)
-                }.padding(24)
+                }.padding(layout.inset)
             }.navigationTitle("Песня в историю").toolbar { Button("Закрыть") { dismiss() }.disabled(busy) }
         }.onAppear { wasPlaying = music.playing; music.setPlaying(false) }.onDisappear { preview?.pause(); if let clip = clip { try? FileManager.default.removeItem(at: clip) }; if wasPlaying { music.setPlaying(true) } }
     }
@@ -141,6 +143,21 @@ struct SongStoryScreen: View {
         guard !busy else { return }; busy = true; preview?.pause()
         Task {
             do {
+                if !publish {
+                    let url: URL
+                    if let local = Downloads.shared.local(track) { url = local } else { url = try await MusicSearch.stream(track) }
+                    let item = AVPlayerItem(url: url); item.preferredForwardBufferDuration = 2
+                    item.forwardPlaybackEndTime = CMTime(seconds: start + length, preferredTimescale: 600)
+                    let value = AVPlayer(playerItem: item); value.automaticallyWaitsToMinimizeStalling = true; preview = value
+                    for _ in 0..<100 {
+                        try Task.checkCancellation()
+                        if item.status == .readyToPlay { break }
+                        if item.status == .failed { throw item.error ?? AppIssue("Не удалось открыть фрагмент") }
+                        try await Task.sleep(nanoseconds: 100_000_000)
+                    }
+                    guard item.status == .readyToPlay else { throw AppIssue("Фрагмент долго загружается. Повторите попытку") }
+                    await value.seek(to: CMTime(seconds: start, preferredTimescale: 600)); value.playImmediately(atRate: 1); busy = false; return
+                }
                 let ready: URL
                 if let clip = clip { ready = clip }
                 else {

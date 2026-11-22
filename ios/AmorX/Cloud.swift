@@ -50,6 +50,7 @@ enum SessionVault {
     var uid: String? { session?.uid }
     var name: String { profile?.name ?? "AmorX" }
     private var revision = UUID()
+    private var recentBackup: (uid: String, row: [String: Any]?, date: Date)?
     private var refreshing: Task<CloudSession, Error>?
     private let network: URLSession = {
         let config = URLSessionConfiguration.default; config.timeoutIntervalForRequest = 30; config.timeoutIntervalForResource = 180
@@ -113,12 +114,12 @@ enum SessionVault {
         if register && row["access_token"] == nil { return false }
         let next = try CloudSession(row); try SessionVault.store(next)
         revision = UUID(); refreshing?.cancel(); refreshing = nil
-        profile = nil; posts = []; stories = []; people = []; favoriteSongs = []; session = next
+        recentBackup = nil; profile = nil; posts = []; stories = []; people = []; favoriteSongs = []; session = next
         return true
     }
     func signOut() throws {
         try SessionVault.store(nil); refreshing?.cancel(); refreshing = nil; revision = UUID()
-        session = nil; profile = nil; posts = []; stories = []; people = []; favoriteSongs = []
+        recentBackup = nil; session = nil; profile = nil; posts = []; stories = []; people = []; favoriteSongs = []
     }
     func loadProfile() async throws {
         guard let id = uid else { return }
@@ -262,9 +263,11 @@ enum SessionVault {
         if let track = track { row["track"] = track.cloudJSON }
         try await write("messages", row)
     }
-    func backupRow() async throws -> [String: Any]? {
+    func backupRow(fresh: Bool = false) async throws -> [String: Any]? {
         guard let uid = uid else { return nil }
-        return try await rows("backups", query: ["select": "user_id,payload,updated_at", "user_id": "eq.\(uid)", "limit": "1"]).first
+        if !fresh, let cached = recentBackup, cached.uid == uid, Date().timeIntervalSince(cached.date) < 5 { return cached.row }
+        let row = try await rows("backups", query: ["select": "user_id,payload,updated_at", "user_id": "eq.\(uid)", "limit": "1"]).first
+        recentBackup = (uid, row, Date()); return row
     }
     func backupPayload() async throws -> [String: Any]? {
         guard let row = try await backupRow() else { return nil }
@@ -274,7 +277,7 @@ enum SessionVault {
     func saveBackup(downloads: [Track], playlist: [Track], code: String?) async throws {
         guard let uid = uid else { return }
         for _ in 0..<3 {
-            let existing = try await backupRow()
+            let existing = try await backupRow(fresh: true)
             var root: [String: Any] = [:]
             if let existing = existing {
                 guard let raw = existing["payload"] as? String, let data = raw.data(using: .utf8),
@@ -293,7 +296,7 @@ enum SessionVault {
             } else {
                 rows = try await request("/rest/v1/backups", method: "POST", body: body, query: ["on_conflict": "user_id"], prefer: "resolution=ignore-duplicates,return=representation") as? [[String: Any]] ?? []
             }
-            if !rows.isEmpty { return }
+            if !rows.isEmpty { recentBackup = nil; return }
         }
         throw AppIssue("Копия изменена на другом устройстве. Повторите сохранение")
     }

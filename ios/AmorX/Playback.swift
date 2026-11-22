@@ -7,14 +7,16 @@ import UIKit
 
 actor MusicSearch {
     static func stream(_ track: Track) async throws -> URL {
-        let streams = try await YouTube(videoID: track.id).streams
-        guard let best = streams.filterAudioOnly().filter({ $0.isNativelyPlayable }).highestAudioBitrateStream() else { throw AppIssue("Для этой песни нет доступного аудиопотока") }
-        return best.url
+        try await AudioLinkCache.shared.link(for: track.id) {
+            let streams = try await YouTube(videoID: track.id).streams
+            guard let best = streams.filterAudioOnly().filter({ $0.isNativelyPlayable }).highestAudioBitrateStream() else { throw AppIssue("Для этой песни нет доступного аудиопотока") }
+            return best.url
+        }
     }
     static func search(_ query: String) async throws -> [Track] {
         guard var components = URLComponents(string: "https://www.youtube.com/results") else { return [] }
         components.queryItems = [URLQueryItem(name: "search_query", value: query + " music"), URLQueryItem(name: "hl", value: "ru")]
-        var request = URLRequest(url: components.url!); request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        var request = URLRequest(url: components.url!, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 20); request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200, let html = String(data: data, encoding: .utf8),
               let start = html.range(of: "var ytInitialData = ")?.upperBound,
@@ -63,9 +65,11 @@ actor MusicSearch {
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
     private var load: Task<Void, Never>?
     private var generation = UUID()
+    private var prefetch: Task<Void, Never>?
     private var order = ShuffleCycle()
     var didPlay: ((Track) -> Void)?
     init() {
+        audio.automaticallyWaitsToMinimizeStalling = true
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
         observer = audio.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main) { [weak self] time in
             Task { @MainActor in
@@ -110,8 +114,13 @@ actor MusicSearch {
             if let event = event as? MPChangeRepeatModeCommandEvent { Task { @MainActor in self?.repeatOne = event.repeatType == .one }; return .success }; return .commandFailed
         }))
     }
+    #if targetEnvironment(simulator)
+    func prepareLayoutPreview(_ track: Track, queue: [Track]) {
+        current = track; self.queue = queue; duration = track.duration; position = 42; loading = false; playing = false
+    }
+    #endif
     func clear() {
-        load?.cancel(); artworkTask?.cancel(); artwork = nil; generation = UUID(); status = nil; audio.pause(); audio.replaceCurrentItem(with: nil)
+        load?.cancel(); prefetch?.cancel(); artworkTask?.cancel(); artwork = nil; generation = UUID(); status = nil; audio.pause(); audio.replaceCurrentItem(with: nil)
         current = nil; queue = []; playing = false; loading = false; position = 0; duration = 0; issue = nil
         order = ShuffleCycle(); MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
@@ -154,7 +163,7 @@ actor MusicSearch {
         else { let index = queue.firstIndex(where: { $0.id == current?.id }) ?? 0; let track = queue[(index + queue.count - 1) % queue.count]; order.select(track.id); start(track) }
     }
     private func start(_ track: Track) {
-        load?.cancel(); let request = UUID(); generation = request
+        load?.cancel(); prefetch?.cancel(); let request = UUID(); generation = request
         artworkTask?.cancel(); artwork = nil
         if let source = track.artwork, let imageURL = URL(string: source), imageURL.scheme == "https" {
             artworkTask = Task {
@@ -171,12 +180,13 @@ actor MusicSearch {
                 try Task.checkCancellation(); guard generation == request else { return }
                 try AVAudioSession.sharedInstance().setActive(true)
                 let item = AVPlayerItem(url: url)
+                item.preferredForwardBufferDuration = 3
                 audio.replaceCurrentItem(with: item)
                 status = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
                     Task { @MainActor in
                         guard let self = self, self.generation == request else { return }
                         if item.status == .failed { self.issue = item.error?.localizedDescription ?? "Не удалось воспроизвести трек"; self.loading = false; self.playing = false }
-                        if item.status == .readyToPlay { self.loading = false; if self.playing { self.audio.play() } }
+                        if item.status == .readyToPlay { self.loading = false; if self.playing { self.audio.playImmediately(atRate: 1); self.prepareNext() } }
                     }
                 }
                 didPlay?(track); nowPlaying()
@@ -185,6 +195,14 @@ actor MusicSearch {
             } catch is CancellationError { }
             catch { if generation == request { issue = error.localizedDescription; loading = false; playing = false } }
         }
+    }
+    private func prepareNext() {
+        guard queue.count > 1 else { return }
+        var copy = order
+        let id = shuffle ? copy.next(ids: queue.map(\.id), current: current?.id) : queue[((queue.firstIndex { $0.id == current?.id } ?? 0) + 1) % queue.count].id
+        guard let next = queue.first(where: { $0.id == id }), Downloads.shared.local(next) == nil else { return }
+        prefetch?.cancel()
+        prefetch = Task(priority: .utility) { _ = try? await MusicSearch.stream(next) }
     }
     private func nowPlaying() {
         guard let current = current else { return }

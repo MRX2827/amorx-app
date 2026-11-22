@@ -20,7 +20,7 @@ struct RoundButton: View {
         Button(action: action) {
             MXIcon(icon, size: large ? 32 : 25)
                 .foregroundColor(large ? .white : active ? .amorx : .primary)
-                .frame(width: large ? 66 : 42, height: large ? 66 : 42)
+                .frame(width: large ? 66 : 44, height: large ? 66 : 44)
                 .background(large ? Color.amorx : active ? Color.amorx.opacity(0.16) : Color.primary.opacity(0.06))
                 .clipShape(Circle())
         }.buttonStyle(PressStyle()).animation(.easeInOut(duration: 0.2), value: active)
@@ -44,22 +44,25 @@ struct Artwork: View {
     }
 }
 struct WaveParticles: View {
+    @Environment(\.amorxLayout) private var layout
     var playing = true
+    var height: CGFloat = 180
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: !playing || reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: layout.compact ? 1 / 20 : 1 / 30, paused: !playing || reduceMotion)) { timeline in
             Canvas { context, size in
                 let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate * 0.6
-                for row in 0..<16 {
-                    for index in 0..<72 {
-                        let x = Double(index) / 71
+                for row in 0..<(layout.compact ? 8 : 16) {
+                    let columns = layout.compact ? 48 : 72
+                    for index in 0..<columns {
+                        let x = Double(index) / Double(columns - 1)
                         let y = sin(x * 9 + time + Double(row) * 0.15) * 0.19 + cos(x * 17 - time * 0.7) * 0.08 + Double(row) * 0.009
                         let point = CGPoint(x: size.width * x, y: size.height * (0.4 + y))
                         context.fill(Path(ellipseIn: CGRect(x: point.x, y: point.y, width: 1.7, height: 1.7)), with: .color(.amorx.opacity(0.22 + Double(row % 4) * 0.13)))
                     }
                 }
             }
-        }.frame(height: 210).accessibilityHidden(true)
+        }.frame(height: height).clipped().accessibilityHidden(true)
     }
 }
 struct MusicRow: View {
@@ -98,21 +101,22 @@ extension Notification.Name { static let songStory = Notification.Name("amorx.so
 
 struct MiniPlayerBar: View {
     @EnvironmentObject var player: Playback
+    @Environment(\.amorxLayout) private var layout
     var expand: () -> Void
     var body: some View {
         if let track = player.current {
-            HStack(spacing: 10) {
+            HStack(spacing: layout.narrow ? 4 : 10) {
                 Button(action: expand) {
-                    HStack { Artwork(source: track.artwork, size: 52, expressive: true); VStack(alignment: .leading) { Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1); Text(player.loading ? "Загрузка…" : track.artist).font(.caption).foregroundColor(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading) }
-                }.buttonStyle(.plain)
+                    HStack { Artwork(source: track.artwork, size: layout.narrow ? 38 : 52, expressive: true); VStack(alignment: .leading) { Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1); Text(player.loading ? "Загрузка…" : track.artist).font(.caption).foregroundColor(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading) }
+                }.buttonStyle(.plain).frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
                 RoundButton(icon: "shuffle", active: player.shuffle) { player.toggleShuffle() }
-                MorphPlayButton(playing: player.playing, loading: player.loading, size: 54) { player.toggle() }
+                MorphPlayButton(playing: player.playing, loading: player.loading, size: layout.narrow ? 46 : 54) { player.toggle() }
                 RoundButton(icon: "forward.end.fill") { player.next() }
-            }.padding(10).background(Color.surface).clipShape(Capsule()).overlay(alignment: .bottom) {
+            }.padding(layout.narrow ? 6 : 10).background(Color.surface).clipShape(Capsule()).overlay(alignment: .bottom) {
                 GeometryReader { geometry in
                     Capsule().fill(Color.amorx).frame(width: geometry.size.width * min(1, player.position / max(1, player.duration)), height: 2)
                 }.frame(height: 2).padding(.horizontal, 18)
-            }.padding(.horizontal, 10).padding(.vertical, 5)
+            }.padding(.horizontal, 10).padding(.vertical, 5).layoutProbe("mini.player")
         }
     }
 }
@@ -123,29 +127,73 @@ struct FullPlayer: View {
     @State private var showQueue = false
     var body: some View {
         GeometryReader { geometry in
+            let layout = PhoneLayout(width: geometry.size.width, height: geometry.size.height)
+            let landscape = layout.width > layout.height && layout.short
             ZStack {
+                Color(UIColor.systemBackground).ignoresSafeArea()
                 if let art = player.current?.artwork, let url = URL(string: art) {
-                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.amorx.opacity(0.3) }.blur(radius: 70).opacity(0.32).ignoresSafeArea()
+                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.amorx.opacity(0.3) }
+                        .frame(width: geometry.size.width, height: geometry.size.height).blur(radius: 60).opacity(0.25).clipped().allowsHitTesting(false)
                 }
-                ScrollView { VStack(spacing: 18) {
-                    HStack { RoundButton(icon: "chevron.down") { dismiss() }; Spacer(); Text("СЕЙЧАС ИГРАЕТ").font(.caption.weight(.semibold)).tracking(2); Spacer(); RoundButton(icon: "list.bullet") { showQueue = true } }
-                    Spacer(minLength: 0)
-                    if let track = player.current {
-                        Artwork(source: track.artwork, size: min(geometry.size.width - 56, geometry.size.height * 0.43), radius: 28, expressive: true).shadow(color: .black.opacity(0.22), radius: 25, y: 14)
-                            .scaleEffect(player.playing ? 1 : 0.94).animation(.spring(response: 0.45, dampingFraction: 0.8), value: player.playing)
-                        HStack { VStack(alignment: .leading, spacing: 8) { Text(track.title).font(.title2.bold()).lineLimit(2); Text(track.artist).foregroundColor(.secondary) }; Spacer(); RoundButton(icon: library.favorites.contains(track) ? "heart.fill" : "heart", active: library.favorites.contains(track)) { library.like(track) } }
-                        VStack(spacing: 6) {
-                            Slider(value: Binding(get: { min(max(0, player.position), max(1, player.duration)) }, set: { player.seek($0) }), in: 0...max(1, player.duration)).tint(.amorx)
-                            HStack { Text(timeLabel(player.position)); Spacer(); Text(player.loading ? "Загрузка…" : timeLabel(player.duration)) }.font(.caption.monospacedDigit()).foregroundColor(.secondary)
-                            if let error = player.issue { Text(error).font(.caption).foregroundColor(.red) }
+                ScrollView {
+                    VStack(spacing: landscape ? 8 : layout.compact ? 10 : 20) {
+                        HStack {
+                            RoundButton(icon: "chevron.down") { dismiss() }
+                            Spacer(minLength: 4)
+                            Text("СЕЙЧАС ИГРАЕТ").font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                            Spacer(minLength: 4)
+                            RoundButton(icon: "list.bullet") { showQueue = true }
                         }
-                        HStack(spacing: 4) { RoundButton(icon: "shuffle", active: player.shuffle) { player.toggleShuffle() }; Spacer(); RoundButton(icon: "backward.end.fill") { player.previous() }; MorphPlayButton(playing: player.playing, loading: player.loading, size: 82) { player.toggle() }; RoundButton(icon: "forward.end.fill") { player.next() }; Spacer(); RoundButton(icon: "repeat.1", active: player.repeatOne) { player.repeatOne.toggle() } }
-                        HStack { Image(systemName: "speaker.fill"); Slider(value: $player.volume, in: 0...1); Image(systemName: "speaker.wave.3.fill") }.padding(.horizontal, 35).foregroundColor(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }.padding(24).frame(maxWidth: 600).frame(maxWidth: .infinity).frame(minHeight: geometry.size.height) }
-            }
+                        if let track = player.current {
+                            if landscape {
+                                HStack(spacing: 16) {
+                                    cover(track, size: min(180, layout.height - 100))
+                                    VStack(spacing: 4) { information(track, compact: true, lines: 1); progress; controls(compact: true); volume }
+                                }
+                            } else {
+                                cover(track, size: layout.artwork)
+                                information(track, compact: layout.compact, lines: 2)
+                                progress; controls(compact: layout.compact); volume
+                            }
+                        }
+                    }.padding(layout.inset).frame(maxWidth: landscape ? 900 : 600).frame(maxWidth: .infinity)
+                }
+            }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
         }.sheet(isPresented: $showQueue) { NavigationView { List { ForEach(player.queue) { track in MusicRow(track: track, tracks: player.queue) } }.navigationTitle("Очередь").toolbar { Button("Готово") { showQueue = false } } } }
+    }
+    private func cover(_ track: Track, size: CGFloat) -> some View {
+        Artwork(source: track.artwork, size: size, radius: 28, expressive: true)
+            .scaleEffect(player.playing ? 1 : 0.94).animation(.spring(response: 0.45, dampingFraction: 0.8), value: player.playing)
+    }
+    private func information(_ track: Track, compact: Bool, lines: Int) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.title).font(compact ? .headline : .title2.bold()).lineLimit(lines)
+                Text(track.artist).font(.subheadline).foregroundColor(.secondary).lineLimit(1)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            RoundButton(icon: library.favorites.contains(where: { $0.id == track.id }) ? "heart.fill" : "heart", active: library.favorites.contains(where: { $0.id == track.id })) { library.like(track) }
+        }
+    }
+    private var progress: some View {
+        VStack(spacing: 0) {
+            Slider(value: Binding(get: { min(max(0, player.position), max(1, player.duration)) }, set: { player.seek($0) }), in: 0...max(1, player.duration)).tint(.amorx)
+            HStack { Text(timeLabel(player.position)); Spacer(); Text(player.loading ? "Загрузка…" : timeLabel(player.duration)) }.font(.caption.monospacedDigit()).foregroundColor(.secondary)
+            if let error = player.issue { Text(error).font(.caption).foregroundColor(.red) }
+        }
+    }
+    private func controls(compact: Bool) -> some View {
+        HStack(spacing: 4) {
+            RoundButton(icon: "shuffle", active: player.shuffle) { player.toggleShuffle() }
+            Spacer(minLength: 0)
+            RoundButton(icon: "backward.end.fill") { player.previous() }
+            MorphPlayButton(playing: player.playing, loading: player.loading, size: compact ? 64 : 82) { player.toggle() }
+            RoundButton(icon: "forward.end.fill") { player.next() }
+            Spacer(minLength: 0)
+            RoundButton(icon: "repeat.1", active: player.repeatOne) { player.repeatOne.toggle() }
+        }.layoutProbe("player.controls")
+    }
+    private var volume: some View {
+        HStack { Image(systemName: "speaker.fill"); Slider(value: $player.volume, in: 0...1); Image(systemName: "speaker.wave.3.fill") }.foregroundColor(.secondary)
     }
 }
 

@@ -45,11 +45,14 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: AmorX-iOS-5.5.499.1327
+          name: AmorX-iOS-5.5.499.1328
           path: |
-            ios/build/AmorX-iOS-5.5.499.1327.ipa
+            ios/build/AmorX-iOS-5.5.499.1328.ipa
             ios/build/ipa-verification.json
             ios/build/simulator-verification.json
+            ios/build/layout-verification.json
+            ios/build/download-verification.json
+            ios/build/layout-screenshots/*.png
             ios/build/ios-launch.png
           if-no-files-found: error
           retention-days: 14
@@ -60,6 +63,9 @@ jobs:
           path: |
             ios/build/*.log
             ios/build/simulator-environment.json
+            ios/build/layout-verification.json
+            ios/build/download-verification.json
+            ios/build/layout-screenshots/*.png
             ios/build/ios-launch.png
           if-no-files-found: ignore
           retention-days: 7

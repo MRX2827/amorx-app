@@ -51,3 +51,69 @@ run('xcrun', 'simctl', 'io', uid, 'screenshot', str(build / 'ios-launch.png'))
     'pid': pid, 'launch_passed': True, 'alive_after_seconds': 6
 }, indent=2) + '\n')
 print('Release app remained running after startup on iPhone 16, iOS', runtime['version'])
+
+# Validate compact and larger logical viewports using offline simulator-only fixtures.
+# This covers SE 2016 geometry without pretending iOS 18 supports that physical model.
+import plistlib, hashlib, threading, http.server, struct
+plist = app / 'Info.plist'
+settings = plistlib.loads(plist.read_bytes())
+settings['NSAppTransportSecurity'] = {'NSAllowsArbitraryLoads': True}  # Test copy only, for the loopback fixture.
+plist.write_bytes(plistlib.dumps(settings))
+run('codesign', '--force', '--deep', '--sign', '-', '--timestamp=none', str(app))
+run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
+run('xcrun', 'simctl', 'install', uid, str(app), timeout=180)
+container = pathlib.Path(run('xcrun', 'simctl', 'get_app_container', uid, 'com.amorx.ios', 'data').strip()) / 'Documents'
+layouts = build / 'layout-screenshots'; layouts.mkdir(exist_ok=True)
+layout_results = []
+for width, height in [(320, 548), (568, 300), (375, 647), (393, 759), (430, 820)]:
+    for screen in ['login', 'library', 'player', 'restore', 'profile']:
+        try: run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
+        except subprocess.CalledProcessError: pass
+        report = container / 'layout-verification.json'; report.unlink(missing_ok=True)
+        run('xcrun', 'simctl', 'launch', uid, 'com.amorx.ios', '--layout-screen', screen,
+            '--layout-width', str(width), '--layout-height', str(height))
+        deadline = time.monotonic() + 20
+        while not report.exists() and time.monotonic() < deadline: time.sleep(.2)
+        assert report.exists(), f'Missing layout measurements: {screen} {width}x{height}'
+        time.sleep(.5)
+        measured = json.loads(report.read_text())
+        run('xcrun', 'simctl', 'io', uid, 'screenshot', str(layouts / f'{screen}-{width}x{height}.png'))
+        layout_results.append(measured)
+        assert not measured['violations'], measured
+(build / 'layout-verification.json').write_text(json.dumps(layout_results, indent=2))
+
+# Native downloader integration: exact bytes across multiple 206 responses,
+# a server ignoring Range (200), and a corrupt range that must never be saved.
+payload = bytes(range(256)) * (3 * 1024 * 1024 // 256 + 3)
+requests = []
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        header = self.headers.get('Range', '')
+        requests.append({'path': self.path, 'range': header})
+        if self.path == '/whole':
+            self.send_response(200); data = payload
+        else:
+            start, end = map(int, header.removeprefix('bytes=').split('-')); end = min(end, len(payload) - 1)
+            self.send_response(206); data = payload[start:end+1]
+            self.send_header('Content-Range', f'bytes {start + (1 if self.path == "/bad" else 0)}-{end}/{len(payload)}')
+        self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Length', str(len(data)))
+        self.end_headers(); self.wfile.write(data)
+    def log_message(self, *_): pass
+server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+download_results = []
+for mode in ['range', 'whole', 'bad']:
+    run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
+    report = container / 'download-verification.json'; report.unlink(missing_ok=True)
+    run('xcrun', 'simctl', 'launch', uid, 'com.amorx.ios', '--layout-screen', 'download',
+        '--download-url', f'http://127.0.0.1:{server.server_port}/{mode}')
+    deadline = time.monotonic() + 90
+    while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
+    assert report.exists(), f'Download {mode} did not finish'
+    result = json.loads(report.read_text()); download_results.append({'mode': mode, **result})
+    if mode == 'bad': assert not result['downloaded'], result
+    else: assert result['indexed'] and result['size'] == len(payload) and result['sha256'] == hashlib.sha256(payload).hexdigest(), result
+assert len([r for r in requests if r['path'] == '/range']) >= 2, requests
+server.shutdown()
+(build / 'download-verification.json').write_text(json.dumps({'results': download_results, 'requests': requests}, indent=2))
+print('Layout viewports and native ranged downloads passed')
