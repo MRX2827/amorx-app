@@ -39,7 +39,7 @@ import CryptoKit
                 let file = await Downloads.shared.verifyFixture(track, url: url)
                 let bytes = file.flatMap { try? Data(contentsOf: $0) }
                 let result: [String: Any] = ["downloaded": bytes != nil, "indexed": Downloads.shared.tracks.contains(where: { $0.id == track.id }), "size": bytes?.count ?? 0,
-                    "sha256": bytes.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""]
+                    "failure": Downloads.shared.lastFailure ?? "", "sha256": bytes.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""]
                 let output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("download-verification.json")
                 if let data = try? JSONSerialization.data(withJSONObject: result) { try? data.write(to: output, options: .atomic) }
             }

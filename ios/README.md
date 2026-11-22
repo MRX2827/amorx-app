@@ -72,6 +72,6 @@ The local file index avoids repeated directory creation and disk checks during l
 
 CI also checks offline layouts at small/large portrait and landscape sizes, plus native
 URLSession transfers against ranged, whole-file and malformed-range loopback responses.
-The test fixtures and local-network exception exist only in the simulator copy; they
-are not enabled in the device IPA. This geometry check does not claim a physical
+The fixtures use a separate simulator bundle and an ephemeral HTTPS loopback certificate
+trusted only in the disposable simulator. Device IPA transport settings are unchanged. This geometry check does not claim a physical
 SE 2016 or iOS 15 runtime test, or measured speed improvements on the user's connection.

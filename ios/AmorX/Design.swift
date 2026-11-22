@@ -105,14 +105,14 @@ struct MiniPlayerBar: View {
     var expand: () -> Void
     var body: some View {
         if let track = player.current {
-            HStack(spacing: layout.narrow ? 4 : 10) {
+            HStack(spacing: layout.compact ? 4 : 10) {
                 Button(action: expand) {
-                    HStack { Artwork(source: track.artwork, size: layout.narrow ? 38 : 52, expressive: true); VStack(alignment: .leading) { Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1); Text(player.loading ? "Загрузка…" : track.artist).font(.caption).foregroundColor(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading) }
+                    HStack { Artwork(source: track.artwork, size: layout.compact ? 38 : 52, expressive: true); VStack(alignment: .leading) { Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1); Text(player.loading ? "Загрузка…" : track.artist).font(.caption).foregroundColor(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading) }
                 }.buttonStyle(.plain).frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
                 RoundButton(icon: "shuffle", active: player.shuffle) { player.toggleShuffle() }
-                MorphPlayButton(playing: player.playing, loading: player.loading, size: layout.narrow ? 46 : 54) { player.toggle() }
+                MorphPlayButton(playing: player.playing, loading: player.loading, size: layout.compact ? 46 : 54) { player.toggle() }
                 RoundButton(icon: "forward.end.fill") { player.next() }
-            }.padding(layout.narrow ? 6 : 10).background(Color.surface).clipShape(Capsule()).overlay(alignment: .bottom) {
+            }.padding(layout.compact ? 6 : 10).background(Color.surface).clipShape(Capsule()).overlay(alignment: .bottom) {
                 GeometryReader { geometry in
                     Capsule().fill(Color.amorx).frame(width: geometry.size.width * min(1, player.position / max(1, player.duration)), height: 2)
                 }.frame(height: 2).padding(.horizontal, 18)

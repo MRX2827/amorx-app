@@ -39,6 +39,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     @Published private(set) var pending: [String: Double] = [:]
     @Published var issue: String?
     var backgroundCompletion: (() -> Void)?
+    private(set) var lastFailure: String?
     private struct Transfer: Codable {
         let track: Track
         let url: URL
@@ -84,7 +85,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     #if targetEnvironment(simulator)
     @MainActor func verifyFixture(_ track: Track, url: URL) async -> URL? {
         guard LayoutPreview.isActive, url.host == "127.0.0.1" else { return nil }
-        pending[track.id] = 0
+        pending[track.id] = 0; lastFailure = nil
         do { try enqueue(Transfer(track: track, url: url)) } catch { fail(track, error) }
         let deadline = Date().addingTimeInterval(80)
         while pending[track.id] != nil && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
@@ -132,6 +133,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         return nil
     }
     private func fail(_ track: Track, _ error: Error) {
+        lastFailure = String(describing: error)
         pending.removeValue(forKey: track.id); try? FileManager.default.removeItem(at: part(track))
         issue = "«\(track.title)»: \(error.localizedDescription)"
     }
