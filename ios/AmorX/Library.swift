@@ -175,7 +175,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
                 do {
                     let url = try await MusicSearch.stream(retry.track)
                     try? FileManager.default.removeItem(at: self.part(retry.track))
-                    var fresh = Transfer(track: retry.track, url: url); fresh.attempts = retry.attempts
+                    var fresh = Transfer(track: retry.track, url: url); fresh.attempts = retry.attempts; fresh.foreground = retry.foreground
                     try self.enqueue(fresh)
                 } catch { self.fail(retry.track, error) }
             }
@@ -204,12 +204,13 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error = error, var work = transfer(task) else { return }
-        if work.attempts < 1, (error as NSError).code != NSURLErrorCancelled {
+        let failure = error as NSError
+        if session.configuration.identifier != nil, failure.domain == NSURLErrorDomain, failure.code == NSURLErrorUnknown {
+            // Changing transport is separate from the one network retry/link refresh.
+            work.foreground = true; usedForegroundFallback = true
+            do { try enqueue(work) } catch { fail(work.track, error) }
+        } else if work.attempts < 1, failure.code != NSURLErrorCancelled {
             work.attempts += 1
-            let failure = error as NSError
-            if session.configuration.identifier != nil, failure.domain == NSURLErrorDomain, failure.code == NSURLErrorUnknown {
-                work.foreground = true; usedForegroundFallback = true
-            }
             do { try enqueue(work) } catch { fail(work.track, error) }
         } else { fail(work.track, error) }
     }
