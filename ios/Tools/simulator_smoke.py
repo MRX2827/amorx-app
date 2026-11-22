@@ -153,10 +153,12 @@ def downloads():
             deadline = time.monotonic() + 90
             while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
             result = json.loads(report.read_text()) if report.exists() else {'downloaded': False, 'error': 'timed out'}
-            passed = (not result['downloaded'] and 'error' not in result) if mode == 'bad' else (result.get('indexed') and result.get('size') == len(payload) and result.get('sha256') == hashlib.sha256(payload).hexdigest())
+            passed = (not result['downloaded'] and not result.get('indexed') and 'Не удалось скачать аудио (206)' in result.get('failure', '') and any(r['path'] == '/bad' for r in requests)) if mode == 'bad' else (result.get('indexed') and result.get('size') == len(payload) and result.get('sha256') == hashlib.sha256(payload).hexdigest())
             results.append({'mode': mode, 'passed': bool(passed), **result}); save(build/'download-verification.json', {'results': results, 'requests': requests})
             print(f'Download {mode}: {"passed" if passed else result}', flush=True)
     finally: server.shutdown()
+    daemon_log = best_effort('xcrun', 'simctl', 'spawn', uid, 'log', 'show', '--last', '2m', '--style', 'compact', '--predicate', 'process == \"nsurlsessiond\" OR process == \"AmorX\"', timeout=20)
+    (build / 'simulator-network-process.log').write_text(daemon_log)
     assert len([r for r in requests if r['path'] == '/range']) >= 2, {'requests': requests, 'results': results}
     assert all(r['passed'] for r in results), results
 

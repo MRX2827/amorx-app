@@ -67,6 +67,9 @@ Signed audio URLs are coalesced across playback and downloads and cached until s
 before expiration. The player resolves the next track's link ahead of time. Downloads
 use verified 2 MiB byte ranges, accept whole-file responses, retry transient failures,
 and refresh expired links; existing downloads from 1327 retain the background session.
+If the background transfer daemon returns NSURLErrorUnknown before it can run a task,
+the same downloader retries with a default session while the app is running. CI reports
+this fallback explicitly; it does not claim to verify continued transfers while suspended.
 Story fragment preview starts playback without first downloading/exporting the whole song.
 The local file index avoids repeated directory creation and disk checks during list redraws.
 

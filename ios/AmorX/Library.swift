@@ -40,16 +40,27 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     @Published var issue: String?
     var backgroundCompletion: (() -> Void)?
     private(set) var lastFailure: String?
+    private(set) var usedForegroundFallback = false
     private struct Transfer: Codable {
         let track: Track
         let url: URL
         var offset: Int64 = 0
         var total: Int64? = nil
         var attempts = 0
+        var foreground: Bool? = nil
     }
     private lazy var session: URLSession = {
         let config = URLSessionConfiguration.background(withIdentifier: "com.amorx.ios.downloads")
         config.isDiscretionary = false; config.sessionSendsLaunchEvents = true; config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 30; config.timeoutIntervalForResource = 300
+        config.httpMaximumConnectionsPerHost = 3
+        return URLSession(configuration: config, delegate: self, delegateQueue: .main)
+    }()
+    // Recover downloads while the app is running if the system transfer daemon
+    // cannot start a background task. Keep the same range/file validation path.
+    private lazy var foregroundSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
         config.timeoutIntervalForRequest = 30; config.timeoutIntervalForResource = 300
         config.httpMaximumConnectionsPerHost = 3
         return URLSession(configuration: config, delegate: self, delegateQueue: .main)
@@ -85,7 +96,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     #if targetEnvironment(simulator)
     @MainActor func verifyFixture(_ track: Track, url: URL) async -> URL? {
         guard LayoutPreview.isActive, url.host == "127.0.0.1" else { return nil }
-        pending[track.id] = 0; lastFailure = nil
+        pending[track.id] = 0; lastFailure = nil; usedForegroundFallback = false
         do { try enqueue(Transfer(track: track, url: url)) } catch { fail(track, error) }
         let deadline = Date().addingTimeInterval(80)
         while pending[track.id] != nil && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
@@ -96,7 +107,8 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         var request = URLRequest(url: work.url, timeoutInterval: 30)
         request.setValue(AudioByteRange.request(offset: work.offset, total: work.total), forHTTPHeaderField: "Range")
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        let task = session.downloadTask(with: request)
+        let transport = work.foreground == true ? foregroundSession : session
+        let task = transport.downloadTask(with: request)
         task.priority = URLSessionTask.highPriority
         task.taskDescription = String(decoding: try JSONEncoder().encode(work), as: UTF8.self)
         task.resume()
@@ -194,6 +206,10 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         guard let error = error, var work = transfer(task) else { return }
         if work.attempts < 1, (error as NSError).code != NSURLErrorCancelled {
             work.attempts += 1
+            let failure = error as NSError
+            if session.configuration.identifier != nil, failure.domain == NSURLErrorDomain, failure.code == NSURLErrorUnknown {
+                work.foreground = true; usedForegroundFallback = true
+            }
             do { try enqueue(work) } catch { fail(work.track, error) }
         } else { fail(work.track, error) }
     }
