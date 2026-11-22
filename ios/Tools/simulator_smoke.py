@@ -138,10 +138,35 @@ def downloads():
     # Trust a short-lived loopback certificate inside this disposable simulator only.
     # No user/device trust store or packaged IPA is modified.
     cert, key = build / 'fixture-cert.pem', build / 'fixture-key.pem'
+    authority, authority_key = build / 'fixture-ca.pem', build / 'fixture-ca-key.pem'
+    config, csr = build / 'fixture-openssl.cnf', build / 'fixture.csr'
+    # An explicit configuration avoids duplicate extensions from runner OpenSSL defaults.
+    config.write_text("""[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = AmorX CI loopback
+[ca]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+[server]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = IP:127.0.0.1
+authorityKeyIdentifier = keyid,issuer
+subjectKeyIdentifier = hash
+""")
     run('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '2',
-        '-subj', '/CN=AmorX CI loopback', '-addext', 'subjectAltName=IP:127.0.0.1',
-        '-addext', 'basicConstraints=critical,CA:TRUE', '-keyout', str(key), '-out', str(cert))
-    run('xcrun', 'simctl', 'keychain', uid, 'add-root-cert', str(cert))
+        '-config', str(config), '-extensions', 'ca', '-keyout', str(authority_key), '-out', str(authority))
+    run('openssl', 'req', '-new', '-newkey', 'rsa:2048', '-nodes', '-sha256',
+        '-config', str(config), '-keyout', str(key), '-out', str(csr))
+    run('openssl', 'x509', '-req', '-in', str(csr), '-CA', str(authority), '-CAkey', str(authority_key),
+        '-CAcreateserial', '-out', str(cert), '-days', '2', '-sha256', '-extfile', str(config), '-extensions', 'server')
+    run('openssl', 'verify', '-CAfile', str(authority), '-purpose', 'sslserver', '-verify_ip', '127.0.0.1', str(cert))
+    run('security', 'verify-cert', '-c', str(cert), '-r', str(authority), '-p', 'ssl', '-s', '127.0.0.1')
+    run('xcrun', 'simctl', 'keychain', uid, 'add-root-cert', str(authority))
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); context.load_cert_chain(cert, key)
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     server.socket = context.wrap_socket(server.socket, server_side=True)
