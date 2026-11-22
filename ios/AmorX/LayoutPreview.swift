@@ -48,9 +48,20 @@ import CryptoKit
         if let first = songs.first { player.prepareLayoutPreview(first, queue: songs) }
         #endif
     }
+    static func markReady() {
+        #if targetEnvironment(simulator)
+        let value: [String: Any] = ["pid": Int(ProcessInfo.processInfo.processIdentifier), "screen": screen, "time": Date().timeIntervalSince1970]
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        if let bytes = try? JSONSerialization.data(withJSONObject: value) { try? bytes.write(to: folder.appendingPathComponent("startup-ready.json"), options: .atomic) }
+        #endif
+    }
     static func record(_ frames: [String: CGRect], size: CGSize) {
         #if targetEnvironment(simulator)
-        guard isActive, let viewport = frames["__viewport"] else { return }
+        guard isActive else { return }
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let observed: [String: Any] = ["screen": screen, "frames": frames.mapValues { [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)] }]
+        if let bytes = try? JSONSerialization.data(withJSONObject: observed) { try? bytes.write(to: folder.appendingPathComponent("layout-observed.json"), options: .atomic) }
+        guard let viewport = frames["__viewport"] else { return }
         // NavigationView hosts some content in another hosting controller. Measure every
         // probe in window coordinates and subtract the actual viewport's window origin.
         let relative = frames.filter { $0.key != "__viewport" }.mapValues {

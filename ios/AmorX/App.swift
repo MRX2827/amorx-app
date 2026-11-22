@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                 .font(.custom("Roboto-Regular", size: 16, relativeTo: .body))
                 .tint(.amorx)
                 .preferredColorScheme(library.theme == "dark" ? .dark : library.theme == "light" ? .light : nil)
-                .onAppear { LayoutPreview.prepare(cloud: cloud, player: player, library: library); Downloads.shared.reconnect(); player.didPlay = { library.remember($0) }; library.didLike = { track, liked in cloud.run { try await cloud.setFavorite(track, liked: liked) } } }
+                .onAppear { LayoutPreview.markReady(); LayoutPreview.prepare(cloud: cloud, player: player, library: library); Downloads.shared.reconnect(); player.didPlay = { library.remember($0) }; library.didLike = { track, liked in cloud.run { try await cloud.setFavorite(track, liked: liked) } } }
         }
     }
 }

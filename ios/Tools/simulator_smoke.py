@@ -1,121 +1,153 @@
 #!/usr/bin/env python3
-"""Launch the Release app in a clean simulator matching the selected Xcode SDK."""
-import json, pathlib, subprocess, time
+"""Independent startup, compact-layout and native-download verification phases."""
+import hashlib, http.server, json, pathlib, plistlib, subprocess, sys, threading, time
 
 root = pathlib.Path(__file__).resolve().parents[1]
-build = root / 'build'
-build.mkdir(exist_ok=True)
-log = build / 'simulator-launch.log'
+build = root / 'build'; build.mkdir(exist_ok=True)
+phase = sys.argv[1] if len(sys.argv) > 1 else 'all'
+log = build / f'simulator-{phase}.log'
+app = root / 'DerivedData/Build/Products/Release-iphonesimulator/AmorX.app'
+bundle = 'com.amorx.ios'
 
 def run(*args, timeout=60):
-    with log.open('a') as stream:
-        stream.write('$ ' + ' '.join(map(str, args)) + '\n')
+    with log.open('a') as stream: stream.write('$ ' + ' '.join(map(str, args)) + '\n')
     try:
-        result = subprocess.run(args, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        result = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=False)
     except subprocess.TimeoutExpired as error:
         output = error.stdout or b''
         if isinstance(output, bytes): output = output.decode(errors='replace')
         with log.open('a') as stream: stream.write(output + '\nTimed out\n')
         raise
     with log.open('a') as stream: stream.write(result.stdout + '\n')
-    result.check_returncode()
-    return result.stdout
+    result.check_returncode(); return result.stdout
 
-log.write_text('')
-sdk = run('xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version').strip()
-runtimes = json.loads(run('xcrun', 'simctl', 'list', 'runtimes', '--json'))['runtimes']
-# Newer runtimes may coexist on a runner but belong to a different installed Xcode.
-version = tuple(map(int, sdk.split('.')[:2]))
-matching = [runtime for runtime in runtimes
-            if runtime.get('isAvailable') and runtime.get('identifier', '').startswith('com.apple.CoreSimulator.SimRuntime.iOS-')
-            and tuple(map(int, runtime['version'].split('.')[:2])) == version]
-assert matching, f'No available iOS simulator runtime matching SDK {sdk}'
-runtime = matching[0]
-uid = run('xcrun', 'simctl', 'create', 'AmorX release smoke',
-          'com.apple.CoreSimulator.SimDeviceType.iPhone-16', runtime['identifier']).strip()
-(build / 'simulator-environment.json').write_text(json.dumps({'sdk': sdk, 'runtime': runtime, 'device': uid}, indent=2))
-app = root / 'DerivedData/Build/Products/Release-iphonesimulator/AmorX.app'
-# Device IPA remains unsigned; the simulator copy needs its own local ad-hoc signature.
-run('codesign', '--force', '--deep', '--sign', '-', '--timestamp=none', str(app))
-run('xcrun', 'simctl', 'boot', uid)
-run('xcrun', 'simctl', 'bootstatus', uid, '-b', timeout=240)
-run('xcrun', 'simctl', 'install', uid, str(app), timeout=180)
-result = run('xcrun', 'simctl', 'launch', uid, 'com.amorx.ios', timeout=90)
-pid = int(result.strip().rsplit(':', 1)[1])
-time.sleep(6)
-subprocess.run(['kill', '-0', str(pid)], check=True)
-run('xcrun', 'simctl', 'io', uid, 'screenshot', str(build / 'ios-launch.png'))
-(build / 'simulator-verification.json').write_text(json.dumps({
-    'bundle_id': 'com.amorx.ios', 'sdk': sdk, 'runtime': runtime['identifier'],
-    'pid': pid, 'launch_passed': True, 'alive_after_seconds': 6
-}, indent=2) + '\n')
-print('Release app remained running after startup on iPhone 16, iOS', runtime['version'])
+def best_effort(*args, timeout=30):
+    try: return run(*args, timeout=timeout)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired): return ''
 
-# Validate compact and larger logical viewports using offline simulator-only fixtures.
-# This covers SE 2016 geometry without pretending iOS 18 supports that physical model.
-import plistlib, hashlib, threading, http.server, struct
-plist = app / 'Info.plist'
-settings = plistlib.loads(plist.read_bytes())
-settings['NSAppTransportSecurity'] = {'NSAllowsArbitraryLoads': True}  # Test copy only, for the loopback fixture.
-plist.write_bytes(plistlib.dumps(settings))
-run('codesign', '--force', '--deep', '--sign', '-', '--timestamp=none', str(app))
-run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
-run('xcrun', 'simctl', 'install', uid, str(app), timeout=180)
-container = pathlib.Path(run('xcrun', 'simctl', 'get_app_container', uid, 'com.amorx.ios', 'data').strip()) / 'Documents'
-layouts = build / 'layout-screenshots'; layouts.mkdir(exist_ok=True)
-layout_results = []
-for width, height in [(320, 548), (568, 300), (375, 647), (393, 759), (430, 820)]:
-    for screen in ['login', 'library', 'player', 'restore', 'profile']:
-        try: run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
-        except subprocess.CalledProcessError: pass
-        report = container / 'layout-verification.json'; report.unlink(missing_ok=True)
-        run('xcrun', 'simctl', 'launch', uid, 'com.amorx.ios', '--layout-screen', screen,
-            '--layout-width', str(width), '--layout-height', str(height))
+def save(path, data): path.write_text(json.dumps(data, indent=2) + '\n')
+
+def prepare():
+    sdk = run('xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version').strip()
+    runtimes = json.loads(run('xcrun', 'simctl', 'list', 'runtimes', '--json'))['runtimes']
+    version = tuple(map(int, sdk.split('.')[:2]))
+    matching = [r for r in runtimes if r.get('isAvailable') and r.get('identifier', '').startswith('com.apple.CoreSimulator.SimRuntime.iOS-') and tuple(map(int, r['version'].split('.')[:2])) == version]
+    assert matching, f'No iOS runtime matching Xcode SDK {sdk}'
+    runtime = matching[0]
+    uid = run('xcrun', 'simctl', 'create', 'AmorX release smoke', 'com.apple.CoreSimulator.SimDeviceType.iPhone-16', runtime['identifier']).strip()
+    env = {'sdk': sdk, 'runtime': runtime, 'device': uid}; save(build / 'simulator-environment.json', env)
+    # First-boot migration happens while Xcode compiles the app.
+    run('xcrun', 'simctl', 'boot', uid)
+    return env
+
+state = build / 'simulator-environment.json'
+env = json.loads(state.read_text()) if state.exists() else prepare()
+uid = env['device']
+if phase == 'prepare': sys.exit(0)
+
+def documents(): return pathlib.Path(run('xcrun', 'simctl', 'get_app_container', uid, bundle, 'data').strip()) / 'Documents'
+
+def stop(): best_effort('xcrun', 'simctl', 'terminate', uid, bundle)
+
+def diagnose(label):
+    output = best_effort('xcrun', 'simctl', 'spawn', uid, 'log', 'show', '--last', '2m', '--style', 'compact', '--predicate', 'process == "AmorX"', timeout=20)
+    (build / f'simulator-{label}-process.log').write_text(output)
+    for crash in pathlib.Path.home().joinpath('Library/Logs/DiagnosticReports').glob('AmorX*'):
+        try: (build / (crash.stem + '.log')).write_text(crash.read_text())
+        except OSError: pass
+
+def launch(*args, recover=False):
+    docs = documents(); marker = docs / 'startup-ready.json'
+    for attempt in range(3 if recover else 1):
+        stop(); marker.unlink(missing_ok=True)
+        try: run('xcrun', 'simctl', 'launch', uid, bundle, *args, timeout=60)
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            # simctl can time out while SpringBoard acknowledges a successful launch.
+            # Only accept independent evidence from the app's first appearing view.
+            if not marker.exists():
+                diagnose(f'launch-{attempt}')
+                if not recover or attempt == 2: raise
+                best_effort('xcrun', 'simctl', 'shutdown', uid, timeout=40)
+                run('xcrun', 'simctl', 'boot', uid)
+                run('xcrun', 'simctl', 'bootstatus', uid, '-b', timeout=180)
+                continue
         deadline = time.monotonic() + 20
-        while not report.exists() and time.monotonic() < deadline: time.sleep(.2)
-        assert report.exists(), f'Missing layout measurements: {screen} {width}x{height}'
-        time.sleep(.5)
-        measured = json.loads(report.read_text())
-        run('xcrun', 'simctl', 'io', uid, 'screenshot', str(layouts / f'{screen}-{width}x{height}.png'))
-        layout_results.append(measured)
-        (build / 'layout-verification.json').write_text(json.dumps(layout_results, indent=2))
+        while not marker.exists() and time.monotonic() < deadline: time.sleep(.2)
+        if not marker.exists():
+            diagnose(f'no-view-{attempt}'); raise AssertionError('App did not show its first view')
+        ready = json.loads(marker.read_text())
+        subprocess.run(['kill', '-0', str(ready['pid'])], check=True)
+        return ready
+    raise AssertionError('Simulator launch failed')
 
-# Native downloader integration: exact bytes across multiple 206 responses,
-# a server ignoring Range (200), and a corrupt range that must never be saved.
-payload = bytes(range(256)) * (3 * 1024 * 1024 // 256 + 3)
-requests = []
-class Handler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        header = self.headers.get('Range', '')
-        requests.append({'path': self.path, 'range': header})
-        if self.path == '/whole':
-            self.send_response(200); data = payload
-        else:
-            start, end = map(int, header.removeprefix('bytes=').split('-')); end = min(end, len(payload) - 1)
-            self.send_response(206); data = payload[start:end+1]
-            self.send_header('Content-Range', f'bytes {start + (1 if self.path == "/bad" else 0)}-{end}/{len(payload)}')
-        self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Length', str(len(data)))
-        self.end_headers(); self.wfile.write(data)
-    def log_message(self, *_): pass
-server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-threading.Thread(target=server.serve_forever, daemon=True).start()
-download_results = []
-for mode in ['range', 'whole', 'bad']:
-    run('xcrun', 'simctl', 'terminate', uid, 'com.amorx.ios')
-    report = container / 'download-verification.json'; report.unlink(missing_ok=True)
-    run('xcrun', 'simctl', 'launch', uid, 'com.amorx.ios', '--layout-screen', 'download',
-        '--download-url', f'http://127.0.0.1:{server.server_port}/{mode}')
-    deadline = time.monotonic() + 90
-    while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
-    assert report.exists(), f'Download {mode} did not finish'
-    result = json.loads(report.read_text())
-    passed = (not result['downloaded']) if mode == 'bad' else (result['indexed'] and result['size'] == len(payload) and result['sha256'] == hashlib.sha256(payload).hexdigest())
-    download_results.append({'mode': mode, 'passed': passed, **result})
-    (build / 'download-verification.json').write_text(json.dumps({'results': download_results, 'requests': requests}, indent=2))
-assert len([r for r in requests if r['path'] == '/range']) >= 2, requests
-server.shutdown()
-(build / 'download-verification.json').write_text(json.dumps({'results': download_results, 'requests': requests}, indent=2))
-assert all(result['passed'] for result in download_results), download_results
-assert not [result for result in layout_results if result['violations']], layout_results
-print('Layout viewports and native ranged downloads passed')
+def startup():
+    run('xcrun', 'simctl', 'bootstatus', uid, '-b', timeout=240)
+    run('codesign', '--force', '--deep', '--sign', '-', '--timestamp=none', str(app))
+    run('xcrun', 'simctl', 'install', uid, str(app), timeout=180)
+    ready = launch(recover=True)
+    time.sleep(6); subprocess.run(['kill', '-0', str(ready['pid'])], check=True)
+    run('xcrun', 'simctl', 'io', uid, 'screenshot', str(build / 'ios-launch.png'))
+    save(build / 'simulator-verification.json', {'bundle_id': bundle, 'sdk': env['sdk'], 'runtime': env['runtime']['identifier'], 'pid': ready['pid'], 'launch_passed': True, 'root_view_appeared': True, 'alive_after_seconds': 6})
+    print('Release startup verified', flush=True)
+
+def fixtures():
+    plist = app / 'Info.plist'; settings = plistlib.loads(plist.read_bytes())
+    if not settings.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads'):
+        # The separate simulator copy can contact the loopback HTTP test server.
+        # The already-packaged device IPA retains its normal HTTPS policy.
+        settings['NSAppTransportSecurity'] = {'NSAllowsArbitraryLoads': True}
+        plist.write_bytes(plistlib.dumps(settings))
+        run('codesign', '--force', '--deep', '--sign', '-', '--timestamp=none', str(app))
+        stop(); run('xcrun', 'simctl', 'install', uid, str(app), timeout=180)
+
+def layouts():
+    fixtures(); docs = documents(); screenshots = build / 'layout-screenshots'; screenshots.mkdir(exist_ok=True)
+    results = []
+    for width, height in [(320, 548), (568, 300), (375, 647), (393, 759), (430, 820)]:
+        for screen in ['login', 'library', 'player', 'restore', 'profile']:
+            report = docs / 'layout-verification.json'; report.unlink(missing_ok=True)
+            launch('--layout-screen', screen, '--layout-width', str(width), '--layout-height', str(height))
+            deadline = time.monotonic() + 20
+            while not report.exists() and time.monotonic() < deadline: time.sleep(.2)
+            time.sleep(.5)
+            measured = json.loads(report.read_text()) if report.exists() else {'screen': screen, 'width': width, 'height': height, 'violations': ['missing measurements']}
+            observed = docs / 'layout-observed.json'
+            if observed.exists(): measured['observed'] = json.loads(observed.read_text())
+            run('xcrun', 'simctl', 'io', uid, 'screenshot', str(screenshots / f'{screen}-{width}x{height}.png'))
+            results.append(measured); save(build / 'layout-verification.json', results)
+            print(f'Layout {screen} {width}x{height}: {measured["violations"] or "passed"}', flush=True)
+    assert not [r for r in results if r['violations']], results
+
+def downloads():
+    fixtures(); docs = documents()
+    payload = bytes(range(256)) * (3 * 1024 * 1024 // 256 + 3)
+    requests = []
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            header = self.headers.get('Range', ''); requests.append({'path': self.path, 'range': header})
+            if self.path == '/whole': self.send_response(200); data = payload
+            else:
+                start, end = map(int, header.removeprefix('bytes=').split('-')); end = min(end, len(payload)-1)
+                self.send_response(206); data = payload[start:end+1]
+                self.send_header('Content-Range', f'bytes {start+(1 if self.path == "/bad" else 0)}-{end}/{len(payload)}')
+            self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
+        def log_message(self, *_): pass
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start(); results = []
+    try:
+        for mode in ['range', 'whole', 'bad']:
+            report = docs / 'download-verification.json'; report.unlink(missing_ok=True)
+            launch('--layout-screen', 'download', '--download-url', f'http://127.0.0.1:{server.server_port}/{mode}')
+            deadline = time.monotonic() + 90
+            while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
+            result = json.loads(report.read_text()) if report.exists() else {'downloaded': False, 'error': 'timed out'}
+            passed = (not result['downloaded'] and 'error' not in result) if mode == 'bad' else (result.get('indexed') and result.get('size') == len(payload) and result.get('sha256') == hashlib.sha256(payload).hexdigest())
+            results.append({'mode': mode, 'passed': bool(passed), **result}); save(build/'download-verification.json', {'results': results, 'requests': requests})
+            print(f'Download {mode}: {"passed" if passed else result}', flush=True)
+    finally: server.shutdown()
+    assert len([r for r in requests if r['path'] == '/range']) >= 2, requests
+    assert all(r['passed'] for r in results), results
+
+if phase in ['startup', 'all']: startup()
+if phase in ['layouts', 'all']: layouts()
+if phase in ['downloads', 'all']: downloads()
