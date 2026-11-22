@@ -79,8 +79,7 @@ for width, height in [(320, 548), (568, 300), (375, 647), (393, 759), (430, 820)
         measured = json.loads(report.read_text())
         run('xcrun', 'simctl', 'io', uid, 'screenshot', str(layouts / f'{screen}-{width}x{height}.png'))
         layout_results.append(measured)
-        assert not measured['violations'], measured
-(build / 'layout-verification.json').write_text(json.dumps(layout_results, indent=2))
+        (build / 'layout-verification.json').write_text(json.dumps(layout_results, indent=2))
 
 # Native downloader integration: exact bytes across multiple 206 responses,
 # a server ignoring Range (200), and a corrupt range that must never be saved.
@@ -110,10 +109,13 @@ for mode in ['range', 'whole', 'bad']:
     deadline = time.monotonic() + 90
     while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
     assert report.exists(), f'Download {mode} did not finish'
-    result = json.loads(report.read_text()); download_results.append({'mode': mode, **result})
-    if mode == 'bad': assert not result['downloaded'], result
-    else: assert result['indexed'] and result['size'] == len(payload) and result['sha256'] == hashlib.sha256(payload).hexdigest(), result
+    result = json.loads(report.read_text())
+    passed = (not result['downloaded']) if mode == 'bad' else (result['indexed'] and result['size'] == len(payload) and result['sha256'] == hashlib.sha256(payload).hexdigest())
+    download_results.append({'mode': mode, 'passed': passed, **result})
+    (build / 'download-verification.json').write_text(json.dumps({'results': download_results, 'requests': requests}, indent=2))
 assert len([r for r in requests if r['path'] == '/range']) >= 2, requests
 server.shutdown()
 (build / 'download-verification.json').write_text(json.dumps({'results': download_results, 'requests': requests}, indent=2))
+assert all(result['passed'] for result in download_results), download_results
+assert not [result for result in layout_results if result['violations']], layout_results
 print('Layout viewports and native ranged downloads passed')

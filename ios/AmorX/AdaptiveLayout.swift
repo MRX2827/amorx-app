@@ -21,6 +21,7 @@ struct AdaptiveRoot: View {
             .environment(\.amorxLayout, PhoneLayout(width: size.width, height: size.height))
             .frame(width: size.width, height: size.height)
             .coordinateSpace(name: "amorx-layout")
+            .layoutProbe("__viewport")
             .onPreferenceChange(LayoutFrames.self) { LayoutPreview.record($0, size: size) }
         }
     }

@@ -50,13 +50,29 @@ import CryptoKit
     }
     static func record(_ frames: [String: CGRect], size: CGSize) {
         #if targetEnvironment(simulator)
-        guard isActive, !frames.isEmpty else { return }
+        guard isActive, let viewport = frames["__viewport"] else { return }
+        // NavigationView hosts some content in another hosting controller. Measure every
+        // probe in window coordinates and subtract the actual viewport's window origin.
+        let relative = frames.filter { $0.key != "__viewport" }.mapValues {
+            $0.offsetBy(dx: -viewport.minX, dy: -viewport.minY)
+        }
+        var required: [String]
+        switch screen {
+        case "login": required = ["login.submit"]
+        case "library": required = ["library.actions", "mini.player"]
+        case "profile": required = ["mini.player"]
+        case "player": required = ["player.controls"]
+        case "restore": required = ["restore.actions"]
+        default: required = []
+        }
+        if ["library", "profile"].contains(screen), !(size.width > size.height && size.height < 400) { required.append("bottom.navigation") }
+        guard !required.isEmpty, required.allSatisfy({ relative[$0] != nil }) else { return }
         let sticky = ["bottom.navigation", "mini.player", "player.controls", "restore.actions"]
-        let invalid = frames.filter { name, rect in
+        let invalid = relative.filter { name, rect in
             rect.minX < -1 || rect.maxX > size.width + 1 || (sticky.contains(name) && (rect.minY < -1 || rect.maxY > size.height + 1))
         }
         let data: [String: Any] = ["screen": screen, "width": Double(size.width), "height": Double(size.height),
-            "violations": Array(invalid.keys), "frames": frames.mapValues { ["x": Double($0.minX), "y": Double($0.minY), "width": Double($0.width), "height": Double($0.height)] }]
+            "violations": Array(invalid.keys), "frames": relative.mapValues { ["x": Double($0.minX), "y": Double($0.minY), "width": Double($0.width), "height": Double($0.height)] }]
         if let bytes = try? JSONSerialization.data(withJSONObject: data, options: .sortedKeys) {
             let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             try? bytes.write(to: folder.appendingPathComponent("layout-verification.json"), options: .atomic)
@@ -71,7 +87,7 @@ struct LayoutFrames: PreferenceKey {
 extension View {
     @ViewBuilder func layoutProbe(_ name: String) -> some View {
         #if targetEnvironment(simulator)
-        if LayoutPreview.isActive { self.background(GeometryReader { geometry in Color.clear.preference(key: LayoutFrames.self, value: [name: geometry.frame(in: .named("amorx-layout"))]) }) }
+        if LayoutPreview.isActive { self.background(GeometryReader { geometry in Color.clear.preference(key: LayoutFrames.self, value: [name: geometry.frame(in: .global)]) }) }
         else { self }
         #else
         self
