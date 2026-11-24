@@ -65,6 +65,23 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         config.httpMaximumConnectionsPerHost = 3
         return URLSession(configuration: config, delegate: self, delegateQueue: .main)
     }()
+    private struct ActiveTransfer { let task: URLSessionDownloadTask; let foreground: Bool }
+    private var activeTasks: [String: ActiveTransfer] = [:]
+    private var retiredTasks = Set<ObjectIdentifier>()
+    private var isForeground = false
+    private(set) var handoffCount = 0
+    private(set) var usedBackgroundSession = false
+    func setForeground(_ active: Bool) {
+        guard isForeground != active else { return }
+        isForeground = active
+        // Restart only the current uncommitted range. Completed ranges stay on disk.
+        for entry in Array(activeTasks.values) where entry.foreground != active {
+            guard var work = transfer(entry.task) else { continue }
+            retiredTasks.insert(ObjectIdentifier(entry.task))
+            entry.task.cancel(); work.foreground = nil; handoffCount += 1
+            do { try enqueue(work) } catch { fail(work.track, error) }
+        }
+    }
     private var localFiles: [String: URL] = [:]
     private var index: URL { FileManager.musicRoot.appendingPathComponent("downloads.json") }
     override init() {
@@ -78,7 +95,13 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
     func reconnect() {
         session.getAllTasks { tasks in DispatchQueue.main.async {
-            for task in tasks { if let work = self.transfer(task) { self.pending[work.track.id] = work.total.map { Double(work.offset) / Double(max(1, $0)) } ?? 0 } }
+            for task in tasks where task.state != .completed && task.state != .canceling && !self.retiredTasks.contains(ObjectIdentifier(task)) {
+                if let download = task as? URLSessionDownloadTask, let work = self.transfer(task), self.activeTasks[work.track.id] == nil {
+                    self.activeTasks[work.track.id] = ActiveTransfer(task: download, foreground: false)
+                    self.pending[work.track.id] = work.total.map { Double(work.offset) / Double(max(1, $0)) } ?? 0
+                    if self.isForeground { self.isForeground = false; self.setForeground(true) }
+                }
+            }
         } }
     }
     private func safe(_ id: String) -> Bool { id.range(of: "^[A-Za-z0-9_-]{1,80}$", options: .regularExpression) != nil }
@@ -96,8 +119,12 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     #if targetEnvironment(simulator)
     @MainActor func verifyFixture(_ track: Track, url: URL) async -> URL? {
         guard LayoutPreview.isActive, url.host == "127.0.0.1" else { return nil }
-        pending[track.id] = 0; lastFailure = nil; usedForegroundFallback = false
+        pending[track.id] = 0; lastFailure = nil; usedForegroundFallback = false; usedBackgroundSession = false; handoffCount = 0
         do { try enqueue(Transfer(track: track, url: url)) } catch { fail(track, error) }
+        if url.path == "/handoff" {
+            try? await Task.sleep(nanoseconds: 150_000_000); setForeground(false)
+            try? await Task.sleep(nanoseconds: 150_000_000); setForeground(true)
+        }
         let deadline = Date().addingTimeInterval(80)
         while pending[track.id] != nil && Date() < deadline { try? await Task.sleep(nanoseconds: 100_000_000) }
         return local(track)
@@ -107,19 +134,30 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         var request = URLRequest(url: work.url, timeoutInterval: 30)
         request.setValue(AudioByteRange.request(offset: work.offset, total: work.total), forHTTPHeaderField: "Range")
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        let transport = work.foreground == true ? foregroundSession : session
+        let foreground = work.foreground == true || isForeground
+        if !foreground { usedBackgroundSession = true }
+        let transport = foreground ? foregroundSession : session
         let task = transport.downloadTask(with: request)
         task.priority = URLSessionTask.highPriority
         task.taskDescription = String(decoding: try JSONEncoder().encode(work), as: UTF8.self)
+        activeTasks[work.track.id] = ActiveTransfer(task: task, foreground: foreground)
         task.resume()
     }
     @MainActor func downloadAll(_ list: [Track]) async {
-        for track in Track.unique(list) {
-            while pending.count >= 2 { if Task.isCancelled { return }; try? await Task.sleep(nanoseconds: 300_000_000) }
-            if Task.isCancelled { return }
-            await download(track)
+        let songs = Track.unique(list)
+        await withTaskGroup(of: Void.self) { group in
+            for worker in 0..<min(2, songs.count) {
+                group.addTask { @MainActor in
+                    for i in stride(from: worker, to: songs.count, by: 2) {
+                        while self.pending.count >= 2 { if Task.isCancelled { return }; try? await Task.sleep(nanoseconds: 100_000_000) }
+                        if Task.isCancelled { return }
+                        await self.download(songs[i])
+                    }
+                }
+            }
         }
     }
+
     func remove(_ track: Track) {
         if let url = local(track) { try? FileManager.default.removeItem(at: url) }
         localFiles.removeValue(forKey: track.id)
@@ -146,6 +184,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
     private func fail(_ track: Track, _ error: Error) {
         lastFailure = String(describing: error)
+        activeTasks.removeValue(forKey: track.id)
         pending.removeValue(forKey: track.id); try? FileManager.default.removeItem(at: part(track))
         issue = "«\(track.title)»: \(error.localizedDescription)"
     }
@@ -158,14 +197,15 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         tracks = Track.unique(tracks + [work.track]); save(); pending.removeValue(forKey: work.track.id)
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let work = transfer(downloadTask) else { return }
+        guard !retiredTasks.contains(ObjectIdentifier(downloadTask)), let work = transfer(downloadTask) else { return }
         let response = downloadTask.response as? HTTPURLResponse
         let total = work.total ?? response?.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.flatMap { Int64($0) }
         if let total = total, total > 0 { pending[work.track.id] = min(1, Double(work.offset + totalBytesWritten) / Double(total)) }
         else if response?.statusCode == 200, totalBytesExpectedToWrite > 0 { pending[work.track.id] = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite) }
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard var work = transfer(downloadTask), safe(work.track.id) else { return }
+        guard !retiredTasks.contains(ObjectIdentifier(downloadTask)), var work = transfer(downloadTask), safe(work.track.id) else { return }
+        if activeTasks[work.track.id]?.task === downloadTask { activeTasks.removeValue(forKey: work.track.id) }
         guard let response = downloadTask.response as? HTTPURLResponse else { fail(work.track, AppIssue("Нет ответа сервера")); return }
         if [403, 410].contains(response.statusCode), work.attempts == 0 {
             work.attempts += 1; work.offset = 0; work.total = nil
@@ -203,7 +243,10 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         } catch { fail(work.track, error) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error = error, var work = transfer(task) else { return }
+        if retiredTasks.remove(ObjectIdentifier(task)) != nil { return }
+        guard var work = transfer(task) else { return }
+        if activeTasks[work.track.id]?.task === task { activeTasks.removeValue(forKey: work.track.id) }
+        guard let error = error else { return }
         let failure = error as NSError
         if session.configuration.identifier != nil, failure.domain == NSURLErrorDomain, failure.code == NSURLErrorUnknown {
             // Changing transport is separate from the one network retry/link refresh.

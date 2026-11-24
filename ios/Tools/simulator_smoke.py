@@ -133,7 +133,12 @@ def downloads():
                 start, end = map(int, header.removeprefix('bytes=').split('-')); end = min(end, len(payload)-1)
                 self.send_response(206); data = payload[start:end+1]
                 self.send_header('Content-Range', f'bytes {start+(1 if self.path == "/bad" else 0)}-{end}/{len(payload)}')
-            self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
+            self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Length', str(len(data))); self.end_headers()
+            try:
+                if self.path == '/handoff':
+                    for i in range(0, len(data), 32768): self.wfile.write(data[i:i+32768]); self.wfile.flush(); time.sleep(.01)
+                else: self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError, ssl.SSLError): pass
         def log_message(self, *_): pass
     # Trust a short-lived loopback certificate inside this disposable simulator only.
     # No user/device trust store or packaged IPA is modified.
@@ -172,13 +177,15 @@ subjectKeyIdentifier = hash
     server.socket = context.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.serve_forever, daemon=True).start(); results = []
     try:
-        for mode in ['range', 'whole', 'bad']:
+        for mode in ['range', 'whole', 'bad', 'handoff']:
             report = docs / 'download-verification.json'; report.unlink(missing_ok=True)
             launch('--layout-screen', 'download', '--download-url', f'https://127.0.0.1:{server.server_port}/{mode}')
             deadline = time.monotonic() + 90
             while not report.exists() and time.monotonic() < deadline: time.sleep(.25)
             result = json.loads(report.read_text()) if report.exists() else {'downloaded': False, 'error': 'timed out'}
             passed = (not result['downloaded'] and not result.get('indexed') and 'Не удалось скачать аудио (206)' in result.get('failure', '') and any(r['path'] == '/bad' for r in requests)) if mode == 'bad' else (result.get('indexed') and result.get('size') == len(payload) and result.get('sha256') == hashlib.sha256(payload).hexdigest())
+            if mode == 'handoff': passed = passed and result.get('handoffs', 0) >= 1
+            else: passed = passed and not result.get('background_session')
             results.append({'mode': mode, 'passed': bool(passed), **result}); save(build/'download-verification.json', {'results': results, 'requests': requests})
             print(f'Download {mode}: {"passed" if passed else result}', flush=True)
     finally: server.shutdown()

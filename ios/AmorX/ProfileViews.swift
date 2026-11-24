@@ -75,7 +75,7 @@ struct SettingsScreen: View {
                 Section("Оформление") { Picker("Тема", selection: $library.theme) { Text("Как в системе").tag("system"); Text("Светлая").tag("light"); Text("Тёмная").tag("dark") }.onChange(of: library.theme) { UserDefaults.standard.set($0, forKey: "theme") } }
                 Section("Аккаунт") { Text(cloud.session?.email ?? ""); Button("Выйти", role: .destructive) { signingOut = true } }
                 Section("AmorX") {
-                    Text("iOS 15+ · 5.5.499.1328")
+                    Text("iOS 15+ · 5.5.499.1329")
                     Button("Проверить обновления") {
                         cloud.run {
                             let (data, response) = try await URLSession.shared.data(from: URL(string: "https://mrx2827.github.io/amorxsyte/ios-update.json")!)

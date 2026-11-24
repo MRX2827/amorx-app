@@ -8,7 +8,7 @@ import UIKit
 actor MusicSearch {
     static func stream(_ track: Track) async throws -> URL {
         try await AudioLinkCache.shared.link(for: track.id) {
-            let streams = try await YouTube(videoID: track.id).streams
+            let streams = try await YouTube(videoID: track.id).audioStreams
             guard let best = streams.filterAudioOnly().filter({ $0.isNativelyPlayable }).highestAudioBitrateStream() else { throw AppIssue("Для этой песни нет доступного аудиопотока") }
             return best.url
         }

@@ -1,6 +1,6 @@
 # AmorX for iPhone and iPad
 
-Native SwiftUI client, minimum iOS 15.0, arm64. Version 5.5.499.1328.
+Native SwiftUI client, minimum iOS 15.0, arm64. Version 5.5.499.1329.
 Uses the existing AmorX Supabase account and music backup contracts; no new SQL is required.
 
 The UI follows Android's Expressive player: blue primary color, pill navigation,
@@ -36,7 +36,7 @@ it does not verify account login, the music service or all UI screens.
 
 ## Installation
 
-The resulting `AmorX-iOS-5.5.499.1328.ipa` is **unsigned**. Import it into an appropriate
+The resulting `AmorX-iOS-5.5.499.1329.ipa` is **unsigned**. Import it into an appropriate
 sideload installer and sign it for your own device. Installer support, signing expiry,
 and device/OS restrictions belong to the chosen installation method. An IPA alone does
 not make TrollStore compatible with every iOS version.
@@ -51,7 +51,7 @@ backend access remains governed by authentication and RLS.
 
 ## Source and dependencies
 
-App source: GPL-3.0-or-later (repository LICENSE). YouTubeKit is pinned to 0.4.10.
+App source: GPL-3.0-or-later (repository LICENSE). YouTubeKit 0.4.10 is vendored with documented audio-only and signature-cache changes.
 See `THIRD_PARTY.md` and the bundled license notices. `Tools/ExportShapes.java` documents
 how the shared Android geometry was exported; the generated Swift curves are checked in.
 
@@ -78,3 +78,15 @@ URLSession transfers against ranged, whole-file and malformed-range loopback res
 The fixtures use a separate simulator bundle and an ephemeral HTTPS loopback certificate
 trusted only in the disposable simulator. Device IPA transport settings are unchanged. This geometry check does not claim a physical
 SE 2016 or iOS 15 runtime test, or measured speed improvements on the user's connection.
+
+## Audio loading update 1329
+
+The foreground app downloads through an in-process URLSession immediately. App lifecycle
+callbacks hand off the current uncommitted range to the background session on suspension
+and back on activation; completed ranges are preserved and retired callbacks ignored.
+Bulk restore resolves up to two tracks concurrently. Simulator transfer tests include
+a delayed server and foreground/background handoff, with exact file hashes.
+
+The audio-only extractor stops after a usable client instead of collecting video formats
+from every client. Prepared signature functions are keyed by the full player script hash
+and bounded to two entries in memory/on disk. No signed media URL is persisted there.

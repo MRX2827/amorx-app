@@ -55,9 +55,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: AmorX-iOS-5.5.499.1328
+          name: AmorX-iOS-5.5.499.1329
           path: |
-            ios/build/AmorX-iOS-5.5.499.1328.ipa
+            ios/build/AmorX-iOS-5.5.499.1329.ipa
             ios/build/ipa-verification.json
             ios/build/simulator-verification.json
             ios/build/layout-verification.json

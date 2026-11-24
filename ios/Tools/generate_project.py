@@ -23,7 +23,7 @@ products = obj('products', 'PBXGroup', children=refs([product]), name='Products'
 source_group = obj('sources', 'PBXGroup', children=refs(source_refs), name='Sources', sourceTree='<group>')
 resources_group = obj('resources', 'PBXGroup', children=refs(resource_refs), name='Resources', sourceTree='<group>')
 main_group = obj('main', 'PBXGroup', children=refs([source_group, resources_group, products]), sourceTree='<group>')
-package = obj('YouTubeKit', 'XCRemoteSwiftPackageReference', repositoryURL='https://github.com/alexeichhorn/YouTubeKit.git', requirement={'kind': 'exactVersion', 'version': '0.4.10'})
+package = obj('YouTubeKit', 'XCLocalSwiftPackageReference', relativePath='Vendor/YouTubeKit')
 package_product = obj('YouTubeKit-product', 'XCSwiftPackageProductDependency', package=ref(package), productName='YouTubeKit')
 package_build = obj('YouTubeKit-build', 'PBXBuildFile', productRef=ref(package_product))
 sources_phase = obj('sources-phase', 'PBXSourcesBuildPhase', buildActionMask=2147483647, files=refs(source_build), runOnlyForDeploymentPostprocessing=0)
@@ -34,7 +34,7 @@ for mode in ['Debug', 'Release']:
     project_settings = {'ALWAYS_SEARCH_USER_PATHS': 'NO', 'CLANG_ENABLE_MODULES': 'YES', 'CLANG_ENABLE_OBJC_ARC': 'YES', 'IPHONEOS_DEPLOYMENT_TARGET': '15.0', 'SDKROOT': 'iphoneos', 'SWIFT_VERSION': '5.0', 'SWIFT_STRICT_CONCURRENCY': 'minimal', 'ENABLE_USER_SCRIPT_SANDBOXING': 'YES', 'DEBUG_INFORMATION_FORMAT': 'dwarf-with-dsym' if mode=='Release' else 'dwarf', 'SWIFT_OPTIMIZATION_LEVEL': '-O' if mode=='Release' else '-Onone', 'SWIFT_COMPILATION_MODE': 'wholemodule' if mode=='Release' else 'incremental'}
     if mode=='Debug': project_settings['SWIFT_ACTIVE_COMPILATION_CONDITIONS'] = 'DEBUG'
     project_configs.append(obj('project-'+mode, 'XCBuildConfiguration', buildSettings=project_settings, name=mode))
-    target_settings = {'ASSETCATALOG_COMPILER_APPICON_NAME': 'AppIcon', 'CODE_SIGNING_ALLOWED': 'NO', 'CURRENT_PROJECT_VERSION': '1328', 'MARKETING_VERSION': '5.5.499', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.amorx.ios', 'PRODUCT_NAME': 'AmorX', 'TARGETED_DEVICE_FAMILY': '1,2', 'INFOPLIST_FILE': 'AmorX/Info.plist', 'GENERATE_INFOPLIST_FILE': 'NO', 'SUPPORTED_PLATFORMS': 'iphoneos iphonesimulator', 'SUPPORTS_MACCATALYST': 'NO', 'SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD': 'NO', 'LD_RUNPATH_SEARCH_PATHS': '$(inherited) @executable_path/Frameworks', 'ENABLE_BITCODE': 'NO', 'SWIFT_EMIT_LOC_STRINGS': 'YES'}
+    target_settings = {'ASSETCATALOG_COMPILER_APPICON_NAME': 'AppIcon', 'CODE_SIGNING_ALLOWED': 'NO', 'CURRENT_PROJECT_VERSION': '1329', 'MARKETING_VERSION': '5.5.499', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.amorx.ios', 'PRODUCT_NAME': 'AmorX', 'TARGETED_DEVICE_FAMILY': '1,2', 'INFOPLIST_FILE': 'AmorX/Info.plist', 'GENERATE_INFOPLIST_FILE': 'NO', 'SUPPORTED_PLATFORMS': 'iphoneos iphonesimulator', 'SUPPORTS_MACCATALYST': 'NO', 'SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD': 'NO', 'LD_RUNPATH_SEARCH_PATHS': '$(inherited) @executable_path/Frameworks', 'ENABLE_BITCODE': 'NO', 'SWIFT_EMIT_LOC_STRINGS': 'YES'}
     target_configs.append(obj('target-'+mode, 'XCBuildConfiguration', buildSettings=target_settings, name=mode))
 pconfigs = obj('project-configs', 'XCConfigurationList', buildConfigurations=refs(project_configs), defaultConfigurationIsVisible=0, defaultConfigurationName='Release')
 tconfigs = obj('target-configs', 'XCConfigurationList', buildConfigurations=refs(target_configs), defaultConfigurationIsVisible=0, defaultConfigurationName='Release')
