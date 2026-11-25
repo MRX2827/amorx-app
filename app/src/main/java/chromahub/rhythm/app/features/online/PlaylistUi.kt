@@ -359,6 +359,19 @@ private fun PlaylistScreen(vm: MusicViewModel, onBack: () -> Unit) {
                             }
                         }
                     }
+                    Box {
+                        var storageMenu by remember(t.id) { mutableStateOf(false) }
+                        IconButton(onClick = { storageMenu = true }) {
+                            chromahub.rhythm.app.shared.presentation.components.icons.Icon(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("more_vert"), "Ещё")
+                        }
+                        DropdownMenu(expanded = storageMenu, onDismissRequest = { storageMenu = false }) {
+                            DropdownMenuItem(text = { Text("Скачать в хранилище") }, onClick = {
+                                storageMenu = false
+                                val track = t.toOnline()
+                                PublicSongExport.start(context, track.toSong(track.videoUrl))
+                            })
+                        }
+                    }
                     IconButton(onClick = { PlaylistStore.remove(t.id) }) {
                         Icon(OnlineIcons.Close, "Убрать", modifier = Modifier.size(20.dp))
                     }

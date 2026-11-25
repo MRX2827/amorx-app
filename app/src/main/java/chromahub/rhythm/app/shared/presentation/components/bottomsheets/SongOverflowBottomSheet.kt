@@ -160,6 +160,12 @@ fun SongOverflowBottomSheet(
         onRemoveFromPlaylist, onAddToBlacklist, onDeleteSong, finalOnShare
     ) {
         buildList {
+            add(SongOverflowItem(
+                title = "Скачать в хранилище",
+                icon = MaterialSymbolIcon("download"),
+                iconColor = secondaryIconColor,
+                onClick = { chromahub.rhythm.app.features.online.PublicSongExport.start(context, song) }
+            ))
             onPlayNext?.let { action ->
                 add(
                     SongOverflowItem(

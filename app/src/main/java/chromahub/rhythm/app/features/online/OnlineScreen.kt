@@ -1,6 +1,9 @@
 package chromahub.rhythm.app.features.online
 
 import android.widget.Toast
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -488,6 +491,8 @@ internal fun OnlineTrackRow(
     onDownload: () -> Unit,
     onClick: () -> Unit
 ) {
+    val exportContext = androidx.compose.ui.platform.LocalContext.current
+    var exportMenu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -524,6 +529,15 @@ internal fun OnlineTrackRow(
         if (resolving) {
             Spacer(Modifier.width(8.dp))
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+        Box {
+            IconButton(onClick = { exportMenu = true }) { chromahub.rhythm.app.shared.presentation.components.icons.Icon(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("more_vert"), "Ещё") }
+            DropdownMenu(expanded = exportMenu, onDismissRequest = { exportMenu = false }) {
+                DropdownMenuItem(text = { Text("Скачать в хранилище") }, onClick = {
+                    exportMenu = false
+                    PublicSongExport.start(exportContext, track.toSong(track.videoUrl))
+                })
+            }
         }
         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
             when {

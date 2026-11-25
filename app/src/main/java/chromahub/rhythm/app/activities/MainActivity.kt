@@ -157,6 +157,13 @@ import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaControlIntent
 
 class MainActivity : AppCompatActivity() {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == chromahub.rhythm.app.features.online.PublicSongExport.PERMISSION_REQUEST) {
+            chromahub.rhythm.app.features.online.PublicSongExport.permissionResult(grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        }
+    }
+
     private val TAG = "MainActivity"
     private val musicViewModel: MusicViewModel by viewModels()
     private val themeViewModel: ThemeViewModel by viewModels()

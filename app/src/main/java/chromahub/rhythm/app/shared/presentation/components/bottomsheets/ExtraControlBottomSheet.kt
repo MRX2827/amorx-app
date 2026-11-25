@@ -147,7 +147,8 @@ fun ExtraControlBottomSheet(
     plLabel: String? = null,
     plDescription: String? = null,
     plDone: Boolean = false,
-    onPlaylist: (() -> Unit)? = null
+    onPlaylist: (() -> Unit)? = null,
+    onExportToStorage: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -319,6 +320,12 @@ fun ExtraControlBottomSheet(
                     dismissAndDo { onShareChat() }
                 }
             ))
+        }
+
+        onExportToStorage?.let { export ->
+            add(ControlAction(icon = MaterialSymbolIcon("download"), label = "Скачать в хранилище",
+                description = "Download/amorx/song", containerColor = secondary, iconColor = onSecondary,
+                onClick = { dismissAndDo(export) }))
         }
 
         if (onDownload != null && downloadLabel != null) {

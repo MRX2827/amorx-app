@@ -698,6 +698,7 @@ fun PlayerScreen(
                 profileSongsNow.any { it.id == ProfileSongs.normId(curSongForProfile.id) }
 
             ExtraControlBottomSheet(
+                onExportToStorage = curSongForProfile?.let { track -> { chromahub.rhythm.app.features.online.PublicSongExport.start(context, track) } },
                 downloadLabel = if (dlVideoId == null) null else when {
                     dlDone -> "Скачано"
                     dlProgress != null -> "Скачивается…"

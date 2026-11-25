@@ -1,6 +1,9 @@
 package chromahub.rhythm.app.features.online
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -183,6 +186,17 @@ fun DownloadsScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                Box {
+                    var storageMenu by remember(track.id) { mutableStateOf(false) }
+                    IconButton(onClick = { storageMenu = true }) {
+                        chromahub.rhythm.app.shared.presentation.components.icons.Icon(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("more_vert"), "Ещё")
+                    }
+                    DropdownMenu(expanded = storageMenu, onDismissRequest = { storageMenu = false }) {
+                        DropdownMenuItem(text = { Text("Скачать в хранилище") }, onClick = {
+                            storageMenu = false; PublicSongExport.start(context, track.toSong())
+                        })
+                    }
                 }
                 IconButton(onClick = { toDelete = track }) {
                     Icon(

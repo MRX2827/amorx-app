@@ -1253,6 +1253,7 @@ fun MaterialPlayerScreen(
         val compactChipsSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
         
         ExtraControlBottomSheet(
+                onExportToStorage = song?.let { track -> { chromahub.rhythm.app.features.online.PublicSongExport.start(context, track) } },
             onDismiss = { showCompactChipsSheet = false },
             sheetState = compactChipsSheetState,
             hiddenChips = hiddenChips,

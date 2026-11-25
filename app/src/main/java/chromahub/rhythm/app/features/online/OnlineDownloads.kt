@@ -83,10 +83,16 @@ object OnlineDownloads {
         runCatching { File(d, "index.json").writeText(gson.toJson(items.value)) }
     }
 
-    fun download(track: OnlineTrack) {
+    private val publicExports = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun download(track: OnlineTrack, exportToStorage: Boolean = false) {
         val d = dir ?: return
         val id = track.id
-        if (items.value.any { it.id == id }) return
+        items.value.firstOrNull { it.id == id }?.let {
+            if (exportToStorage) appContext?.let { ctx -> PublicSongExport.copy(ctx, it.toSong()) }
+            return
+        }
+        if (exportToStorage) publicExports.add(id)
         synchronized(active) { if (!active.add(id)) return }
         pending.update { it + (id to PendingDownload(track, 0f)) }
         appContext?.let { DownloadService.start(it) }
@@ -120,6 +126,7 @@ object OnlineDownloads {
                 )
                 items.update { list -> list.filter { it.id != id } + entry }
                 saveIndex()
+                if (publicExports.remove(id)) appContext?.let { PublicSongExport.copy(it, entry.toSong()) }
                 messages.tryEmit("Скачано: ${track.title}")
             } catch (e: CancellationException) {
                 part.delete()
@@ -128,6 +135,7 @@ object OnlineDownloads {
                 part.delete()
                 messages.tryEmit("Не удалось скачать «${track.title}»: ${e.message}")
             } finally {
+                publicExports.remove(id)
                 synchronized(active) { active.remove(id) }
                 pending.update { it - id }
             }
