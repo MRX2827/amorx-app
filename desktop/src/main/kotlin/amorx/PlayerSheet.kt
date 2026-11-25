@@ -92,11 +92,7 @@ private data class PlayerArtwork(val cover: ImageBitmap, val backdrop: ImageBitm
 
 private suspend fun loadPlayerArtwork(url: String): PlayerArtwork? = withContext(Dispatchers.IO) {
     runCatching {
-        val connection = URI(url).toURL().openConnection().apply {
-            connectTimeout = 4000
-            readTimeout = 5000
-        }
-        val encoded = connection.getInputStream().use { it.readBytes() }
+        val encoded = qualityArtworkBytes(url) ?: return@withContext null
         SkiaImage.makeFromEncoded(encoded).use { image ->
             // Blur a small raster once and animate its layer rather than blurring every frame.
             val ratio = 180f / maxOf(image.width, image.height)

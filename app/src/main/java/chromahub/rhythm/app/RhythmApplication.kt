@@ -147,6 +147,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .okHttpClient(imageOkHttpClient)
             .components {
+                add(chromahub.rhythm.app.util.coil.QualityArtworkInterceptor())
                 add(chromahub.rhythm.app.util.coil.AudioArtworkKeyer())
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkKeyer())
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkStringKeyer())

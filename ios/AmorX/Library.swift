@@ -195,6 +195,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         if file != part(work.track) { try? FileManager.default.removeItem(at: part(work.track)) }
         localFiles[work.track.id] = target
         tracks = Track.unique(tracks + [work.track]); save(); pending.removeValue(forKey: work.track.id)
+        if let source = work.track.artwork { Task { _ = await QualityArtworkStore.shared.data(source, persist: true) } }
     }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         guard !retiredTasks.contains(ObjectIdentifier(downloadTask)), let work = transfer(downloadTask) else { return }

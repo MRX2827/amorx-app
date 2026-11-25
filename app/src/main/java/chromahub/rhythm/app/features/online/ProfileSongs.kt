@@ -21,9 +21,9 @@ object ArtworkUtil {
 
     /** Обложка, которую увидит другой телефон: только http(s). Для песен YouTube берём миниатюру по id видео. */
     fun forSong(id: String, artwork: String?): String? {
-        if (artwork != null && artwork.startsWith("http")) return artwork
+        if (artwork != null && artwork.startsWith("http")) return amorx.playback.ArtworkQuality.candidates(artwork).first()
         val vid = videoId(id) ?: return null
-        return "https://i.ytimg.com/vi/$vid/mqdefault.jpg"
+        return "https://i.ytimg.com/vi/$vid/maxresdefault.jpg"
     }
 }
 

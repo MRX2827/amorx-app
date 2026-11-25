@@ -38,7 +38,7 @@ struct Artwork: View {
             if let source = source, let data = Data(base64Encoded: source), let image = UIImage(data: data) {
                 Image(uiImage: image).resizable().scaledToFill()
             } else if let source = source, let url = URL(string: source) {
-                AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.clear }
+                QualityArtworkImage(source: url.absoluteString)
             }
         }.frame(width: size, height: size).clipShape(ExpressiveArtworkShape(expressive: expressive, radius: radius))
     }

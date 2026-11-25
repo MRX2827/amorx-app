@@ -217,16 +217,22 @@ object Downloads {
     }
 
     private fun downloadArtwork(url: String?, out: File): String? {
-        if (url.isNullOrBlank() || !url.startsWith("http")) return null
-        return try {
-            client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
-                if (!resp.isSuccessful) return null
-                val stream = resp.body?.byteStream() ?: return null
-                stream.use { input -> FileOutputStream(out).use { f -> input.copyTo(f) } }
-                out.absolutePath
-            }
-        } catch (e: Exception) {
-            null
+        if (url.isNullOrBlank()) return null
+        for (candidate in amorx.playback.ArtworkQuality.candidates(url)) {
+            try {
+                client.newCall(Request.Builder().url(candidate).build()).execute().use { response ->
+                    if (!response.isSuccessful) return@use
+                    val bytes = response.body?.bytes() ?: return@use
+                    if (bytes.size > 12 * 1024 * 1024) return@use
+                    val width = org.jetbrains.skia.Image.makeFromEncoded(bytes).use { it.width }
+                    if (width < 160 || (candidate != url && width < 480)) return@use
+                    val temporary = File(out.parentFile, out.name + ".hdtmp")
+                    temporary.writeBytes(bytes)
+                    if (!temporary.renameTo(out)) { temporary.copyTo(out, overwrite = true); temporary.delete() }
+                    return out.absolutePath
+                }
+            } catch (_: Exception) { }
         }
+        return null
     }
 }

@@ -30,7 +30,7 @@ fun RemoteImage(url: String?, modifier: Modifier = Modifier) {
     if (url == null) return
     val img by produceState<ImageBitmap?>(null, url) {
         value = withContext(Dispatchers.IO) {
-            runCatching { URL(url).openStream().use { loadImageBitmap(it) } }.getOrNull()
+            runCatching { qualityArtworkBytes(url)?.inputStream()?.use { loadImageBitmap(it) } }.getOrNull()
         }
     }
     img?.let { Image(it, null, modifier, contentScale = ContentScale.Crop) }

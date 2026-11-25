@@ -2,6 +2,15 @@ import XCTest
 @testable import AmorXCore
 
 final class TransferTests: XCTestCase {
+    func testHighResolutionArtworkPreservesFallbackAndSignedUrls() {
+        let original = "https://i.ytimg.com/vi/kJQP7kiw5Fk/mqdefault.jpg"
+        XCTAssertTrue(ArtworkQuality.candidates(original).first!.hasSuffix("maxresdefault.jpg"))
+        XCTAssertEqual(ArtworkQuality.candidates(original).last, original)
+        let signed = "https://example.com/cover.jpg?sig=123"
+        XCTAssertEqual(ArtworkQuality.candidates(signed), [signed])
+        XCTAssertEqual(ArtworkQuality.candidates("https://lh3.googleusercontent.com/abc=w120-h120-l90-rj").first, "https://lh3.googleusercontent.com/abc=w1200-h1200-l90-rj")
+    }
+
     func testRangesRejectWrongOffsetsTruncationAndChangedLength() {
         XCTAssertEqual(AudioByteRange.request(offset: 0), "bytes=0-2097151")
         XCTAssertEqual(AudioByteRange.request(offset: 2097152, total: 3000000), "bytes=2097152-2999999")
