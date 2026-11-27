@@ -241,6 +241,19 @@ fun PlayerScreen(
         }
     }
 
+    if (playerThemeId == "DESIGNER") {
+        val designerDuration by musicViewModel.duration.collectAsState()
+        DesignerPlayerScreen(song = song, isPlaying = isPlaying, progress = progress,
+            durationMs = designerDuration.takeIf { it > 0 } ?: song?.duration ?: 0L,
+            lyrics = lyrics, lyricsOffset = lyricsTimeOffset.toLong(), loadingLyrics = isLoadingLyrics,
+            canvasArtwork = canvasArtwork, onBack = onBack, onPlayPause = onPlayPause,
+            onNext = onSkipNext, onPrevious = onSkipPrevious, onSeek = onSeek,
+            onLyricsSeek = onLyricsSeek, onRetryLyrics = onRetryLyrics,
+            onQueue = onQueueClick, shuffle = isShuffleEnabled, onShuffle = onToggleShuffle,
+            onMode = appSettings::setPlayerThemeId)
+        return
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (playerThemeId != "MATERIAL") {
         val haptic = LocalHapticFeedback.current

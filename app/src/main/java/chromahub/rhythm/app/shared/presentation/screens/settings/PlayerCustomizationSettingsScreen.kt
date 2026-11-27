@@ -233,24 +233,16 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
                             title = { Text(stringResource(R.string.playercustomizationsettingsscreen_playback_theme)) },
                             description = {
                                 Column {
-                                    Text(stringResource(R.string.miniplayercustomizationsettingsscreen_choose_between_rhythm_default))
+                                    Text("Выберите оформление плеера")
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    ExpressiveButtonGroup(
-                                        items = listOf(
-                                            "Rhythm",
-                                            "Expressive"
-                                        ),
-                                        selectedIndex = if (playerThemeId == "MATERIAL") 0 else 1,
-                                        onItemClick = { index ->
-                                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-                                            if (index == 1) {
-                                                appSettings.setPlayerThemeId("EXPRESSIVE")
-                                            } else {
-                                                appSettings.setPlayerThemeId("MATERIAL")
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        listOf("Обычный" to "MATERIAL", "Как надо" to "EXPRESSIVE", "Дизайнерский" to "DESIGNER").forEach { (label, id) ->
+                                            FilterChip(selected = playerThemeId == id, onClick = {
+                                                HapticUtils.performHapticFeedback(context, haptics, HapticType.MEDIUM)
+                                                appSettings.setPlayerThemeId(id)
+                                            }, label = { Text(label) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp))
+                                        }
+                                    }
                                 }
                             }
                         )
@@ -259,6 +251,11 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
                 )
             }
 
+            if(playerThemeId == "DESIGNER") {
+                item {
+                    Text("Текст песни слева, музыкальное пятно справа. Фон меняется вместе с песней. Кнопка «На весь экран» разворачивает плеер горизонтально.", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
             // Player Controls Section — only shown for Rhythm (Material) theme; Expressive has no chips
             if (!isExpressiveActive) item {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -630,6 +627,7 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
             }
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
+            }
         }
     }
 

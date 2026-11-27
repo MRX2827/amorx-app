@@ -50,6 +50,7 @@ import chromahub.rhythm.app.infrastructure.service.player.replaygain.ReplayGainC
 import chromahub.rhythm.app.infrastructure.service.player.replaygain.ReplayGainUtil
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioSink
+import chromahub.rhythm.app.infrastructure.audio.DesignerSpectrum
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
@@ -361,6 +362,7 @@ class RhythmPlayerEngine(
             launch { appSettings.virtualizerEnabled.collect { updateTrackSelectionParameters() } }
             launch { appSettings.monoAudioEnabled.collect { updateTrackSelectionParameters() } }
             launch { appSettings.isAudioOffloadActive.collect { updateTrackSelectionParameters() } }
+            launch { DesignerSpectrum.visible.collect { updateTrackSelectionParameters() } }
             launch {
                 appSettings.playbackSpeed.collect {
                     updatePlaybackParameters()
@@ -510,15 +512,17 @@ class RhythmPlayerEngine(
                     .setAudioProcessorChain(processorChain)
                     .build()
 
-                return if (replayGainProcessor != null) {
-                    object : ForwardingAudioSink(baseSink) {
-                        override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
-                            replayGainProcessor.setRootFormat(audioSinkConfig.format)
-                            super.configure(audioSinkConfig)
-                        }
+                return object : ForwardingAudioSink(baseSink) {
+                    private var spectrumFormat: androidx.media3.common.Format? = null
+                    override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
+                        spectrumFormat = audioSinkConfig.format
+                        replayGainProcessor?.setRootFormat(audioSinkConfig.format)
+                        super.configure(audioSinkConfig)
                     }
-                } else {
-                    baseSink
+                    override fun handleBuffer(buffer: java.nio.ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+                        if (replayGainProcessor === activeReplayGainProcessor) spectrumFormat?.let { DesignerSpectrum.feed(buffer, it) }
+                        return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+                    }
                 }
             }
         }.apply {
@@ -1033,7 +1037,7 @@ class RhythmPlayerEngine(
 
         val isSkipSilenceEnabled = appSettings.skipSilenceEnabled.value
 
-        val isOffloadSupported = appSettings.isAudioOffloadActive.value &&
+        val isOffloadSupported = appSettings.isAudioOffloadActive.value && !DesignerSpectrum.visible.value &&
             (!isCrossfadeEnabled && !isEqualizerEnabled && !isReplayGainEnabled &&
              !isBassBoostEnabled && !isVirtualizerEnabled && !isMonoAudioEnabled &&
              !isPlaybackRateModified && !isSkipSilenceEnabled)
