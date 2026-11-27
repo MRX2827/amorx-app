@@ -405,8 +405,8 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                     movement.snapTo(if(motion && cue.index >= 0) 8f else 0f)
                     movement.animateTo(0f, tween(if(motion) 160 else 0))
                 }
-                val emphasis by animateFloatAsState(if(cue.active) 1f else .65f,
-                    tween(if(motion) 120 else 0), label="lyric emphasis")
+                val emphasis by animateFloatAsState(if(cue.active) 1f else .35f,
+                    tween(if(motion && !cue.active) 220 else 0), label="lyric emphasis")
                 Column(Modifier.graphicsLayer { translationY = movement.value.dp.toPx() },
                     verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     if(selected == null) {
@@ -425,6 +425,9 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                         Text(selected.text,color=Color.White.copy(alpha=emphasis),fontSize=font,fontWeight=FontWeight.Bold,
                             lineHeight=(font.value*1.2f).sp,maxLines=3,overflow=TextOverflow.Ellipsis,
                             modifier=Modifier.clickable { selected.time?.let(onSeek) })
+                        // Reserve the label's height so a blank marker cannot move the verse.
+                        Text(if(cue.active) "" else "♪  Проигрыш",color=Color.White.copy(alpha=.5f),
+                            fontSize=13.sp,minLines=1,maxLines=1)
                     }
                 }
             }

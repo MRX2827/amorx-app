@@ -10,7 +10,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LyricsPlaybackTimingTest {
-    @Test fun shortBreathsKeepTheCompletedLineWithoutFlashingMusicOrFutureWords() {
+    @Test fun instrumentalGapsKeepTheCompletedLineInactiveWithoutFlashingOrFutureWords() {
         val timeline = StageTimeline(listOf(StageLine(21_000,"Verse",24_000),
             StageLine(24_000,""), StageLine(25_000,"Chorus",28_000),
             StageLine(28_000,""), StageLine(45_000,"Verse",48_000)))
@@ -21,8 +21,22 @@ class LyricsPlaybackTimingTest {
         assertEquals(StageCue(0,false), timeline.cue(24_999,0))
         assertEquals(StageCue(2,true), timeline.cue(25_000,0))
         assertEquals(listOf("Verse"),timeline.history(timeline.cue(25_000,0)).map { it.text })
-        assertEquals(StageCue(), timeline.cue(28_000,0)) // real instrumental, not a breath
+        assertEquals(StageCue(2,false), timeline.cue(28_000,0)) // completed context, not active vocals
         assertEquals(StageCue(4,true), timeline.cue(45_000,0)) // legitimate repeated verse
+    }
+
+    @Test fun observedMurasBlankMarkersDoNotEraseTheVerseOrShiftVocalStarts() {
+        val timeline = StageTimeline(listOf(StageLine(10_690,"First"),StageLine(14_280,""),
+            StageLine(22_850,"Second"),StageLine(27_360,""),StageLine(30_550,"Third")))
+        assertEquals(StageCue(), timeline.cue(10_689,0))
+        assertEquals(StageCue(0,true), timeline.cue(10_690,0))
+        for(time in listOf(14_280L,15_000L,20_000L,22_849L)) {
+            assertEquals(StageCue(0,false), timeline.cue(time,0))
+        }
+        assertEquals(StageCue(2,true), timeline.cue(22_850,0))
+        assertEquals(StageCue(2,false), timeline.cue(27_360,0))
+        assertEquals(StageCue(4,true), timeline.cue(30_550,0))
+        assertEquals(StageCue(),timeline.cue(0,0)) // genuine seek back to intro
     }
 
     @Test fun serviceClockCorrectionsDoNotReplayAVerseButRealSeeksAndRepeatDo() {
