@@ -13,4 +13,12 @@ internal object LyricClock {
     }
     fun seek(lyricMs: Long, offsetMs: Long, durationMs: Long): Long =
         (lyricMs - offsetMs).coerceAtLeast(0).let { if(durationMs > 0) it.coerceAtMost(durationMs) else it }
+
+    /** Explicit ends and blank cues are silence, not a reason to keep singing the last line. */
+    fun activeIndex(timestamps: LongArray, ends: LongArray, positionMs: Long, offsetMs: Long): Int {
+        val index = index(timestamps, positionMs, offsetMs)
+        if (index < 0) return -1
+        val end = ends.getOrNull(index) ?: Long.MAX_VALUE
+        return if (positionMs.coerceAtLeast(0) + offsetMs < end) index else -1
+    }
 }

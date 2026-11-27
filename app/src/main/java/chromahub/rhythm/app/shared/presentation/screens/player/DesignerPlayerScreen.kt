@@ -145,12 +145,17 @@ fun DesignerPlayerScreen(
     val position = actualPosition ?: 0L
     val synced = lines.firstOrNull()?.time != null
     val timestamps = remember(lines) { lines.map { it.time ?: 0L }.toLongArray() }
+    val ends = remember(lines) { lines.map { if(it.text.isBlank()) it.time ?: 0L else it.endTime ?: Long.MAX_VALUE }.toLongArray() }
     val positionReader by rememberUpdatedState(playbackPosition)
-    val index by produceState(-1, song?.id, timestamps, lyricsOffset, isVisible) {
-        if(!synced) { value=0;return@produceState }
+    // produceState retains its previous value when its keys change. Never carry an old
+    // song's selected verse into a newly parsed timeline, even for a single frame.
+    var index by remember(song?.id, lines, lyricsOffset) { mutableIntStateOf(-1) }
+    LaunchedEffect(song?.id, lines, lyricsOffset, isVisible) {
+        index = -1
+        if(!synced) return@LaunchedEffect
         if(isVisible) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while(isActive) {
-                value=positionReader()?.let { chromahub.rhythm.app.util.LyricClock.index(timestamps,it,lyricsOffset) } ?: -1
+                index=positionReader()?.let { chromahub.rhythm.app.util.LyricClock.activeIndex(timestamps,ends,it,lyricsOffset) } ?: -1
                 delay(50)
             }
         }
@@ -387,12 +392,16 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                     }
                 }
             } else if(!synced) Column(Modifier.verticalScroll(plainScroll)) {
+                Text("Без синхронизации · прокрутка вручную",color=Color.White.copy(alpha=.55f),fontSize=12.sp,modifier=Modifier.padding(bottom=14.dp))
                 lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }
             } else AnimatedContent(targetState=frame,transitionSpec={ (fadeIn(tween(if(motion) 100 else 0))+slideInVertically(tween(if(motion) 160 else 0)){it/12}).togetherWith(fadeOut(tween(if(motion) 80 else 0))).using(SizeTransform(clip=false,sizeAnimationSpec={_,_->snap()})) },label="lyric progression") { textFrame ->
                 val selected = textFrame.index
                 Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    if(selected<0) Text("♪",color=Color.White.copy(alpha=.45f),fontSize=font)
-                    textFrame.lines.drop(selected.coerceAtLeast(0)).take(if(selected<0) 2 else 3).forEachIndexed { offset,line ->
+                    if(selected<0) {
+                        Text("♪",color=Color.White.copy(alpha=.65f),fontSize=font)
+                        Text("Музыка",color=Color.White.copy(alpha=.45f),fontSize=14.sp)
+                    }
+                    if(selected>=0) textFrame.lines.drop(selected).takeWhile { it.text.isNotBlank() }.take(3).forEachIndexed { offset,line ->
                         val current=selected>=0 && offset==0
                         Text(line.text.ifBlank { "♪" },color=Color.White.copy(alpha=if(current) 1f else if(offset<=1) .48f else .25f),fontSize=font,fontWeight=FontWeight.Bold,
                             lineHeight=(font.value*1.2f).sp,maxLines=if(current) 3 else 1,overflow=TextOverflow.Ellipsis,

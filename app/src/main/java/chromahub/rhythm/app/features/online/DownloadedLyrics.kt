@@ -34,7 +34,7 @@ internal object DownloadedLyrics {
                         val cached = runCatching { gson.fromJson(File(app.filesDir,"lyrics/$name").readText(),LyricsData::class.java) }.getOrNull()
                         if(cached != null && cached.hasLyrics() && !cached.isErrorMessage()) {
                             val downloaded = cached.source?.let { source -> listOf("API","LRCLib","lyrics.ovh","Lyrically","Better Lyrics").any { source.startsWith(it) } } == true
-                            if(name == legacyName && downloaded && NetworkUtils.isNetworkAvailable(app)) continue
+                            if(downloaded && (name == legacyName || PlayerLyricsLookup.needsTimingRefresh(cached)) && NetworkUtils.isNetworkAvailable(app)) continue
                             LyricsCacheIo.write(file,gson.toJson(cached),onlyIfMissing=true)
                             return@withPermit
                         }

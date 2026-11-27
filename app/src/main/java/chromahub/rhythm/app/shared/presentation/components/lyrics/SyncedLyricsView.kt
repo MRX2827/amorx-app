@@ -209,10 +209,14 @@ fun SyncedLyricsView(
         }
     }
 
-    // Find current line index (using adjustedPlaybackTime for sync offset)
+    val timestamps = remember(parsedLyrics) { parsedLyrics.map { it.timestamp }.toLongArray() }
+    val lineEnds = remember(parsedLyrics) { parsedLyrics.map {
+        if(it.text.isBlank()) it.timestamp else it.endTime ?: Long.MAX_VALUE
+    }.toLongArray() }
+    // The previous line stops being active at its explicit end, including instrumental gaps.
     val currentLineIndex by remember(adjustedPlaybackTime, parsedLyrics) {
         derivedStateOf {
-            parsedLyrics.indexOfLast { it.timestamp <= adjustedPlaybackTime }
+            chromahub.rhythm.app.util.LyricClock.activeIndex(timestamps, lineEnds, currentPlaybackTime, syncOffset)
         }
     }
 

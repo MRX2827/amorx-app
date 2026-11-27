@@ -209,7 +209,7 @@ fun WordByWordLyricsView(
     val currentLineIndex by remember(adjustedPlaybackTime, visibleLyricsLines) {
         derivedStateOf {
             val lastIndexAtPlayback = visibleLyricsLines.indexOfLast { line ->
-                adjustedPlaybackTime >= line.lineTimestamp
+                adjustedPlaybackTime >= maxOf(line.lineTimestamp, line.words.firstOrNull()?.timestamp ?: line.lineTimestamp)
             }
 
             if (lastIndexAtPlayback < 0) {
@@ -235,7 +235,8 @@ fun WordByWordLyricsView(
                     }
                 }
 
-                bestIndex
+                val activeLine = visibleLyricsLines[bestIndex]
+                if(!activeLine.endIsImplicit && adjustedPlaybackTime > activeLine.effectiveLineEndtime()) -1 else bestIndex
             }
         }
     }

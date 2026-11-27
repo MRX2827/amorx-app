@@ -4487,7 +4487,8 @@ class MusicRepository(context: Context) {
         
         // Check cache unless force refresh is requested
         if (!forceRefresh) {
-            lyricsCache[cacheKey]?.takeIf { it.hasLyrics() && !it.isErrorMessage() }?.let { cached ->
+            lyricsCache[cacheKey]?.takeIf { it.hasLyrics() && !it.isErrorMessage() &&
+                !(chromahub.rhythm.app.util.PlayerLyricsLookup.needsTimingRefresh(it) && isNetworkAvailable()) }?.let { cached ->
                 val lyricLength = cached.plainLyrics?.length ?: cached.syncedLyrics?.length ?: 0
                 Log.d(TAG, "===== RETURNING IN-MEMORY CACHED LYRICS ($lyricLength chars) =====")
                 return@withContext cached
@@ -4555,7 +4556,7 @@ class MusicRepository(context: Context) {
                         NetworkClient.playerPlainLyricsApiService, searchArtist, searchTitle, video
                     )
                 } else null
-                playerLyrics ?: fetchLyricsFromAPIs(searchArtist, searchTitle)
+                playerLyrics ?: fetchLyricsFromAPIs(searchArtist, searchTitle, durationMs)
             } else null
         }
 
@@ -4637,7 +4638,7 @@ class MusicRepository(context: Context) {
      * Fetches lyrics from online APIs (LRCLib, etc.)
      * Extracted as a separate method for cleaner code
      */
-    private suspend fun fetchLyricsFromAPIs(artist: String, title: String): LyricsData? {
+    private suspend fun fetchLyricsFromAPIs(artist: String, title: String, durationMs: Long): LyricsData? {
         val cleanArtist = sanitizeSearchQuery(artist)
         val cleanTitle = sanitizeSearchQuery(title)
 
@@ -4715,33 +4716,16 @@ class MusicRepository(context: Context) {
                         )
                     }
 
-                    // Find the best match - require both artist and title match, prioritize synced lyrics
-                    val matchingResults = results.filter { result ->
-                        val resArtist = canonicalizeForMatch(result.artistName ?: "")
-                        val resTitle = canonicalizeForMatch(result.trackName ?: "")
-                        val targetArtist = canonicalizeForMatch(cleanArtist)
-                        val targetTitle = canonicalizeForMatch(cleanTitle)
-
-                        val artistMatch = resArtist.contains(targetArtist) || targetArtist.contains(resArtist)
-                        val titleMatch = resTitle.contains(targetTitle) || targetTitle.contains(resTitle)
-
-                        (artistMatch && titleMatch) && result.hasLyrics()
+                    val lookup = chromahub.rhythm.app.util.PlayerLyricsLookup
+                    val bestMatch = lookup.queries(artist, title, false).firstNotNullOfOrNull { query ->
+                        lookup.bestMatch(results, query, durationMs)
                     }
-                    val bestMatch = matchingResults.firstOrNull { it.hasSyncedLyrics() }
-                        ?: matchingResults.firstOrNull { it.hasLyrics() }
-
-                    bestMatch?.let { bm ->
-                        val syncedLyrics = bm.getSyncedLyricsOrNull()
-                        val plainLyrics = bm.getPlainLyricsOrNull()
-
-                        if (syncedLyrics != null) {
-                            Log.d(TAG, "LRCLib: Synced lyrics found, returning immediately")
-                            LyricsData(plainLyrics, syncedLyrics, null, "LRCLib")
-                        } else if (plainLyrics != null) {
-                            Log.d(TAG, "LRCLib: Plain lyrics found, caching as fallback")
-                            lrclibPlainBackup = LyricsData(plainLyrics, null, null, "LRCLib")
+                    bestMatch?.let { row ->
+                        val data = lookup.recordingLyrics(row, durationMs)
+                        if (data.hasSyncedLyrics()) data else {
+                            lrclibPlainBackup = data.takeIf { it.hasLyrics() }
                             null
-                        } else null
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "LRCLib lyrics fetch failed: ${e.message}", e)
@@ -4983,7 +4967,8 @@ class MusicRepository(context: Context) {
                 var data = Gson().fromJson(json, LyricsData::class.java)
                 val downloaded = data.source?.let { source -> listOf("API", "LRCLib", "lyrics.ovh", "Lyrically", "Better Lyrics").any { source.startsWith(it) } } == true
                 // Refresh legacy API caches online; never remove imported/embedded lyrics or offline fallbacks.
-                if (refreshLegacyApiCache && file.name == legacyName && downloaded && isNetworkAvailable()) return null
+                if (refreshLegacyApiCache && downloaded && isNetworkAvailable() &&
+                    (file.name == legacyName || chromahub.rhythm.app.util.PlayerLyricsLookup.needsTimingRefresh(data))) return null
                 Log.d(TAG, "===== LOADED LYRICS FROM SAVED JSON FILE =====")
                 
                 // Self-healing migration for old cached Lyrically lyrics containing the shift bug

@@ -13,6 +13,22 @@ import retrofit2.HttpException
 
 /** Search variants are shared by automatic lookup, provider matching and manual corrections. */
 internal object PlayerLyricsLookup {
+    private const val RECORDING_SOURCE = "LRCLib · recording match"
+    fun needsTimingRefresh(data: LyricsData): Boolean = data.source == "LRCLib" && data.hasSyncedLyrics()
+
+    private fun matchesRecording(row: LrcLibLyrics, durationMs: Long): Boolean {
+        val seconds = row.duration ?: return false
+        return durationMs > 0 && seconds.isFinite() && kotlin.math.abs(seconds * 1000 - durationMs) <= 3000
+    }
+
+    /** Do not run another recording's timeline over this audio or stretch it to fit. */
+    fun recordingLyrics(row: LrcLibLyrics, durationMs: Long): LyricsData {
+        val synced = row.getSyncedLyricsOrNull()?.takeIf { matchesRecording(row, durationMs) }
+        val plain = row.getPlainLyricsOrNull() ?: row.getSyncedLyricsOrNull()?.lineSequence()
+            ?.map { it.replace(Regex("\\[[^]]*]|<\\d[^>]*>"), "").trim() }
+            ?.filter { it.isNotBlank() }?.joinToString("\n")
+        return LyricsData(plain, synced, source = RECORDING_SOURCE)
+    }
     @Volatile private var retryAtNanos = 0L
     @Volatile private var plainRetryAtNanos = 0L
     fun canSearch() = System.nanoTime() >= retryAtNanos
@@ -82,11 +98,11 @@ internal object PlayerLyricsLookup {
                 (edition == null || requestedEdition == null || edition == requestedEdition)
         }.sortedWith(compareBy<LrcLibLyrics> { row ->
             val difference = row.duration?.let { kotlin.math.abs(it * 1000 - durationMs) }
-            when { durationMs <= 0 -> 0; difference == null -> 1; difference <= 3000 -> 0; difference <= 12000 -> 1; else -> 2 }
-        }.thenByDescending { it.hasSyncedLyrics() }.thenBy { row ->
+            when { durationMs <= 0 -> 0; difference == null -> 1; difference <= 3000 -> 0; else -> 2 }
+        }.thenBy { row ->
             val seconds = row.duration
-            if (durationMs > 0 && seconds != null) kotlin.math.abs(seconds * 1000 - durationMs) else 0.0
-        }).firstOrNull()
+            if (durationMs > 0 && seconds != null) kotlin.math.abs(seconds * 1000 - durationMs) else Double.MAX_VALUE
+        }.thenByDescending { it.hasSyncedLyrics() }).firstOrNull()
     }
 
     private fun retryDelay(error: HttpException): Long =
@@ -106,6 +122,7 @@ internal object PlayerLyricsLookup {
             candidates.drop(1).forEach { add(Attempt(it)) }
             add(Attempt(primary, titleOnly = true))
         }.distinct().take(5)
+        var plainFallback: LyricsData? = null
         for ((index, attempt) in attempts.withIndex()) {
             if (index > 0) delay(250)
             val rows = try {
@@ -117,14 +134,16 @@ internal object PlayerLyricsLookup {
             } catch (cancelled: CancellationException) { throw cancelled }
               catch (error: HttpException) {
                 if (error.code() == 429 || error.code() >= 500) {
-                    retryAtNanos = System.nanoTime() + retryDelay(error); return null
+                    retryAtNanos = System.nanoTime() + retryDelay(error); return plainFallback
                 }
                 emptyList()
-            } catch (_: Exception) { return null }
+            } catch (_: Exception) { return plainFallback }
             val match = candidates.firstNotNullOfOrNull { bestMatch(rows, it, durationMs) } ?: continue
-            return LyricsData(match.getPlainLyricsOrNull(), match.getSyncedLyricsOrNull(), source = "LRCLib")
+            val data = recordingLyrics(match, durationMs)
+            if(data.hasSyncedLyrics()) return data
+            if(plainFallback == null && data.hasLyrics()) plainFallback = data
         }
-        return null
+        return plainFallback
     }
 
     suspend fun findPlain(service: PlainLyricsApiService?, artist: String, title: String, video: Boolean): LyricsData? {
