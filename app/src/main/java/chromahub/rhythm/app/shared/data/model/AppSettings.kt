@@ -2483,7 +2483,8 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     
     // Lyrics Settings Methods
     fun getSongLyricsSearch(songId: String): Pair<String, String>? = runCatching {
-        val item = org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}").optJSONObject(songId)
+        val searches = org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}")
+        val item = chromahub.rhythm.app.util.LyricsIdentity.aliases(songId).filterNotNull().firstNotNullOfOrNull { searches.optJSONObject(it) }
             ?: return@runCatching null
         val artist = item.optString("artist"); val title = item.optString("title")
         if(artist.isBlank() || title.isBlank()) null else artist to title
@@ -2492,15 +2493,20 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     fun clearSongLyricsSearch(songId: String) {
         val searches = runCatching { org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}") }
             .getOrElse { org.json.JSONObject() }
-        searches.remove(songId)
+        chromahub.rhythm.app.util.LyricsIdentity.aliases(songId).filterNotNull().forEach { searches.remove(it) }
         prefs.edit { putString("song_lyrics_searches", searches.toString()) }
     }
 
     fun setSongLyricsSearch(songId: String, artist: String, title: String) {
         val searches = runCatching { org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}") }
             .getOrElse { org.json.JSONObject() }
-        searches.put(songId, org.json.JSONObject().put("artist", artist).put("title", title))
+        searches.put(chromahub.rhythm.app.util.LyricsIdentity.canonical(songId) ?: songId, org.json.JSONObject().put("artist", artist).put("title", title))
         prefs.edit { putString("song_lyrics_searches", searches.toString()) }
+    }
+
+    fun getSongLyricsOffset(songId: String): Int = prefs.getInt("lyrics_offset_" + chromahub.rhythm.app.util.LyricsIdentity.canonical(songId), 0)
+    fun setSongLyricsOffset(songId: String, value: Int) {
+        prefs.edit { putInt("lyrics_offset_" + chromahub.rhythm.app.util.LyricsIdentity.canonical(songId), value.coerceIn(-30000, 30000)) }
     }
 
     fun setShowLyrics(show: Boolean) {

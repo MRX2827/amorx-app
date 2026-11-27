@@ -881,9 +881,9 @@ fun MaterialPlayerScreen(
     val isPastThreshold by remember { derivedStateOf { swipeOffsetY > swipeDismissThreshold } }
 
     // Calculate current and total time
-    val totalTimeMs = song?.duration?.takeIf { it > 0 } ?: resolvedDurationMs.takeIf { it > 0 } ?: 0L
+    val totalTimeMs = resolvedDurationMs.takeIf { it > 0 } ?: song?.duration?.takeIf { it > 0 } ?: 0L
     val progressValue = progress().coerceIn(0f, 1f)
-    val currentTimeMs = (totalTimeMs * progressValue).toLong()
+    val currentTimeMs = musicViewModel.playbackPositionMs(song?.id) ?: 0L
     val canSeek = totalTimeMs > 0
     
     // Calculate scrub preview time when enhanced seeking is active

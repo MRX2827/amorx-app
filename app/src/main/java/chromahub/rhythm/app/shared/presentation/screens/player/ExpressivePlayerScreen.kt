@@ -449,8 +449,8 @@ fun ExpressivePlayerScreen(
     var scrubProgress by remember { mutableFloatStateOf(0f) }
     val progressValue = progress().coerceIn(0f, 1f)
     val resolvedDurationMs = musicViewModel?.duration?.collectAsState()?.value ?: 0L
-    val totalTimeMs = song?.duration?.takeIf { it > 0 } ?: resolvedDurationMs.takeIf { it > 0 } ?: 0L
-    val currentTimeMs = (progressValue * totalTimeMs).toLong()
+    val totalTimeMs = resolvedDurationMs.takeIf { it > 0 } ?: song?.duration?.takeIf { it > 0 } ?: 0L
+    val currentTimeMs = musicViewModel?.playbackPositionMs(song?.id) ?: if(musicViewModel == null) (progressValue * totalTimeMs).toLong() else 0L
     val showBuffering = isMediaLoading || isSeeking
 
     LaunchedEffect(lyricsVisible, lyricsControlsVisible, lastLyricsInteractionTime, autoHideLyricsControls) {

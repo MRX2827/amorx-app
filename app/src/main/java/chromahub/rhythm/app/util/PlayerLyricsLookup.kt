@@ -81,8 +81,8 @@ internal object PlayerLyricsLookup {
             row.hasLyrics() && matches(row.artistName.orEmpty(), row.trackName.orEmpty(), query) &&
                 (edition == null || requestedEdition == null || edition == requestedEdition)
         }.sortedWith(compareBy<LrcLibLyrics> { row ->
-            val seconds = row.duration
-            if (durationMs > 0 && seconds != null) kotlin.math.abs(seconds * 1000 - durationMs) > 12_000 else false
+            val difference = row.duration?.let { kotlin.math.abs(it * 1000 - durationMs) }
+            when { durationMs <= 0 -> 0; difference == null -> 1; difference <= 3000 -> 0; difference <= 12000 -> 1; else -> 2 }
         }.thenByDescending { it.hasSyncedLyrics() }.thenBy { row ->
             val seconds = row.duration
             if (durationMs > 0 && seconds != null) kotlin.math.abs(seconds * 1000 - durationMs) else 0.0
@@ -147,7 +147,13 @@ internal object PlayerLyricsLookup {
         return null
     }
 
-    fun cacheFileName(artist: String, title: String, songId: String? = null): String {
+    fun cacheFileName(artist: String, title: String, songId: String? = null): String =
+        rawCacheFileName(artist, title, LyricsIdentity.canonical(songId))
+
+    fun cacheFileNames(artist: String, title: String, songId: String?): List<String> =
+        LyricsIdentity.aliases(songId).map { rawCacheFileName(artist, title, it) }.distinct()
+
+    private fun rawCacheFileName(artist: String, title: String, songId: String?): String {
         val signature = Normalizer.normalize(artist.trim(), Normalizer.Form.NFC) + "\u0000" + Normalizer.normalize(title.trim(), Normalizer.Form.NFC) + "\u0000" + songId.orEmpty()
         val hash = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray(Charsets.UTF_8))
         return "v2_" + hash.joinToString("") { "%02x".format(it.toInt() and 255) } + ".json"

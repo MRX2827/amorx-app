@@ -4478,7 +4478,7 @@ class MusicRepository(context: Context) {
 
         // Use song ID in cache key if available to prevent wrong lyrics for songs with similar metadata
         val cacheKey = if (songId != null) {
-            "$songId:$artist:$title".lowercase()
+            "${chromahub.rhythm.app.util.LyricsIdentity.canonical(songId)}:$artist:$title".lowercase()
         } else {
             "$artist:$title".lowercase()
         }
@@ -4504,7 +4504,7 @@ class MusicRepository(context: Context) {
         
         val fetchFromEmbedded: suspend () -> LyricsData? = fetchFromEmbedded@{
             // YouTube audio URLs are not a configured Subsonic/Jellyfin provider or a local tagged file.
-            val isVideo = songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true
+            val isVideo = chromahub.rhythm.app.util.LyricsIdentity.isVideo(songId) || songUri?.fragment?.startsWith("ytm=") == true
             if (isVideo && songUri?.scheme != "file" && songUri?.scheme != "content") return@fetchFromEmbedded null
             // If it's a streaming track, query the active streaming provider (Subsonic / Navidrome / Jellyfin)
             val isStreaming = (songId != null && (songId.contains("::") || songId.startsWith("subsonic", ignoreCase = true) || songId.startsWith("jellyfin", ignoreCase = true))) ||
@@ -4547,7 +4547,7 @@ class MusicRepository(context: Context) {
                 val corrected = songId?.let(appSettings::getSongLyricsSearch)
                 val searchArtist = corrected?.first ?: artist
                 val searchTitle = corrected?.second ?: title
-                val video = corrected == null && (songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true)
+                val video = corrected == null && (chromahub.rhythm.app.util.LyricsIdentity.isVideo(songId) || songUri?.fragment?.startsWith("ytm=") == true)
                 val playerLyrics = if (appSettings.showLyrics.value || appSettings.playerThemeId.value == "DESIGNER") {
                     chromahub.rhythm.app.util.PlayerLyricsLookup.find(
                         NetworkClient.playerLyricsApiService, searchArtist, searchTitle, video, durationMs
@@ -4973,7 +4973,9 @@ class MusicRepository(context: Context) {
         val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, songId)
         val preferredFile = File(context.filesDir, "lyrics/$fileName")
         val legacyName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
-        val file = if(preferredFile.exists()) preferredFile else File(context.filesDir, "lyrics/$legacyName")
+        val compatible = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileNames(artist, title, songId)
+            .map { File(context.filesDir, "lyrics/$it") } + File(context.filesDir, "lyrics/$legacyName")
+        val file = compatible.firstOrNull { it.exists() } ?: preferredFile
         Log.d(TAG, "===== Checking for saved JSON file: $fileName (exists=${file.exists()}) =====")
         return try {
             if (file.exists()) {
@@ -4981,7 +4983,7 @@ class MusicRepository(context: Context) {
                 var data = Gson().fromJson(json, LyricsData::class.java)
                 val downloaded = data.source?.let { source -> listOf("API", "LRCLib", "lyrics.ovh", "Lyrically", "Better Lyrics").any { source.startsWith(it) } } == true
                 // Refresh legacy API caches online; never remove imported/embedded lyrics or offline fallbacks.
-                if (refreshLegacyApiCache && file != preferredFile && downloaded && isNetworkAvailable()) return null
+                if (refreshLegacyApiCache && file.name == legacyName && downloaded && isNetworkAvailable()) return null
                 Log.d(TAG, "===== LOADED LYRICS FROM SAVED JSON FILE =====")
                 
                 // Self-healing migration for old cached Lyrically lyrics containing the shift bug
@@ -5367,7 +5369,7 @@ class MusicRepository(context: Context) {
 
             val file = File(lyricsDir, fileName)
             val json = Gson().toJson(lyricsData)
-            file.writeText(json)
+            chromahub.rhythm.app.util.LyricsCacheIo.write(file, json)
             Log.d(TAG, "Saved lyrics to local file: ${file.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "Error saving lyrics to local file: ${e.message}", e)
@@ -6216,7 +6218,7 @@ class MusicRepository(context: Context) {
         try {
             val keysToRemove = mutableListOf<String>()
             if (songId != null) {
-                keysToRemove.add("$songId:$artist:$title".lowercase())
+                chromahub.rhythm.app.util.LyricsIdentity.aliases(songId).forEach { keysToRemove.add("$it:$artist:$title".lowercase()) }
             }
             keysToRemove.add("$artist:$title".lowercase())
 
@@ -6231,6 +6233,7 @@ class MusicRepository(context: Context) {
                 val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, songId)
                 val lyricsDir = File(context.filesDir, "lyrics")
                 val file = File(lyricsDir, fileName)
+                chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileNames(artist, title, songId).forEach { File(lyricsDir, it).delete() }
                 val legacyName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
                 File(lyricsDir, legacyName).delete()
                 if (file.exists()) {
@@ -6252,7 +6255,7 @@ class MusicRepository(context: Context) {
         try {
             synchronized(lyricsCache) {
                 if (songId != null) {
-                    lyricsCache["$songId:$artist:$title".lowercase()] = lyrics
+                    lyricsCache["${chromahub.rhythm.app.util.LyricsIdentity.canonical(songId)}:$artist:$title".lowercase()] = lyrics
                 }
                 lyricsCache["$artist:$title".lowercase()] = lyrics
                 Log.d(TAG, "===== UPDATED IN-MEMORY LYRICS CACHE FOR: $artist - $title =====")

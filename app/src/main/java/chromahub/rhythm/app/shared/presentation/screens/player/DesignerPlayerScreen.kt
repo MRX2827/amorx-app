@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package chromahub.rhythm.app.shared.presentation.screens.player
 
 import android.animation.ValueAnimator
@@ -9,6 +11,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +32,7 @@ import androidx.compose.ui.unit.*
 import androidx.core.view.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -44,6 +49,7 @@ import kotlin.math.*
 private data class StageTextFrame(val song: String?, val lines: List<StageLine>, val index: Int)
 private fun Context.activity(): Activity? = when(this) { is Activity -> this; is ContextWrapper -> baseContext.activity(); else -> null }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DesignerPlayerScreen(
     song: Song?, isPlaying: Boolean, progress: () -> Float, durationMs: Long,
@@ -52,7 +58,8 @@ fun DesignerPlayerScreen(
     onSeek: (Float) -> Unit, onLyricsSeek: ((Long) -> Unit)?, onRetryLyrics: () -> Unit,
     onQueue: () -> Unit, shuffle: Boolean, onShuffle: () -> Unit, onMode: (String) -> Unit,
     isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {},
-    onSearchLyrics: (String, String) -> Unit = { _, _ -> }
+    onSearchLyrics: (String, String) -> Unit = { _, _ -> },
+    playbackPosition: () -> Long? = { null }, onLyricsOffset: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -61,13 +68,17 @@ fun DesignerPlayerScreen(
     var controls by remember { mutableStateOf(true) }
     var modeMenu by remember { mutableStateOf(false) }
     var actionsMenu by remember { mutableStateOf(false) }
+    var timingDialog by remember(song?.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val modeSheet = rememberModalBottomSheetState(skipPartiallyExpanded=true)
+    val actionSheet = rememberModalBottomSheetState(skipPartiallyExpanded=true)
     var lyricsSearchDialog by remember(song?.id) { mutableStateOf(false) }
     var searchArtist by remember(song?.id) { mutableStateOf("") }
     var searchTitle by remember(song?.id) { mutableStateOf("") }
     fun openLyricsSearch() {
         val track = song ?: return
         val saved = chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).getSongLyricsSearch(track.id)
-        val parsed = chromahub.rhythm.app.util.PlayerLyricsLookup.queries(track.artist, track.title, track.id.startsWith("online_")).firstOrNull()
+        val parsed = chromahub.rhythm.app.util.PlayerLyricsLookup.queries(track.artist, track.title, chromahub.rhythm.app.util.LyricsIdentity.isVideo(track.id)).firstOrNull()
         searchArtist = saved?.first ?: parsed?.artist ?: track.artist
         searchTitle = saved?.second ?: parsed?.let { it.title + when(it.edition) { "explicit" -> " (Dirty)"; "clean" -> " (Clean)"; else -> "" } } ?: track.title
         lyricsSearchDialog = true
@@ -125,14 +136,29 @@ fun DesignerPlayerScreen(
         if (fullscreen && controls && isPlaying) { delay(4000); controls = false }
     }
     LaunchedEffect(isVisible) { if (!isVisible) fullscreen = false }
-    val parsed by produceState<Pair<LyricsData?, List<StageLine>>>(null to emptyList(), song?.id, lyrics) {
-        value = lyrics to withContext(Dispatchers.Default) { stageLines(lyrics) }
+    val parsed by produceState<Triple<String?, LyricsData?, List<StageLine>>>(Triple(null,null,emptyList()), song?.id, lyrics) {
+        value = Triple(song?.id, lyrics, withContext(Dispatchers.Default) { stageLines(lyrics) })
     }
-    val lines = if(parsed.first == lyrics) parsed.second else emptyList()
-    val loadingText = loadingLyrics || (song != null && lyrics == null) || parsed.first != lyrics
-    val position = (progress().coerceIn(0f, 1f) * max(0L, durationMs)).toLong()
+    val actualPosition = playbackPosition()
+    val lines = if(parsed.first == song?.id && parsed.second == lyrics && actualPosition != null) parsed.third else emptyList()
+    val loadingText = loadingLyrics || (song != null && lyrics == null) || parsed.first != song?.id || parsed.second != lyrics || actualPosition == null
+    val position = actualPosition ?: 0L
     val synced = lines.firstOrNull()?.time != null
-    val index = if (synced) lines.indexOfLast { (it.time ?: 0) <= position + lyricsOffset } else 0
+    val timestamps = remember(lines) { lines.map { it.time ?: 0L }.toLongArray() }
+    val positionReader by rememberUpdatedState(playbackPosition)
+    val index by produceState(-1, song?.id, timestamps, lyricsOffset, isVisible) {
+        if(!synced) { value=0;return@produceState }
+        if(isVisible) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while(isActive) {
+                value=positionReader()?.let { chromahub.rhythm.app.util.LyricClock.index(timestamps,it,lyricsOffset) } ?: -1
+                delay(50)
+            }
+        }
+    }
+    val seekLine: (Long) -> Unit = { timestamp ->
+        val target = chromahub.rhythm.app.util.LyricClock.seek(timestamp, lyricsOffset, durationMs)
+        if(onLyricsSeek != null) onLyricsSeek(target) else if(durationMs > 0) onSeek(target.toFloat()/durationMs)
+    }
     var seed by remember { mutableStateOf(Color(0xFF9062BD)) }
     LaunchedEffect(song?.artworkUri, song?.id) {
         seed = withContext(Dispatchers.IO) {
@@ -167,7 +193,7 @@ fun DesignerPlayerScreen(
             Box(Modifier.fillMaxSize().clickable { controls = !controls }) {
                 DesignerSongHeading(song, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(24.dp).fillMaxWidth(.75f))
                 DesignerStage(song, lines, index, synced, loadingText, accent, isPlaying && isVisible, motion,
-                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) }, onRetryLyrics, ::openLyricsSearch,
+                    seekLine, onRetryLyrics, ::openLyricsSearch,
                     Modifier.fillMaxSize().padding(top=90.dp, bottom=80.dp))
             }
             AnimatedVisibility(controls, enter=fadeIn(tween(if(motion) 250 else 0)), exit=fadeOut(tween(if(motion) 400 else 0)), modifier=Modifier.align(Alignment.BottomCenter)) {
@@ -183,31 +209,20 @@ fun DesignerPlayerScreen(
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     DesignerButton("expand_more","Закрыть плеер",onBack)
-                    Box(Modifier.weight(1f)) {
-                        TextButton(onClick={modeMenu=true}) { Text("Дизайнерский ▾",color=Color.White.copy(alpha=.8f),maxLines=1,overflow=TextOverflow.Ellipsis) }
-                        DropdownMenu(expanded=modeMenu,onDismissRequest={modeMenu=false}) {
-                            listOf("Обычный" to "MATERIAL","Как надо" to "EXPRESSIVE","Дизайнерский" to "DESIGNER").forEach { (name,id) ->
-                                DropdownMenuItem(text={Text(name)},onClick={modeMenu=false;onMode(id)})
-                            }
+                    Surface(onClick={modeMenu=true},color=Color.White.copy(alpha=.09f),shape=RoundedCornerShape(50),border=BorderStroke(1.dp,Color.White.copy(alpha=.12f)),modifier=Modifier.weight(1f).height(44.dp)) {
+                        Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            Icon(MaterialSymbolIcon("palette"),null,tint=Color.White,modifier=Modifier.size(20.dp))
+                            Text("Дизайнерский",color=Color.White,fontSize=13.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f))
+                            Icon(MaterialSymbolIcon("expand_more"),null,tint=Color.White.copy(alpha=.6f),modifier=Modifier.size(18.dp))
                         }
                     }
+                    Spacer(Modifier.width(6.dp))
                     DesignerButton("fullscreen","На весь экран",{fullscreen=true;controls=true})
-                    Box {
-                        DesignerButton("more_vert","Ещё",{actionsMenu=true})
-                        DropdownMenu(expanded=actionsMenu,onDismissRequest={actionsMenu=false}) {
-                            DropdownMenuItem(text={Text("Очередь")},onClick={actionsMenu=false;onQueue()})
-                            DropdownMenuItem(text={Text("Уточнить поиск текста")},onClick={actionsMenu=false;openLyricsSearch()})
-                            DropdownMenuItem(text={Text("Загрузить текст песни")},onClick={actionsMenu=false;onPickLyricsFile()})
-                            DropdownMenuItem(text={Text("Скачать в хранилище")},enabled=song!=null,onClick={
-                                actionsMenu=false
-                                song?.let { chromahub.rhythm.app.features.online.PublicSongExport.start(context,it) }
-                            })
-                        }
-                    }
+                    DesignerButton("more_vert","Ещё",{actionsMenu=true})
                 }
                 DesignerSongHeading(song, Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=12.dp))
                 DesignerStage(song,lines,index,synced,loadingText,accent,isPlaying && isVisible,motion,
-                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) },onRetryLyrics,::openLyricsSearch,
+                    seekLine,onRetryLyrics,::openLyricsSearch,
                     Modifier.weight(1f).fillMaxWidth())
                 Column(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp)) {
                     Slider(value=progress().coerceIn(0f,1f),onValueChange=onSeek,colors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=Color.White,inactiveTrackColor=Color.White.copy(alpha=.18f)))
@@ -220,18 +235,58 @@ fun DesignerPlayerScreen(
             }
         }
     }
+    if(modeMenu) ModalBottomSheet(onDismissRequest={modeMenu=false},sheetState=modeSheet,containerColor=Color(0xFF17171F),contentColor=Color.White) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).navigationBarsPadding().padding(bottom=20.dp)) {
+            Text("Оформление плеера",fontSize=23.sp,fontWeight=FontWeight.Bold)
+            Text("Выберите свой стиль",color=Color.White.copy(alpha=.55f),modifier=Modifier.padding(top=5.dp,bottom=20.dp))
+            chromahub.rhythm.app.shared.presentation.components.player.PlayerStylePicker("DESIGNER",{ id ->
+                scope.launch { modeSheet.hide();modeMenu=false;onMode(id) }
+            },dark=true,accent=lerp(accent,Color.White,.55f))
+        }
+    }
+    if(actionsMenu) ModalBottomSheet(onDismissRequest={actionsMenu=false},sheetState=actionSheet,containerColor=Color(0xFF17171F),contentColor=Color.White) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp).navigationBarsPadding().padding(bottom=20.dp)) {
+            DesignerSongHeading(song,Modifier.fillMaxWidth().padding(bottom=20.dp))
+            fun choose(action:()->Unit) { scope.launch { actionSheet.hide();actionsMenu=false;action() } }
+            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    DesignerAction("queue_music","Очередь",{choose(onQueue)},Modifier.weight(1f))
+                    DesignerAction("sync","Синхронизация текста",{choose {timingDialog=true}},Modifier.weight(1f))
+                }
+                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    DesignerAction("manage_search","Уточнить поиск",{choose(::openLyricsSearch)},Modifier.weight(1f))
+                    DesignerAction("upload_file","Загрузить текст",{choose(onPickLyricsFile)},Modifier.weight(1f))
+                }
+                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    DesignerAction("download","В хранилище",{choose {song?.let {chromahub.rhythm.app.features.online.PublicSongExport.start(context,it)}}},Modifier.weight(1f))
+                    DesignerAction("palette","Стиль плеера",{choose {modeMenu=true}},Modifier.weight(1f))
+                }
+            }
+        }
+    }
+    if(timingDialog) AlertDialog(onDismissRequest={timingDialog=false},containerColor=Color(0xFF17171F),titleContentColor=Color.White,textContentColor=Color.White,
+        title={Text("Синхронизация текста")},text={Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
+            Text("Сдвиг сохраняется только для этой песни",color=Color.White.copy(alpha=.6f))
+            Text("${if(lyricsOffset>0) "+" else ""}${lyricsOffset} мс",fontSize=28.sp,fontWeight=FontWeight.Bold)
+            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                DesignerAction("fast_forward","Раньше · 250 мс",{onLyricsOffset((lyricsOffset+250).toInt())},Modifier.weight(1f))
+                DesignerAction("fast_rewind","Позже · 250 мс",{onLyricsOffset((lyricsOffset-250).toInt())},Modifier.weight(1f))
+            }
+            OutlinedButton(onClick={onLyricsOffset(0)},modifier=Modifier.fillMaxWidth(),border=BorderStroke(1.dp,Color.White.copy(alpha=.25f))) {Text("Сбросить сдвиг",color=Color.White)}
+        }},confirmButton={FilledTonalButton(colors=ButtonDefaults.filledTonalButtonColors(containerColor=Color.White,contentColor=Color(0xFF17171F)),onClick={timingDialog=false}) {Text("Готово")}})
     if (lyricsSearchDialog) AlertDialog(
+        containerColor=Color(0xFF17171F),titleContentColor=Color.White,textContentColor=Color.White,
         onDismissRequest={lyricsSearchDialog=false},
         title={Text("Поиск текста песни")},
         text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            TextField(value=searchArtist,onValueChange={searchArtist=it},label={Text("Исполнитель")},singleLine=true)
-            TextField(value=searchTitle,onValueChange={searchTitle=it},label={Text("Название песни")},singleLine=true)
+            OutlinedTextField(value=searchArtist,onValueChange={searchArtist=it},label={Text("Исполнитель")},singleLine=true,shape=RoundedCornerShape(16.dp),colors=designerFieldColors())
+            OutlinedTextField(value=searchTitle,onValueChange={searchTitle=it},label={Text("Название песни")},singleLine=true,shape=RoundedCornerShape(16.dp),colors=designerFieldColors())
             Text("Уточнение сохранится для этой песни.",fontSize=13.sp)
         }},
-        confirmButton={TextButton(enabled=searchArtist.isNotBlank() && searchTitle.isNotBlank(),onClick={
+        confirmButton={Button(colors=ButtonDefaults.buttonColors(containerColor=Color.White,contentColor=Color(0xFF17171F)),enabled=searchArtist.isNotBlank() && searchTitle.isNotBlank(),onClick={
             lyricsSearchDialog=false;onSearchLyrics(searchArtist.trim(),searchTitle.trim())
-        }) {Text("Найти")}},
-        dismissButton={TextButton(onClick={lyricsSearchDialog=false}) {Text("Отмена")}}
+        }) {Icon(MaterialSymbolIcon("search"),null,modifier=Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text("Найти")}},
+        dismissButton={OutlinedButton(onClick={lyricsSearchDialog=false},border=BorderStroke(1.dp,Color.White.copy(alpha=.25f))) {Text("Отмена",color=Color.White)}}
     )
 }
 
@@ -284,7 +339,24 @@ fun DesignerPlayerScreen(
 
 private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:%02d".format(seconds/60,seconds%60) }
 @Composable private fun DesignerButton(icon:String,description:String,action:()->Unit,tint:Color=Color.White) {
-    IconButton(onClick=action,modifier=Modifier.size(48.dp)) { Icon(MaterialSymbolIcon(icon),description,tint=tint,modifier=Modifier.size(26.dp)) }
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if(pressed) .9f else 1f,spring(dampingRatio=.8f,stiffness=500f),label="control press")
+    Surface(onClick=action,interactionSource=interaction,contentColor=Color.White,color=Color.White.copy(alpha=if(pressed) .16f else .07f),shape=CircleShape,border=BorderStroke(1.dp,Color.White.copy(alpha=.09f)),modifier=Modifier.padding(3.dp).size(42.dp).graphicsLayer {scaleX=scale;scaleY=scale}) {
+        Box(contentAlignment=Alignment.Center) { Icon(MaterialSymbolIcon(icon),description,tint=tint,modifier=Modifier.size(24.dp)) }
+    }
+}
+
+@Composable private fun DesignerAction(icon:String,title:String,action:()->Unit,modifier:Modifier=Modifier) {
+    val interaction=remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if(pressed) .96f else 1f,spring(dampingRatio=.85f,stiffness=400f),label="action press")
+    Surface(onClick=action,interactionSource=interaction,contentColor=Color.White,color=Color.White.copy(alpha=if(pressed) .13f else .055f),shape=RoundedCornerShape(22.dp),border=BorderStroke(1.dp,Color.White.copy(alpha=.08f)),modifier=modifier.graphicsLayer {scaleX=scale;scaleY=scale}) {
+        Column(Modifier.padding(16.dp).heightIn(min=62.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Icon(MaterialSymbolIcon(icon),null,tint=Color.White,modifier=Modifier.size(26.dp))
+            Text(title,color=Color.White,fontSize=13.sp,fontWeight=FontWeight.Medium,lineHeight=17.sp,minLines=2,maxLines=2,overflow=TextOverflow.Ellipsis)
+        }
+    }
 }
 
 @Composable private fun DesignerStage(
@@ -295,11 +367,11 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
         val unit = maxWidth.value
         val stageHeight = maxHeight.value
         val wide = maxWidth > maxHeight * 1.35f
-        val font = min(unit * (if(wide) .047f else .075f), stageHeight / 7f).coerceIn(16f,44f).sp
+        val font = min(unit * (if(wide) .047f else .075f), stageHeight / 10f).coerceIn(16f,44f).sp
         val plainScroll = rememberScrollState()
         LaunchedEffect(song?.id) { plainScroll.scrollTo(0) }
         val frame = remember(song?.id, lines, index) { StageTextFrame(song?.id, lines, index) }
-        Box(Modifier.align(Alignment.CenterStart).padding(start=24.dp).fillMaxWidth(.64f).heightIn(max=(stageHeight*.9f).dp)) {
+        Box(Modifier.align(Alignment.CenterStart).padding(start=24.dp).fillMaxWidth(.64f).height((stageHeight*.75f).dp)) {
             if(lines.isEmpty()) Column {
                 if(loading) {
                     CircularProgressIndicator(Modifier.padding(bottom=14.dp).size(22.dp),color=Color.White.copy(alpha=.8f),strokeWidth=2.dp)
@@ -307,12 +379,16 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                 } else {
                     Text("Текст пока недоступен",color=Color.White,fontSize=font,fontWeight=FontWeight.SemiBold)
                     Text("Повторите поиск или уточните название песни",color=Color.White.copy(alpha=.6f),fontSize=13.sp,modifier=Modifier.padding(top=10.dp))
-                    TextButton(onClick=onRetry) { Text("Повторить поиск",color=Color.White) }
-                    TextButton(onClick=onManualSearch) { Text("Уточнить название",color=Color.White.copy(alpha=.7f)) }
+                    FilledTonalButton(onClick=onRetry,modifier=Modifier.padding(top=12.dp).fillMaxWidth(),colors=ButtonDefaults.filledTonalButtonColors(containerColor=Color.White.copy(alpha=.14f),contentColor=Color.White)) {
+                        Icon(MaterialSymbolIcon("refresh"),null,modifier=Modifier.size(18.dp));Spacer(Modifier.width(7.dp));Text("Повторить поиск",fontSize=12.sp)
+                    }
+                    OutlinedButton(onClick=onManualSearch,modifier=Modifier.fillMaxWidth(),border=BorderStroke(1.dp,Color.White.copy(alpha=.2f))) {
+                        Icon(MaterialSymbolIcon("search"),null,tint=Color.White,modifier=Modifier.size(18.dp));Spacer(Modifier.width(7.dp));Text("Уточнить название",color=Color.White,fontSize=12.sp)
+                    }
                 }
             } else if(!synced) Column(Modifier.verticalScroll(plainScroll)) {
                 lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }
-            } else AnimatedContent(targetState=frame,transitionSpec={ (fadeIn(tween(if(motion) 400 else 0))+slideInVertically(tween(if(motion) 500 else 0)){it/5}).togetherWith(fadeOut(tween(if(motion) 250 else 0))+slideOutVertically(tween(if(motion) 400 else 0)){-it/5}) },label="lyric progression") { textFrame ->
+            } else AnimatedContent(targetState=frame,transitionSpec={ (fadeIn(tween(if(motion) 100 else 0))+slideInVertically(tween(if(motion) 160 else 0)){it/12}).togetherWith(fadeOut(tween(if(motion) 80 else 0))).using(SizeTransform(clip=false,sizeAnimationSpec={_,_->snap()})) },label="lyric progression") { textFrame ->
                 val selected = textFrame.index
                 Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     if(selected<0) Text("♪",color=Color.White.copy(alpha=.45f),fontSize=font)
@@ -370,3 +446,10 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
         }
     }
 }
+
+@Composable private fun designerFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor=Color.White,unfocusedTextColor=Color.White,cursorColor=Color.White,
+    focusedBorderColor=Color.White.copy(alpha=.65f),unfocusedBorderColor=Color.White.copy(alpha=.18f),
+    focusedLabelColor=Color.White,unfocusedLabelColor=Color.White.copy(alpha=.6f),
+    focusedContainerColor=Color.White.copy(alpha=.04f),unfocusedContainerColor=Color.White.copy(alpha=.04f)
+)

@@ -251,13 +251,14 @@ fun PlayerScreen(
         }
         DesignerPlayerScreen(song = song, isPlaying = isPlaying, progress = progress,
             durationMs = designerDuration.takeIf { it > 0 } ?: song?.duration ?: 0L,
-            lyrics = lyrics, lyricsOffset = lyricsTimeOffset.toLong(), loadingLyrics = isLoadingLyrics,
+            lyrics = musicViewModel.designerLyrics(song?.id), lyricsOffset = lyricsTimeOffset.toLong(), loadingLyrics = isLoadingLyrics,
             canvasArtwork = canvasArtwork, onBack = onBack, onPlayPause = onPlayPause,
             onNext = onSkipNext, onPrevious = onSkipPrevious, onSeek = onSeek,
             onLyricsSeek = onLyricsSeek, onRetryLyrics = onRetryLyrics,
             onQueue = { designerQueue = true }, shuffle = isShuffleEnabled, onShuffle = onToggleShuffle,
             onMode = appSettings::setPlayerThemeId, isVisible = designerVisible, onPickLyricsFile = onPickLyricsFile,
-            onSearchLyrics = { artist, title -> musicViewModel.searchLyricsByMetadata(artist, title, song?.id) })
+            onSearchLyrics = { artist, title -> musicViewModel.searchLyricsByMetadata(artist, title, song?.id) },
+            playbackPosition = { musicViewModel.playbackPositionMs(song?.id) }, onLyricsOffset = { offset -> musicViewModel.setCurrentLyricsOffset(offset, song?.id) })
         if (designerQueue && song != null) {
             QueueBottomSheet(currentSong = song, queue = queue, currentQueueIndex = queuePosition - 1,
                 isShuffleEnabled = isShuffleEnabled, repeatMode = repeatMode,
@@ -279,8 +280,8 @@ fun PlayerScreen(
         val showRemainingTime by appSettings.showRemainingTime.collectAsState()
         val progressValue = progress().coerceIn(0f, 1f)
         val vmDurationMs by musicViewModel.duration.collectAsState()
-        val totalTimeMs = song?.duration?.takeIf { it > 0 } ?: vmDurationMs.takeIf { it > 0 } ?: 0L
-        val currentTimeMs = (progressValue * totalTimeMs).toLong()
+        val totalTimeMs = vmDurationMs.takeIf { it > 0 } ?: song?.duration?.takeIf { it > 0 } ?: 0L
+        val currentTimeMs = musicViewModel.playbackPositionMs(song?.id) ?: 0L
         
         val currentSeconds = currentTimeMs / 1000
         val totalSeconds = totalTimeMs / 1000
@@ -1052,8 +1053,8 @@ fun PlayerScreen(
     ) {
         val progressValue = progress().coerceIn(0f, 1f)
         val vmDurationMs by musicViewModel.duration.collectAsState()
-        val totalTimeMs = song?.duration?.takeIf { it > 0 } ?: vmDurationMs.takeIf { it > 0 } ?: 0L
-        val currentTimeMs = (progressValue * totalTimeMs).toLong()
+        val totalTimeMs = vmDurationMs.takeIf { it > 0 } ?: song?.duration?.takeIf { it > 0 } ?: 0L
+        val currentTimeMs = musicViewModel.playbackPositionMs(song?.id) ?: 0L
 
         FullScreenLyricsView(
             song = song,

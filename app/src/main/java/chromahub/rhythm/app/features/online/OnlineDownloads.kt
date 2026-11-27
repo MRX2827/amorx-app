@@ -88,6 +88,7 @@ object OnlineDownloads {
     fun download(track: OnlineTrack, exportToStorage: Boolean = false) {
         val d = dir ?: return
         val id = track.id
+        appContext?.let { DownloadedLyrics.prepare(it, track) }
         items.value.firstOrNull { it.id == id }?.let {
             if (exportToStorage) appContext?.let { ctx -> PublicSongExport.copy(ctx, it.toSong()) }
             return

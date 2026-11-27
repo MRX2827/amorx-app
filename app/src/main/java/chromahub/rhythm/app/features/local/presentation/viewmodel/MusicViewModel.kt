@@ -4513,6 +4513,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             // Fallback if controller duration not yet available
                             _duration.value = resolvePlaybackDuration(controller)
                         }
+                        val total = _duration.value
+                        _progress.value = if(total > 0) (controller.currentPosition.toFloat()/total).coerceIn(0f,1f) else 0f
                     }
                 }
             }
@@ -4599,11 +4601,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     private fun startProgressUpdates() {
-        // Cancel existing job if running
-        progressUpdateJob?.cancel()
-        
-        // Reset progress to 0 when starting a new song
-        _progress.value = 0f
+        // Resuming/buffering must not jump back to the first lyric line.
+        if (progressUpdateJob?.isActive == true) return
         
         // Start a new coroutine to update progress based on playing state
         progressUpdateJob = viewModelScope.launch {
@@ -4611,7 +4610,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (playing) {
                     while (isActive) {
                         updateProgress()
-                        delay(100) // Update every 100ms for smooth progress
+                        delay(100)
                     }
                 } else {
                     // Update one last time when paused/stopped
@@ -4621,6 +4620,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    fun playbackPositionMs(expectedSongId: String?): Long? {
+        val controller = mediaController ?: return null
+        if(controller.currentMediaItem?.mediaId != expectedSongId) return null
+        return controller.currentPosition.coerceAtLeast(0L)
+    }
+
+    fun designerLyrics(expectedSongId: String?): LyricsData? =
+        if(currentLoadedLyricsSongId == expectedSongId) _currentLyrics.value else null
+
+    fun setCurrentLyricsOffset(offsetMs: Int, expectedSongId: String? = null) {
+        val song = currentSong.value ?: return
+        if(expectedSongId != null && song.id != expectedSongId) return
+        appSettings.setSongLyricsOffset(song.id, offsetMs)
+        _lyricsTimeOffset.value = appSettings.getSongLyricsOffset(song.id)
+    }
+
     private fun updateProgress() {
         mediaController?.let { controller ->
             val playbackDuration = resolvePlaybackDuration(controller)
@@ -8112,6 +8127,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
         }
+        if(currentFetchingSongId != song.id) _lyricsTimeOffset.value = appSettings.getSongLyricsOffset(song.id)
         currentFetchingSongId = song.id
         currentLyricsRequestIsDesigner = appSettings.playerThemeId.value == "DESIGNER"
 
@@ -8149,7 +8165,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     songUri = song.uri,
                     sourcePreference = lyricsPreference,
                     forceRefresh = forceRefresh,
-                    durationMs = song.duration
+                    durationMs = mediaController?.takeIf { it.currentMediaItem?.mediaId == song.id }?.let { resolvePlaybackDuration(it) } ?: song.duration
                 )
                 
                 // Verify the song hasn't changed before updating lyrics
@@ -8269,6 +8285,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     
                     withContext(Dispatchers.Main) {
+                        if(currentSong.value?.id != song.id) return@withContext
+                        currentLoadedLyricsSongId = song.id
                         _currentLyrics.value = lyrics
                         _isLoadingLyrics.value = false
                     }
@@ -8380,6 +8398,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Save edited lyrics for the current song to cache
      */
     fun saveEditedLyrics(editedLyrics: String, timeOffset: Int = 0, format: String? = null) {
+        lyricsFetchJob?.cancel()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val song = _currentSong.value
@@ -8398,7 +8417,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     val title = song.title
                     
                     // Store the time offset
-                    _lyricsTimeOffset.value = timeOffset
+                    appSettings.setSongLyricsOffset(song.id, timeOffset)
+                    _lyricsTimeOffset.value = appSettings.getSongLyricsOffset(song.id)
                     
                     // Determine what format to treat the lyrics as
                     val isTtml = RhythmLyricsParser.isTtmlContent(sanitizedLyrics)
@@ -8547,13 +8567,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     appSettings.setSongLyricsPreference(song.id, "lrc")
                     // Save to cache (internal storage)
                     val json = Gson().toJson(lyricsData)
-                    file.writeText(json)
+                    chromahub.rhythm.app.util.LyricsCacheIo.write(file, json)
                     
                     repository.updateLyricsCache(artist, title, song.id, lyricsData)
 
                     // Update in-memory state
-                    _currentLyrics.value = lyricsData
-                    currentFetchingSongId = song.id
+                    if(currentSong.value?.id == song.id) {
+                        currentLoadedLyricsSongId = song.id
+                        _currentLyrics.value = lyricsData
+                        currentFetchingSongId = song.id
+                    }
                     
                     Log.d(TAG, "Saved edited lyrics for: $title by $artist (format: $format, isSynced: $isSynced, isWordByWord: $isWordByWord)")
                 } else {

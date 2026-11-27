@@ -235,14 +235,13 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
                                 Column {
                                     Text("Выберите оформление плеера")
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf("Обычный" to "MATERIAL", "Как надо" to "EXPRESSIVE", "Дизайнерский" to "DESIGNER").forEach { (label, id) ->
-                                            FilterChip(selected = playerThemeId == id, onClick = {
-                                                HapticUtils.performHapticFeedback(context, haptics, HapticType.MEDIUM)
-                                                appSettings.setPlayerThemeId(id)
-                                            }, label = { Text(label) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp))
-                                        }
-                                    }
+                                    chromahub.rhythm.app.shared.presentation.components.player.PlayerStylePicker(
+                                        selectedId = playerThemeId,
+                                        onSelect = { id ->
+                                            HapticUtils.performHapticFeedback(context, haptics, HapticType.MEDIUM)
+                                            appSettings.setPlayerThemeId(id)
+                                        }, modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         )
