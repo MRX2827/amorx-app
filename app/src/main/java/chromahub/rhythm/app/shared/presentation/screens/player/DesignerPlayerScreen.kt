@@ -395,39 +395,40 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                 Text("Без синхронизации · прокрутка вручную",color=Color.White.copy(alpha=.55f),fontSize=12.sp,modifier=Modifier.padding(bottom=14.dp))
                 lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }
             } else {
-                val selected = lines.getOrNull(cue.index)
                 val timeline = remember(lines) { StageTimeline(lines) }
-                val history = remember(lines, cue.index) { timeline.history(cue) }
-                val movement = remember(song?.id, lines) { Animatable(0f) }
-                LaunchedEffect(song?.id, lines, cue.index, motion) {
-                    // Text changes on the audio frame. Animate only its placement, never
-                    // crossfade complete old/new verses or delay the new line's visibility.
-                    movement.snapTo(if(motion && cue.index >= 0) 8f else 0f)
-                    movement.animateTo(0f, tween(if(motion) 160 else 0))
-                }
-                val emphasis by animateFloatAsState(if(cue.active) 1f else .35f,
-                    tween(if(motion && !cue.active) 220 else 0), label="lyric emphasis")
-                Column(Modifier.graphicsLayer { translationY = movement.value.dp.toPx() },
-                    verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    if(selected == null) {
-                        Text("♪",color=Color.White.copy(alpha=.65f),fontSize=font)
-                        Text("Музыка",color=Color.White.copy(alpha=.45f),fontSize=14.sp)
-                    } else {
-                        // Only already sung context is visible. Future lyrics used to flash
-                        // here and looked like the player was advancing ahead of the vocal.
-                        for(slot in 0..1) {
-                            val previous = history.getOrNull(slot - (2 - history.size))
-                            Text(previous?.text.orEmpty(),color=Color.White.copy(alpha=if(slot==0) .22f else .40f),
-                                fontSize=(font.value*.8f).sp,fontWeight=FontWeight.Bold,
-                                minLines=1,maxLines=1,overflow=TextOverflow.Ellipsis,
-                                modifier=Modifier.clickable(enabled=previous?.time!=null) { previous?.time?.let(onSeek) })
+                key(song?.id, lines) {
+                    AnimatedContent(targetState=cue.index, modifier=Modifier.fillMaxSize(),
+                        transitionSpec={
+                            (fadeIn(tween(if(motion) 240 else 0),initialAlpha=.75f) +
+                                slideInVertically(tween(if(motion) 320 else 0,easing=FastOutSlowInEasing)) { minOf(it/8,36) })
+                                .togetherWith(fadeOut(tween(if(motion) 160 else 0)) +
+                                    slideOutVertically(tween(if(motion) 240 else 0,easing=FastOutSlowInEasing)) { -minOf(it/10,24) })
+                                .using(SizeTransform(clip=true,sizeAnimationSpec={_,_->snap()}))
+                        },label="smooth vocal line") { displayedIndex ->
+                        val selected = lines.getOrNull(displayedIndex)
+                        val history = remember(lines,displayedIndex) { timeline.history(StageCue(displayedIndex)) }
+                        val active = displayedIndex == cue.index && cue.active
+                        val emphasis by animateFloatAsState(if(active) 1f else .35f,
+                            tween(if(motion && !active) 220 else 0),label="lyric emphasis")
+                        Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            if(selected == null) {
+                                Text("♪",color=Color.White.copy(alpha=.65f),fontSize=font)
+                                Text("Музыка",color=Color.White.copy(alpha=.45f),fontSize=14.sp)
+                            } else {
+                                for(slot in 0..1) {
+                                    val previous = history.getOrNull(slot - (2 - history.size))
+                                    Text(previous?.text.orEmpty(),color=Color.White.copy(alpha=if(slot==0) .22f else .40f),
+                                        fontSize=(font.value*.8f).sp,fontWeight=FontWeight.Bold,
+                                        minLines=1,maxLines=1,overflow=TextOverflow.Ellipsis,
+                                        modifier=Modifier.clickable(enabled=previous?.time!=null) { previous?.time?.let(onSeek) })
+                                }
+                                Text(selected.text,color=Color.White.copy(alpha=emphasis),fontSize=font,fontWeight=FontWeight.Bold,
+                                    lineHeight=(font.value*1.2f).sp,maxLines=3,overflow=TextOverflow.Ellipsis,
+                                    modifier=Modifier.clickable { selected.time?.let(onSeek) })
+                                Text(if(active) "" else "♪  Проигрыш",color=Color.White.copy(alpha=.5f),
+                                    fontSize=13.sp,minLines=1,maxLines=1)
+                            }
                         }
-                        Text(selected.text,color=Color.White.copy(alpha=emphasis),fontSize=font,fontWeight=FontWeight.Bold,
-                            lineHeight=(font.value*1.2f).sp,maxLines=3,overflow=TextOverflow.Ellipsis,
-                            modifier=Modifier.clickable { selected.time?.let(onSeek) })
-                        // Reserve the label's height so a blank marker cannot move the verse.
-                        Text(if(cue.active) "" else "♪  Проигрыш",color=Color.White.copy(alpha=.5f),
-                            fontSize=13.sp,minLines=1,maxLines=1)
                     }
                 }
             }

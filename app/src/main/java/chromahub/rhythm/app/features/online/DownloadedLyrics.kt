@@ -30,11 +30,16 @@ internal object DownloadedLyrics {
                     val gson = Gson()
                     val legacyName = "${track.artist}_${track.title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
                     val compatible = PlayerLyricsLookup.cacheFileNames(track.artist, track.title, songId) + legacyName
+                    var staleCache: String? = null
                     for(name in compatible) {
-                        val cached = runCatching { gson.fromJson(File(app.filesDir,"lyrics/$name").readText(),LyricsData::class.java) }.getOrNull()
+                        val raw = runCatching { File(app.filesDir,"lyrics/$name").readText() }.getOrNull()
+                        val cached = runCatching { gson.fromJson(raw,LyricsData::class.java) }.getOrNull()
                         if(cached != null && cached.hasLyrics() && !cached.isErrorMessage()) {
                             val downloaded = cached.source?.let { source -> listOf("API","LRCLib","lyrics.ovh","Lyrically","Better Lyrics").any { source.startsWith(it) } } == true
-                            if(downloaded && (name == legacyName || PlayerLyricsLookup.needsTimingRefresh(cached)) && NetworkUtils.isNetworkAvailable(app)) continue
+                            if(downloaded && (name == legacyName || PlayerLyricsLookup.needsTimingRefresh(cached)) && NetworkUtils.isNetworkAvailable(app)) {
+                                if(name == file.name) staleCache = raw
+                                continue
+                            }
                             LyricsCacheIo.write(file,gson.toJson(cached),onlyIfMissing=true)
                             return@withPermit
                         }
@@ -44,10 +49,14 @@ internal object DownloadedLyrics {
                     val correction = AppSettings.getInstance(app).getSongLyricsSearch(songId)
                     val artist = correction?.first ?: track.artist
                     val title = correction?.second ?: track.title
-                    val lyrics = PlayerLyricsLookup.find(NetworkClient.playerLyricsApiService, artist, title, correction == null, track.durationMs)
+                    val lyrics = PlayerLyricsLookup.find(NetworkClient.playerLyricsApiService, artist, title, correction == null, track.durationMs,
+                        catalogService = NetworkClient.itunesSearchApiService)
                         ?: PlayerLyricsLookup.findPlain(NetworkClient.playerPlainLyricsApiService, artist, title, correction == null)
-                    if(lyrics != null && lyrics.hasLyrics() && !lyrics.isErrorMessage())
-                        LyricsCacheIo.write(file, gson.toJson(lyrics), onlyIfMissing = true)
+                    if(lyrics != null && lyrics.hasLyrics() && !lyrics.isErrorMessage()) {
+                        val expected = staleCache
+                        if(expected != null) LyricsCacheIo.replaceIfUnchanged(file,expected,gson.toJson(lyrics))
+                        else LyricsCacheIo.write(file, gson.toJson(lyrics), onlyIfMissing = true)
+                    }
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
               catch (_: Exception) { /* Playback and audio downloads remain available if a provider fails. */ }

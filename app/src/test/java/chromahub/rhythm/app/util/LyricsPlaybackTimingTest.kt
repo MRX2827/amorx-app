@@ -10,6 +10,54 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LyricsPlaybackTimingTest {
+    private fun catalogRow(id: Int, duration: Double, first: String = "10.69", shiftSeconds: Int = 0) =
+        LrcLibLyrics(id,trackName="Song",artistName="Artist",albumName=null,duration=duration,
+            plainLyrics=null,syncedLyrics=buildString {
+                append("[00:$first]Line 0\n")
+                for(i in 1..11) {
+                    val second = 22+i*3+shiftSeconds
+                    append("[%02d:%02d.00]Line %d\n".format(second/60,second%60,i))
+                }
+            })
+
+    @Test fun catalogueTimingCanFixAnIsolatedIntroCueWithoutShiftingTheWholeSong() {
+        val video = catalogRow(1,225.0)
+        val album = catalogRow(2,220.0,first="21.56")
+        val query = PlayerLyricsLookup.Query("Artist","Song")
+        val chosen = PlayerLyricsLookup.catalogVariant(listOf(video,album),query,225_047,220_053)
+        assertEquals(2,chosen?.id)
+        val data = PlayerLyricsLookup.recordingLyrics(chosen!!,225_047,equivalent=video)
+        val timeline = StageTimeline(stageLines(data))
+        assertEquals(StageCue(),timeline.cue(11_000,0))
+        assertEquals(StageCue(0,true),timeline.cue(21_560,0))
+        assertEquals(StageCue(1,true),timeline.cue(25_000,0))
+        assertTrue(PlayerLyricsLookup.needsTimingRefresh(LyricsData(null,video.syncedLyrics,source="LRCLib · recording match")))
+        assertFalse(PlayerLyricsLookup.needsTimingRefresh(data))
+    }
+
+    @Test fun catalogueCannotReplaceAShiftedVideoIntroOrAnotherSong() {
+        val video = catalogRow(1,225.0)
+        val shifted = catalogRow(2,220.0,first="15.69",shiftSeconds=5)
+        val query = PlayerLyricsLookup.Query("Artist","Song")
+        assertNull(PlayerLyricsLookup.catalogVariant(listOf(video,shifted),query,225_047,220_053))
+        assertNull(PlayerLyricsLookup.catalogVariant(listOf(video,catalogRow(3,220.0).copy(artistName="Other")),query,225_047,220_053))
+        assertNull(PlayerLyricsLookup.catalogVariant(listOf(video,catalogRow(4,200.0)),query,225_047,200_000))
+        assertNull(PlayerLyricsLookup.catalogVariant(listOf(video),query,225_047,null))
+        assertNull(PlayerLyricsLookup.catalogVariant(listOf(video,catalogRow(5,225.0,first="21.56")),query,225_047,225_000))
+    }
+
+    @Test fun backgroundTimingRefreshCannotOverwriteAnEditMadeDuringTheRequest() {
+        val folder = java.nio.file.Files.createTempDirectory("lyric-refresh-test").toFile()
+        try {
+            val file = java.io.File(folder,"lyrics.json")
+            LyricsCacheIo.write(file,"old provider")
+            assertTrue(LyricsCacheIo.replaceIfUnchanged(file,"old provider","checked timing"))
+            LyricsCacheIo.write(file,"manual edit")
+            assertFalse(LyricsCacheIo.replaceIfUnchanged(file,"checked timing","late network response"))
+            assertEquals("manual edit",file.readText())
+        } finally { folder.deleteRecursively() }
+    }
+
     @Test fun instrumentalGapsKeepTheCompletedLineInactiveWithoutFlashingOrFutureWords() {
         val timeline = StageTimeline(listOf(StageLine(21_000,"Verse",24_000),
             StageLine(24_000,""), StageLine(25_000,"Chorus",28_000),

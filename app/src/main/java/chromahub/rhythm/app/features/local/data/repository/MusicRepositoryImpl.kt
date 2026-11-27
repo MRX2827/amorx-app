@@ -4551,7 +4551,8 @@ class MusicRepository(context: Context) {
                 val video = corrected == null && (chromahub.rhythm.app.util.LyricsIdentity.isVideo(songId) || songUri?.fragment?.startsWith("ytm=") == true)
                 val playerLyrics = if (appSettings.showLyrics.value || appSettings.playerThemeId.value == "DESIGNER") {
                     chromahub.rhythm.app.util.PlayerLyricsLookup.find(
-                        NetworkClient.playerLyricsApiService, searchArtist, searchTitle, video, durationMs
+                        NetworkClient.playerLyricsApiService, searchArtist, searchTitle, video, durationMs,
+                        catalogService = NetworkClient.itunesSearchApiService
                     ) ?: chromahub.rhythm.app.util.PlayerLyricsLookup.findPlain(
                         NetworkClient.playerPlainLyricsApiService, searchArtist, searchTitle, video
                     )
@@ -4721,7 +4722,7 @@ class MusicRepository(context: Context) {
                         lookup.bestMatch(results, query, durationMs)
                     }
                     bestMatch?.let { row ->
-                        val data = lookup.recordingLyrics(row, durationMs)
+                        val data = lookup.recordingLyrics(row, durationMs).copy(source = "LRCLib")
                         if (data.hasSyncedLyrics()) data else {
                             lrclibPlainBackup = data.takeIf { it.hasLyrics() }
                             null

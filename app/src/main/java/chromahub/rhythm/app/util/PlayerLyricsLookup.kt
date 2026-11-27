@@ -3,18 +3,23 @@ package chromahub.rhythm.app.util
 import chromahub.rhythm.app.network.LRCLibApiService
 import chromahub.rhythm.app.network.LrcLibLyrics
 import chromahub.rhythm.app.network.PlainLyricsApiService
+import chromahub.rhythm.app.network.ITunesSearchApiService
 import chromahub.rhythm.app.shared.data.model.LyricsData
 import java.security.MessageDigest
 import java.text.Normalizer
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 
 /** Search variants are shared by automatic lookup, provider matching and manual corrections. */
 internal object PlayerLyricsLookup {
-    private const val RECORDING_SOURCE = "LRCLib · recording match"
-    fun needsTimingRefresh(data: LyricsData): Boolean = data.source == "LRCLib" && data.hasSyncedLyrics()
+    private const val RECORDING_SOURCE = "LRCLib · timing checked"
+    private const val PENDING_SOURCE = "LRCLib · timing pending"
+    private val catalogDurations = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    fun needsTimingRefresh(data: LyricsData): Boolean = data.hasSyncedLyrics() &&
+        data.source in setOf("LRCLib", "LRCLib · recording match", PENDING_SOURCE)
 
     private fun matchesRecording(row: LrcLibLyrics, durationMs: Long): Boolean {
         val seconds = row.duration ?: return false
@@ -22,12 +27,66 @@ internal object PlayerLyricsLookup {
     }
 
     /** Do not run another recording's timeline over this audio or stretch it to fit. */
-    fun recordingLyrics(row: LrcLibLyrics, durationMs: Long): LyricsData {
-        val synced = row.getSyncedLyricsOrNull()?.takeIf { matchesRecording(row, durationMs) }
+    fun recordingLyrics(row: LrcLibLyrics, durationMs: Long, equivalent: LrcLibLyrics? = null): LyricsData {
+        val synced = row.getSyncedLyricsOrNull()?.takeIf { matchesRecording(row, durationMs) ||
+            (equivalent != null && matchesRecording(equivalent, durationMs) && equivalentTimeline(row, equivalent)) }
         val plain = row.getPlainLyricsOrNull() ?: row.getSyncedLyricsOrNull()?.lineSequence()
             ?.map { it.replace(Regex("\\[[^]]*]|<\\d[^>]*>"), "").trim() }
             ?.filter { it.isNotBlank() }?.joinToString("\n")
         return LyricsData(plain, synced, source = RECORDING_SOURCE)
+    }
+
+    private fun vocalCues(row: LrcLibLyrics) = runCatching {
+        LyricsParser.parseLyrics(row.syncedLyrics.orEmpty()).filter { it.text.isNotBlank() }
+    }.getOrDefault(emptyList())
+
+    /** Same words and nearly the same timeline: permit a small video outro difference,
+     * never a remaster, a shifted video intro, or a slowed/sped-up recording. */
+    private fun equivalentTimeline(a: LrcLibLyrics, b: LrcLibLyrics): Boolean {
+        val first = vocalCues(a); val second = vocalCues(b)
+        if(first.size < 6 || first.size != second.size) return false
+        if(first.indices.any { key(first[it].text) != key(second[it].text) }) return false
+        return first.indices.count { kotlin.math.abs(first[it].timestamp - second[it].timestamp) <= 1500 } * 10 >= first.size * 9
+    }
+
+    private fun timingAlternatives(rows: List<LrcLibLyrics>, query: Query, durationMs: Long, reference: LrcLibLyrics) =
+        rows.filter { row ->
+            val seconds = row.duration
+            row.id != reference.id && seconds != null && kotlin.math.abs(seconds*1000-durationMs) <= 8000 &&
+                matches(row.artistName.orEmpty(), row.trackName.orEmpty(), query) &&
+                (censorship(row.trackName.orEmpty()) == null || query.edition == null || censorship(row.trackName.orEmpty()) == query.edition) &&
+                equivalentTimeline(row, reference)
+        }
+
+    fun catalogVariant(rows: List<LrcLibLyrics>, query: Query, durationMs: Long, catalogDurationMs: Long?): LrcLibLyrics? {
+        val reference = bestMatch(rows,query,durationMs) ?: return null
+        val catalog = catalogDurationMs ?: return null
+        if(catalog <= 0 || kotlin.math.abs(catalog-durationMs)>8000 || !matchesRecording(reference,durationMs)) return null
+        val alternatives = timingAlternatives(rows,query,durationMs,reference)
+        val candidate = (alternatives + reference).minByOrNull { kotlin.math.abs(it.duration!!*1000-catalog) } ?: return null
+        if(candidate.id == reference.id || !matchesRecording(candidate,catalog)) return null
+        if(kotlin.math.abs(candidate.duration!!*1000-catalog)+500 >= kotlin.math.abs(reference.duration!!*1000-catalog)) return null
+        return candidate
+    }
+
+    private suspend fun catalogDuration(service: ITunesSearchApiService?, query: Query, durationMs: Long): Long? {
+        if(service == null) return null
+        val cacheKey = key(query.artist) + ":" + key(query.title) + ":" + durationMs
+        catalogDurations[cacheKey]?.let { return it }
+        val found = withTimeoutOrNull(2500) {
+            try {
+                service.searchSongs("${query.artist} ${query.title}").results
+                    .filter { matches(it.artistName.orEmpty(),it.trackName.orEmpty(),query) }
+                    .mapNotNull { it.trackTimeMillis?.takeIf { time -> time>0 && kotlin.math.abs(time-durationMs)<=8000 } }
+                    .minByOrNull { kotlin.math.abs(it-durationMs) }
+            } catch(cancelled: CancellationException) { throw cancelled }
+              catch(_: Exception) { null }
+        }
+        if(found != null) {
+            if(catalogDurations.size>=128) catalogDurations.clear()
+            catalogDurations[cacheKey] = found
+        }
+        return found
     }
     @Volatile private var retryAtNanos = 0L
     @Volatile private var plainRetryAtNanos = 0L
@@ -109,7 +168,8 @@ internal object PlayerLyricsLookup {
         (error.response()?.headers()?.get("Retry-After")?.toLongOrNull()?.coerceIn(1, 31_536_000)
             ?: if(error.code() == 429) 60L else 5L) * 1_000_000_000L
 
-    suspend fun find(service: LRCLibApiService?, artist: String, title: String, video: Boolean, durationMs: Long): LyricsData? {
+    suspend fun find(service: LRCLibApiService?, artist: String, title: String, video: Boolean, durationMs: Long,
+                     catalogService: ITunesSearchApiService? = null): LyricsData? {
         if (service == null || !canSearch()) return null
         val candidates = queries(artist, title, video)
         val primary = candidates.firstOrNull() ?: return null
@@ -139,7 +199,13 @@ internal object PlayerLyricsLookup {
                 emptyList()
             } catch (_: Exception) { return plainFallback }
             val match = candidates.firstNotNullOfOrNull { bestMatch(rows, it, durationMs) } ?: continue
-            val data = recordingLyrics(match, durationMs)
+            val matchQuery = candidates.first { matches(match.artistName.orEmpty(),match.trackName.orEmpty(),it) }
+            val alternatives = timingAlternatives(rows,matchQuery,durationMs,match)
+            val catalogHint = if(alternatives.isNotEmpty()) catalogDuration(catalogService,matchQuery,durationMs) else null
+            val variant = catalogVariant(rows,matchQuery,durationMs,catalogHint)
+            val selected = recordingLyrics(variant ?: match, durationMs, equivalent = if(variant!=null) match else null)
+            val data = if(alternatives.isNotEmpty() && catalogService!=null && catalogHint==null)
+                selected.copy(source=PENDING_SOURCE) else selected
             if(data.hasSyncedLyrics()) return data
             if(plainFallback == null && data.hasLyrics()) plainFallback = data
         }
