@@ -374,10 +374,10 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
         val unit = maxWidth.value
         val stageHeight = maxHeight.value
         val wide = maxWidth > maxHeight * 1.35f
-        val font = min(unit * (if(wide) .047f else .075f), stageHeight / 10f).coerceIn(16f,44f).sp
+        val font = min(unit * (if(wide) .043f else .069f), stageHeight / 10f).coerceIn(14f,40f).sp
         val plainScroll = rememberScrollState()
         LaunchedEffect(song?.id) { plainScroll.scrollTo(0) }
-        Box(Modifier.align(Alignment.CenterStart).padding(start=24.dp).fillMaxWidth(.64f).height((stageHeight*.75f).dp)) {
+        Box(Modifier.align(Alignment.CenterStart).padding(start=20.dp).fillMaxWidth(.66f).height((stageHeight*.86f).dp)) {
             if(lines.isEmpty()) Column {
                 if(loading) {
                     CircularProgressIndicator(Modifier.padding(bottom=14.dp).size(22.dp),color=Color.White.copy(alpha=.8f),strokeWidth=2.dp)
@@ -411,21 +411,18 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                         val active = displayedIndex == cue.index && cue.active
                         val emphasis by animateFloatAsState(if(active) 1f else .35f,
                             tween(if(motion && !active) 220 else 0),label="lyric emphasis")
-                        Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             if(selected == null) {
                                 Text("♪",color=Color.White.copy(alpha=.65f),fontSize=font)
                                 Text("Музыка",color=Color.White.copy(alpha=.45f),fontSize=14.sp)
                             } else {
-                                for(slot in 0..1) {
-                                    val previous = history.getOrNull(slot - (2 - history.size))
-                                    Text(previous?.text.orEmpty(),color=Color.White.copy(alpha=if(slot==0) .22f else .40f),
-                                        fontSize=(font.value*.8f).sp,fontWeight=FontWeight.Bold,
-                                        minLines=1,maxLines=1,overflow=TextOverflow.Ellipsis,
-                                        modifier=Modifier.clickable(enabled=previous?.time!=null) { previous?.time?.let(onSeek) })
-                                }
-                                Text(selected.text,color=Color.White.copy(alpha=emphasis),fontSize=font,fontWeight=FontWeight.Bold,
-                                    lineHeight=(font.value*1.2f).sp,maxLines=3,overflow=TextOverflow.Ellipsis,
-                                    modifier=Modifier.clickable { selected.time?.let(onSeek) })
+                                val previous = history.lastOrNull()
+                                Text(previous?.text.orEmpty(),color=Color.White.copy(alpha=.3f),
+                                    fontSize=(font.value*.72f).sp,fontWeight=FontWeight.Bold,
+                                    minLines=1,maxLines=1,overflow=TextOverflow.Clip,
+                                    modifier=Modifier.clickable(enabled=previous?.time!=null) { previous?.time?.let(onSeek) })
+                                FittingLyricText(selected.text,preferredSize=font,color=Color.White.copy(alpha=emphasis),
+                                    modifier=Modifier.weight(1f,fill=false).fillMaxWidth().clickable { selected.time?.let(onSeek) })
                                 Text(if(active) "" else "♪  Проигрыш",color=Color.White.copy(alpha=.5f),
                                     fontSize=13.sp,minLines=1,maxLines=1)
                             }
@@ -434,13 +431,15 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                 }
             }
         }
-        val blobSize=min(unit*.25f,stageHeight*.6f).coerceIn(48f,180f)
+        val blobSize=min(unit*.24f,stageHeight*.6f).coerceIn(48f,180f)
         MusicBlob(playing,motion,accent,Modifier.align(Alignment.CenterEnd).padding(end=(unit*.055f).dp).size(blobSize.dp))
     }
 }
 @Composable private fun MusicBlob(playing:Boolean,motion:Boolean,accent:Color,modifier:Modifier) {
     var phase by remember { mutableFloatStateOf(0f) }
     var bands by remember { mutableStateOf(FloatArray(7)) }
+    var energy by remember { mutableFloatStateOf(0f) }
+    var bass by remember { mutableFloatStateOf(0f) }
     val drift by animateFloatAsState(if(playing && motion) 1f else 0f,tween(if(motion) 900 else 0),label="soft music rest")
     val currentDrift by rememberUpdatedState(drift)
     LaunchedEffect(playing,motion) {
@@ -448,32 +447,45 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
         while(isActive) {
             withFrameNanos { now ->
                 val dt=if(previous==0L) 0f else ((now-previous)/1e9f).coerceAtMost(.05f);previous=now
-                if(motion) phase+=dt*.5f*currentDrift
                 if(!playing) tail+=dt
                 val live=playing && now-DesignerSpectrum.updatedNanos<250_000_000L
                 val target=if(live) DesignerSpectrum.levels else FloatArray(7)
-                bands=FloatArray(7) { i -> bands[i]+(target[i]-bands[i])*(1-exp(-dt*(if(target[i]>bands[i]) 18f else 6f))) }
+                val targetEnergy=if(live) DesignerSpectrum.energy else 0f
+                val targetBass=if(live) DesignerSpectrum.bass else 0f
+                energy+=(targetEnergy-energy)*(1-exp(-dt*(if(targetEnergy>energy) 28f else 8f)))
+                bass+=(targetBass-bass)*(1-exp(-dt*(if(targetBass>bass) 36f else 9f)))
+                bands=FloatArray(7) { i ->
+                    val sensitive=target[i].coerceIn(0f,1f).pow(.75f)
+                    bands[i]+(sensitive-bands[i])*(1-exp(-dt*(if(sensitive>bands[i]) 30f else 9f)))
+                }
+                if(motion) phase+=dt*(.7f+energy*.9f+bass*.8f)*currentDrift
             }
             if(!playing && tail>1.6f) break
             if(!motion) delay(100)
         }
     }
     Canvas(modifier) {
-        val energy=bands.average().toFloat()
-        val radius=size.minDimension*(.43f+energy*.025f)
+        val punch=(bass-energy*.25f).coerceIn(0f,1f)
+        val radius=size.minDimension*(.33f+energy*.065f+punch*.035f)
         val center=Offset(size.width/2,size.height/2)
         val path=Path()
         for(i in 0..128) {
             val angle=i/128f*(2*PI).toFloat()
-            val r=radius*(1+.10f*sin(angle*3+phase)+.055f*cos(angle*5-phase*.7f))
+            val bandPosition=i/128f*7
+            val bandIndex=bandPosition.toInt()%7
+            val local=bands[bandIndex]+(bands[(bandIndex+1)%7]-bands[bandIndex])*(bandPosition-floor(bandPosition))
+            val r=radius*(1+(.04f+energy*.035f)*sin(angle*3+phase)+
+                (.02f+punch*.025f)*cos(angle*5-phase*.85f)+(local-.4f)*.055f)
             val p=center+Offset(cos(angle)*r,sin(angle)*r)
             if(i==0) path.moveTo(p.x,p.y) else path.lineTo(p.x,p.y)
         }
         path.close()
-        drawPath(path,lerp(Color.White,accent,.13f));drawPath(path,Color.White.copy(alpha=.6f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=1.dp.toPx()))
+        drawPath(path,accent.copy(alpha=.12f+energy*.1f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=(4+energy*5).dp.toPx()))
+        drawPath(path,lerp(Color.White,accent,.10f+energy*.08f))
+        drawPath(path,Color.White.copy(alpha=.6f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=(1+energy).dp.toPx()))
         val barWidth=size.width*.026f;val gap=size.width*.035f
         for(i in 0..6) {
-            val height=size.height*(.085f+bands[i]*.31f)
+            val height=size.height*(.055f+bands[i]*.42f+energy*.035f)
             val x=center.x+(i-3)*(barWidth+gap)-barWidth/2
             drawRoundRect(lerp(accent,Color(0xFF751799),.45f),Offset(x,center.y-height/2),Size(barWidth,height),CornerRadius(barWidth/2))
         }
