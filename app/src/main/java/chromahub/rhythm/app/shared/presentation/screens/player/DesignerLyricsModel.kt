@@ -31,6 +31,12 @@ internal class StageTimeline(val lines: List<StageLine>) {
         return if(previous >= 0) StageCue(previous, false) else StageCue()
     }
 
+    fun presentationCue(positionMs: Long, offsetMs: Long): StageCue {
+        val actual = cue(positionMs,offsetMs)
+        val upcoming = cue(positionMs,chromahub.rhythm.app.util.LyricClock.presentationOffset(offsetMs))
+        return upcoming.copy(active=upcoming.active || actual.active || upcoming.index > actual.index)
+    }
+
     fun history(cue: StageCue): List<StageLine> = if(cue.index < 0) emptyList() else
         lines.subList(0, cue.index).asReversed().asSequence().filter { it.text.isNotBlank() }.take(2).toList().asReversed()
 }

@@ -158,8 +158,9 @@ fun SyncedLyricsView(
     subtitleColor: Color? = null
 ) {
     val context = LocalContext.current
-    // TODO: Apply syncOffset to all timestamp comparisons for manual sync adjustment
-    val adjustedPlaybackTime = currentPlaybackTime + syncOffset
+    // Read-ahead selects lines early; vocal endings and word highlights use actual audio time.
+    val vocalPlaybackTime = currentPlaybackTime + syncOffset
+    val adjustedPlaybackTime = currentPlaybackTime + chromahub.rhythm.app.util.LyricClock.presentationOffset(syncOffset)
     
     val parsedLyrics by produceState(
         initialValue = parsedLyricsInput ?: emptyList(),
@@ -203,8 +204,8 @@ fun SyncedLyricsView(
         derivedStateOf {
             lyricsItems.any { item ->
                 item is SyncedLyricsItem.Gap &&
-                    adjustedPlaybackTime >= item.startTime &&
-                    adjustedPlaybackTime < item.startTime + item.duration
+                    vocalPlaybackTime >= item.startTime &&
+                    vocalPlaybackTime < item.startTime + item.duration
             }
         }
     }
@@ -216,7 +217,7 @@ fun SyncedLyricsView(
     // The previous line stops being active at its explicit end, including instrumental gaps.
     val currentLineIndex by remember(adjustedPlaybackTime, parsedLyrics) {
         derivedStateOf {
-            chromahub.rhythm.app.util.LyricClock.activeIndex(timestamps, lineEnds, currentPlaybackTime, syncOffset)
+            chromahub.rhythm.app.util.LyricClock.presentationIndex(timestamps, lineEnds, currentPlaybackTime, syncOffset)
         }
     }
 
@@ -353,7 +354,7 @@ fun SyncedLyricsView(
                     is SyncedLyricsItem.Gap -> {
                         SyncedVocalGapItem(
                             item = item,
-                            currentPlaybackTime = adjustedPlaybackTime,
+                            currentPlaybackTime = vocalPlaybackTime,
                             noAnimation = lyricNoAnimationVal,
                             textColor = textColor
                         )

@@ -139,8 +139,9 @@ fun WordByWordLyricsView(
     subtitleColor: Color? = null
 ) {
     val context = LocalContext.current
-    // TODO: Apply syncOffset to all timestamp comparisons for manual sync adjustment
-    val adjustedPlaybackTime = currentPlaybackTime + syncOffset
+    // Read-ahead selects lines early; vocal endings and word highlights use actual audio time.
+    val vocalPlaybackTime = currentPlaybackTime + syncOffset
+    val adjustedPlaybackTime = currentPlaybackTime + chromahub.rhythm.app.util.LyricClock.presentationOffset(syncOffset)
     
     val appSettings = remember(context) { AppSettings.getInstance(context) }
     val lyricBoldVal by appSettings.lyricBold.collectAsState()
@@ -199,8 +200,8 @@ fun WordByWordLyricsView(
         derivedStateOf {
             lyricsItems.any { item ->
                 item is LyricsItem.Gap &&
-                    adjustedPlaybackTime >= item.startTime &&
-                    adjustedPlaybackTime < item.startTime + item.duration
+                    vocalPlaybackTime >= item.startTime &&
+                    vocalPlaybackTime < item.startTime + item.duration
             }
         }
     }
@@ -236,7 +237,7 @@ fun WordByWordLyricsView(
                 }
 
                 val activeLine = visibleLyricsLines[bestIndex]
-                if(!activeLine.endIsImplicit && adjustedPlaybackTime > activeLine.effectiveLineEndtime()) -1 else bestIndex
+                if(!activeLine.endIsImplicit && vocalPlaybackTime > activeLine.effectiveLineEndtime()) -1 else bestIndex
             }
         }
     }
@@ -368,14 +369,14 @@ fun WordByWordLyricsView(
                         // Active word index calculation
                         val activeWordIndex = if (isCurrentLine) {
                             val exactActive = line.words.indexOfLast { word ->
-                                adjustedPlaybackTime >= word.timestamp && adjustedPlaybackTime <= word.endtime
+                                vocalPlaybackTime >= word.timestamp && vocalPlaybackTime <= word.endtime
                             }
 
                             if (exactActive >= 0) {
                                 exactActive
                             } else {
                                 line.words.indexOfLast { word ->
-                                    adjustedPlaybackTime >= word.timestamp
+                                    vocalPlaybackTime >= word.timestamp
                                 }
                             }
                         } else {
@@ -390,7 +391,7 @@ fun WordByWordLyricsView(
                             linesAhead = linesAhead,
                             distanceFromCurrent = distanceFromCurrent,
                             activeWordIndex = activeWordIndex,
-                            adjustedPlaybackTime = adjustedPlaybackTime,
+                            adjustedPlaybackTime = vocalPlaybackTime,
                             textSizeMultiplier = textSizeMultiplier,
                             textAlignment = textAlignment,
                             showTranslation = showTranslation,
@@ -405,8 +406,8 @@ fun WordByWordLyricsView(
                         )
                     }
                     is LyricsItem.Gap -> {
-                        val isCurrentGap = adjustedPlaybackTime >= item.startTime &&
-                            adjustedPlaybackTime < item.startTime + item.duration
+                        val isCurrentGap = vocalPlaybackTime >= item.startTime &&
+                            vocalPlaybackTime < item.startTime + item.duration
                         
                         val gapPadding = (item.duration / 1000f).coerceIn(8f, 20f)
                         val iconAlpha by animateFloatAsState(

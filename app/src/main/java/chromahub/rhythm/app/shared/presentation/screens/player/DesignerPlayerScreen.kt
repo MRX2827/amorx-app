@@ -155,7 +155,7 @@ fun DesignerPlayerScreen(
             while(isActive) {
                 // A temporary unavailable session does not erase an already visible verse.
                 positionReader()?.let { raw ->
-                    cue = timeline.cue(lyricClock.sample(raw, discontinuityReader()), lyricsOffset)
+                    cue = timeline.presentationCue(lyricClock.sample(raw, discontinuityReader()), lyricsOffset)
                 }
                 withFrameNanos { }
             }
@@ -273,6 +273,7 @@ fun DesignerPlayerScreen(
     if(timingDialog) AlertDialog(onDismissRequest={timingDialog=false},containerColor=Color(0xFF17171F),titleContentColor=Color.White,textContentColor=Color.White,
         title={Text("Синхронизация текста")},text={Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Text("Сдвиг сохраняется только для этой песни",color=Color.White.copy(alpha=.6f))
+            Text("Строки показываются на 0,6 с раньше вокала. Эта поправка добавляется к упреждению.",color=Color.White.copy(alpha=.6f),fontSize=13.sp)
             Text("${if(lyricsOffset>0) "+" else ""}${lyricsOffset} мс",fontSize=28.sp,fontWeight=FontWeight.Bold)
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 DesignerAction("fast_forward","Раньше · 250 мс",{onLyricsOffset((lyricsOffset+250).toInt())},Modifier.weight(1f))
@@ -399,10 +400,10 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                 key(song?.id, lines) {
                     AnimatedContent(targetState=cue.index, modifier=Modifier.fillMaxSize(),
                         transitionSpec={
-                            (fadeIn(tween(if(motion) 240 else 0),initialAlpha=.75f) +
-                                slideInVertically(tween(if(motion) 320 else 0,easing=FastOutSlowInEasing)) { minOf(it/8,36) })
-                                .togetherWith(fadeOut(tween(if(motion) 160 else 0)) +
-                                    slideOutVertically(tween(if(motion) 240 else 0,easing=FastOutSlowInEasing)) { -minOf(it/10,24) })
+                            (fadeIn(tween(if(motion) 300 else 0),initialAlpha=0f) +
+                                slideInVertically(tween(if(motion) 460 else 0,easing=FastOutSlowInEasing)) { minOf(it/4,96) })
+                                .togetherWith(fadeOut(tween(if(motion) 260 else 0)) +
+                                    slideOutVertically(tween(if(motion) 420 else 0,easing=FastOutSlowInEasing)) { -minOf(it/5,72) })
                                 .using(SizeTransform(clip=true,sizeAnimationSpec={_,_->snap()}))
                         },label="smooth vocal line") { displayedIndex ->
                         val selected = lines.getOrNull(displayedIndex)

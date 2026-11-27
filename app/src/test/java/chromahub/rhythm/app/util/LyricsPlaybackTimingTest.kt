@@ -10,6 +10,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LyricsPlaybackTimingTest {
+    @Test fun readAheadStartsEarlyButDoesNotDimTheLineBeforeTheVocalEnds() {
+        val timeline = StageTimeline(listOf(StageLine(1_000,"First",2_000),StageLine(2_000,""),StageLine(5_000,"Second")))
+        assertEquals(StageCue(),timeline.presentationCue(399,0))
+        assertEquals(StageCue(0,true),timeline.presentationCue(400,0))
+        assertEquals(StageCue(0,true),timeline.presentationCue(1_400,0))
+        assertEquals(StageCue(0,true),timeline.presentationCue(1_999,0))
+        assertEquals(StageCue(0,false),timeline.presentationCue(2_000,0))
+        assertEquals(StageCue(2,true),timeline.presentationCue(4_400,0))
+        assertEquals(StageCue(),timeline.presentationCue(0,0)) // seek back to intro
+    }
+
+    @Test fun sharedReadAheadPreservesGapsManualOffsetsAndRealSeekTargets() {
+        val times = longArrayOf(1_000,2_000,5_000)
+        val ends = longArrayOf(Long.MAX_VALUE,2_000,Long.MAX_VALUE)
+        assertEquals(-1,LyricClock.presentationIndex(times,ends,399,0))
+        assertEquals(0,LyricClock.presentationIndex(times,ends,400,0))
+        assertEquals(0,LyricClock.presentationIndex(times,ends,1_400,0))
+        assertEquals(-1,LyricClock.presentationIndex(times,ends,2_000,0))
+        assertEquals(2,LyricClock.presentationIndex(times,ends,4_400,0))
+        assertEquals(2,LyricClock.presentationIndex(times,ends,4_150,250))
+        assertEquals(4_750L,LyricClock.seek(5_000,250,9_000))
+        assertEquals(850L,LyricClock.presentationOffset(250))
+        val shortTimes=longArrayOf(1_000,1_200,1_400)
+        val shortEnds=longArrayOf(1_200,1_400,2_000)
+        assertEquals(1,LyricClock.presentationIndex(shortTimes,shortEnds,600,0))
+        assertEquals(1,LyricClock.presentationIndex(shortTimes,shortEnds,650,0))
+    }
+
     private fun catalogRow(id: Int, duration: Double, first: String = "10.69", shiftSeconds: Int = 0) =
         LrcLibLyrics(id,trackName="Song",artistName="Artist",albumName=null,duration=duration,
             plainLyrics=null,syncedLyrics=buildString {

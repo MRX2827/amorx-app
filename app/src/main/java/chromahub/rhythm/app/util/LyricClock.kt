@@ -2,6 +2,9 @@ package chromahub.rhythm.app.util
 
 /** Uses the player's position in milliseconds, never a ratio multiplied by a separate duration. */
 internal object LyricClock {
+    const val DISPLAY_LEAD_MS = 600L
+    fun presentationOffset(manualOffsetMs: Long): Long = manualOffsetMs + DISPLAY_LEAD_MS
+
     fun index(timestamps: LongArray, positionMs: Long, offsetMs: Long): Int {
         val time = positionMs.coerceAtLeast(0) + offsetMs
         var low = 0; var high = timestamps.lastIndex; var result = -1
@@ -20,6 +23,19 @@ internal object LyricClock {
         if (index < 0) return -1
         val end = ends.getOrNull(index) ?: Long.MAX_VALUE
         return if (positionMs.coerceAtLeast(0) + offsetMs < end) index else -1
+    }
+
+    /** Reveal the next line early, but keep the current vocal active until its real end. */
+    fun presentationIndex(timestamps: LongArray, ends: LongArray, positionMs: Long, offsetMs: Long): Int {
+        var selected = index(timestamps,positionMs,presentationOffset(offsetMs))
+        var silenceAt = Long.MAX_VALUE
+        while(selected >= 0 && (ends.getOrNull(selected) ?: Long.MAX_VALUE) <= timestamps[selected]) {
+            silenceAt = minOf(silenceAt,timestamps[selected])
+            selected--
+        }
+        if(selected < 0) return -1
+        val end = minOf(ends.getOrNull(selected) ?: Long.MAX_VALUE,silenceAt)
+        return if(positionMs.coerceAtLeast(0)+offsetMs < end) selected else -1
     }
 }
 
