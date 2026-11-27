@@ -342,6 +342,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Lyrics fetch job tracking to prevent race conditions
     private var lyricsFetchJob: Job? = null
     private var currentFetchingSongId: String? = null
+    private var currentLyricsRequestIsDesigner = false
     private var currentLoadedLyricsSongId: String? = null
 
     private var cachedSyncedLyricsRaw: String? = null
@@ -8112,7 +8113,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         currentFetchingSongId = song.id
-        
+        currentLyricsRequestIsDesigner = appSettings.playerThemeId.value == "DESIGNER"
+
         // Cancel any previous lyrics fetch to prevent race conditions
         lyricsFetchJob?.cancel()
         
@@ -8125,7 +8127,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         // Check if lyrics are enabled
-        if (!showLyrics.value) {
+        if (!showLyrics.value && appSettings.playerThemeId.value != "DESIGNER") {
             _isLoadingLyrics.value = false
             return
         }
@@ -8146,7 +8148,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     songId = song.id,
                     songUri = song.uri,
                     sourcePreference = lyricsPreference,
-                    forceRefresh = forceRefresh
+                    forceRefresh = forceRefresh,
+                    durationMs = song.duration
                 )
                 
                 // Verify the song hasn't changed before updating lyrics
@@ -8204,6 +8207,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Manually retry fetching lyrics for the current song
      */
+    fun ensureDesignerLyrics() {
+        val song = currentSong.value ?: return
+        if (currentFetchingSongId == song.id && lyricsFetchJob?.isActive == true && currentLyricsRequestIsDesigner) return
+        val data = _currentLyrics.value
+        if (currentLoadedLyricsSongId == song.id && data != null && data.hasLyrics() && !data.isErrorMessage()) return
+        fetchLyricsForCurrentSong(forceRefresh = true)
+    }
+
     fun retryFetchLyrics() {
         Log.d(TAG, "Manual retry of lyrics fetch requested")
         fetchLyricsForCurrentSong(retryCount = 0, forceRefresh = true)

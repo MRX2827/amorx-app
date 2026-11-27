@@ -4456,7 +4456,8 @@ class MusicRepository(context: Context) {
         songId: String? = null,
         songUri: Uri? = null,
         sourcePreference: LyricsSourcePreference = LyricsSourcePreference.API_FIRST,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        durationMs: Long = 0
     ): LyricsData? = withContext(Dispatchers.IO) {
         val appSettings = AppSettings.getInstance(context)
         val songSpecificPreference = songId?.let { appSettings.getSongLyricsPreference(it) }
@@ -4469,7 +4470,7 @@ class MusicRepository(context: Context) {
 
         Log.d(TAG, "===== FETCH LYRICS START: $artist - $title (songId=$songId, forceRefresh=$forceRefresh, source=$finalSourcePreference, songSpecificPreference=$songSpecificPreference) =====")
         
-        if (artist.isBlank() || title.isBlank())
+        if (title.isBlank() || (artist.isBlank() && appSettings.playerThemeId.value != "DESIGNER"))
             return@withContext LyricsData("No lyrics available for this song", null, null)
 
         // Use song ID in cache key if available to prevent wrong lyrics for songs with similar metadata
@@ -4483,7 +4484,7 @@ class MusicRepository(context: Context) {
         
         // Check cache unless force refresh is requested
         if (!forceRefresh) {
-            lyricsCache[cacheKey]?.let { cached ->
+            lyricsCache[cacheKey]?.takeIf { it.hasLyrics() && !it.isErrorMessage() }?.let { cached ->
                 val lyricLength = cached.plainLyrics?.length ?: cached.syncedLyrics?.length ?: 0
                 Log.d(TAG, "===== RETURNING IN-MEMORY CACHED LYRICS ($lyricLength chars) =====")
                 return@withContext cached
@@ -4499,6 +4500,9 @@ class MusicRepository(context: Context) {
         }
         
         val fetchFromEmbedded: suspend () -> LyricsData? = fetchFromEmbedded@{
+            // YouTube audio URLs are not a configured Subsonic/Jellyfin provider or a local tagged file.
+            val isVideo = songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true
+            if (isVideo && songUri?.scheme != "file" && songUri?.scheme != "content") return@fetchFromEmbedded null
             // If it's a streaming track, query the active streaming provider (Subsonic / Navidrome / Jellyfin)
             val isStreaming = (songId != null && (songId.contains("::") || songId.startsWith("subsonic", ignoreCase = true) || songId.startsWith("jellyfin", ignoreCase = true))) ||
                 (songUri != null && (songUri.scheme.equals("http", ignoreCase = true) || songUri.scheme.equals("https", ignoreCase = true) || songUri.scheme.equals("streaming", ignoreCase = true)))
@@ -4537,10 +4541,15 @@ class MusicRepository(context: Context) {
         
         val fetchFromAPI: suspend () -> LyricsData? = {
             if (isNetworkAvailable()) {
-                fetchLyricsFromAPIs(artist, title)
-            } else {
-                null
-            }
+                val playerLyrics = if (appSettings.playerThemeId.value == "DESIGNER") {
+                    chromahub.rhythm.app.util.PlayerLyricsLookup.find(
+                        NetworkClient.playerLyricsApiService, artist, title,
+                        songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true,
+                        durationMs
+                    )
+                } else null
+                playerLyrics ?: fetchLyricsFromAPIs(artist, title)
+            } else null
         }
         
         // Try sources in order based on preference, with fallback to others
@@ -4554,7 +4563,7 @@ class MusicRepository(context: Context) {
         for ((index, fetcher) in sourceFetchers.withIndex()) {
             try {
                 val lyrics = fetcher()
-                if (lyrics != null && lyrics.hasLyrics()) {
+                if (lyrics != null && lyrics.hasLyrics() && !lyrics.isErrorMessage()) {
                     val sourceName = when (sourceFetchers[index]) {
                         fetchFromAPI -> "API"
                         fetchFromEmbedded -> "Embedded"
@@ -4577,6 +4586,8 @@ class MusicRepository(context: Context) {
                     }
                     return@withContext lyricsWithSource
                 }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.w(TAG, "Error fetching from source ${index + 1}: ${e.message}")
                 // Continue to next source

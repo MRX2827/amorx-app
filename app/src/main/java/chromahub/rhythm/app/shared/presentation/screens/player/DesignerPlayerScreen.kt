@@ -30,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import chromahub.rhythm.app.infrastructure.audio.DesignerSpectrum
 import chromahub.rhythm.app.network.CanvasArtwork
 import chromahub.rhythm.app.shared.data.model.Song
@@ -37,21 +38,10 @@ import chromahub.rhythm.app.shared.data.model.LyricsData
 import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.shared.presentation.components.player.CanvasArtworkPlayer
-import chromahub.rhythm.app.util.LyricsParser
-import chromahub.rhythm.app.util.RhythmLyricsParser
 import kotlinx.coroutines.*
 import kotlin.math.*
 
-private data class StageLine(val time: Long?, val text: String)
 private data class StageTextFrame(val song: String?, val lines: List<StageLine>, val index: Int)
-private fun stageLines(lyrics: LyricsData?): List<StageLine> {
-    if (lyrics == null || lyrics.isErrorMessage()) return emptyList()
-    val words = lyrics.wordByWordLyrics?.let { runCatching { RhythmLyricsParser.parseWordByWordLyrics(it) }.getOrNull() }.orEmpty()
-    if (words.isNotEmpty()) return words.filterNot { it.background }.map { StageLine(it.lineTimestamp, buildString { it.words.forEachIndexed { i, word -> if(i>0 && !word.isPart) append(' '); append(word.text) } }) }.sortedBy { it.time }
-    val synced = lyrics.syncedLyrics?.let { runCatching { LyricsParser.parseLyrics(it) }.getOrNull() }.orEmpty()
-    if (synced.isNotEmpty()) return synced.map { StageLine(it.timestamp, it.text) }.sortedBy { it.time }
-    return lyrics.plainLyrics.orEmpty().lines().filter { it.isNotBlank() }.map { StageLine(null, it) }
-}
 private fun Context.activity(): Activity? = when(this) { is Activity -> this; is ContextWrapper -> baseContext.activity(); else -> null }
 
 @Composable
@@ -60,7 +50,8 @@ fun DesignerPlayerScreen(
     lyrics: LyricsData?, lyricsOffset: Long, loadingLyrics: Boolean, canvasArtwork: CanvasArtwork?,
     onBack: () -> Unit, onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit,
     onSeek: (Float) -> Unit, onLyricsSeek: ((Long) -> Unit)?, onRetryLyrics: () -> Unit,
-    onQueue: () -> Unit, shuffle: Boolean, onShuffle: () -> Unit, onMode: (String) -> Unit
+    onQueue: () -> Unit, shuffle: Boolean, onShuffle: () -> Unit, onMode: (String) -> Unit,
+    isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -70,19 +61,19 @@ fun DesignerPlayerScreen(
     var modeMenu by remember { mutableStateOf(false) }
     var actionsMenu by remember { mutableStateOf(false) }
     val motion = ValueAnimator.areAnimatorsEnabled()
-    DisposableEffect(activity, view) {
+    DisposableEffect(activity, view, isVisible) {
         val bars = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
         val lightStatus = bars?.isAppearanceLightStatusBars
         val lightNavigation = bars?.isAppearanceLightNavigationBars
-        bars?.isAppearanceLightStatusBars = false; bars?.isAppearanceLightNavigationBars = false
+        if (isVisible) { bars?.isAppearanceLightStatusBars = false; bars?.isAppearanceLightNavigationBars = false }
         onDispose {
-            if(lightStatus != null) bars?.isAppearanceLightStatusBars = lightStatus
-            if(lightNavigation != null) bars?.isAppearanceLightNavigationBars = lightNavigation
+            if(isVisible && lightStatus != null) bars?.isAppearanceLightStatusBars = lightStatus
+            if(isVisible && lightNavigation != null) bars?.isAppearanceLightNavigationBars = lightNavigation
         }
     }
     SideEffect {
         // Apply after the app theme's system-bar effect, which may run again on a song change.
-        activity?.window?.let { window ->
+        activity?.window?.takeIf { isVisible }?.let { window ->
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = false
                 isAppearanceLightNavigationBars = false
@@ -90,13 +81,13 @@ fun DesignerPlayerScreen(
         }
     }
     val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner) {
+    DisposableEffect(owner, isVisible) {
         val observer = LifecycleEventObserver { _, event ->
-            if(event == Lifecycle.Event.ON_START) DesignerSpectrum.show(true)
+            if(event == Lifecycle.Event.ON_START) DesignerSpectrum.show(isVisible)
             if(event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_DESTROY) DesignerSpectrum.show(false)
         }
         owner.lifecycle.addObserver(observer)
-        DesignerSpectrum.show(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+        DesignerSpectrum.show(isVisible && owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
         onDispose { owner.lifecycle.removeObserver(observer); DesignerSpectrum.show(false) }
     }
     DisposableEffect(fullscreen, activity) {
@@ -121,8 +112,12 @@ fun DesignerPlayerScreen(
     LaunchedEffect(fullscreen, controls, isPlaying) {
         if (fullscreen && controls && isPlaying) { delay(4000); controls = false }
     }
-    LaunchedEffect(song?.id) { if (song != null && lyrics == null && !loadingLyrics) onRetryLyrics() }
-    val lines = remember(lyrics) { stageLines(lyrics) }
+    LaunchedEffect(isVisible) { if (!isVisible) fullscreen = false }
+    val parsed by produceState<Pair<LyricsData?, List<StageLine>>>(null to emptyList(), song?.id, lyrics) {
+        value = lyrics to withContext(Dispatchers.Default) { stageLines(lyrics) }
+    }
+    val lines = if(parsed.first == lyrics) parsed.second else emptyList()
+    val loadingText = loadingLyrics || (song != null && lyrics == null) || parsed.first != lyrics
     val position = (progress().coerceIn(0f, 1f) * max(0L, durationMs)).toLong()
     val synced = lines.firstOrNull()?.time != null
     val index = if (synced) lines.indexOfLast { (it.time ?: 0) <= position + lyricsOffset } else 0
@@ -154,13 +149,17 @@ fun DesignerPlayerScreen(
             DesignerButton("queue_music", "Очередь", onQueue)
         }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black).alpha(entrance)) {
+    Box(Modifier.fillMaxSize().background(lerp(Color(0xFF18101F), accent, .35f)).alpha(entrance)) {
+        DesignerBackdrop(song, accent, canvasArtwork, isPlaying && isVisible, motion)
         if (fullscreen) {
-            DesignerStage(song, lines, index, position, synced, loadingLyrics, accent, canvasArtwork, isPlaying, motion,
-                onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) }, onRetryLyrics,
-                Modifier.fillMaxSize().clickable(onClick={controls=!controls}))
-            AnimatedVisibility(controls, enter=fadeIn(tween(250)), exit=fadeOut(tween(400)), modifier=Modifier.align(Alignment.BottomCenter)) {
-                Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent,Color.Black.copy(alpha=.8f)))).navigationBarsPadding().padding(horizontal=32.dp,vertical=8.dp)) {
+            Box(Modifier.fillMaxSize().clickable { controls = !controls }) {
+                DesignerSongHeading(song, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(24.dp).fillMaxWidth(.75f))
+                DesignerStage(song, lines, index, synced, loadingText, accent, isPlaying && isVisible, motion,
+                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) }, onRetryLyrics, onPickLyricsFile,
+                    Modifier.fillMaxSize().padding(top=90.dp, bottom=80.dp))
+            }
+            AnimatedVisibility(controls, enter=fadeIn(tween(if(motion) 250 else 0)), exit=fadeOut(tween(if(motion) 400 else 0)), modifier=Modifier.align(Alignment.BottomCenter)) {
+                Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent,accent.copy(alpha=.3f),Color(0xFF17101F).copy(alpha=.8f)))).navigationBarsPadding().padding(horizontal=32.dp,vertical=8.dp)) {
                     Slider(value=progress().coerceIn(0f,1f),onValueChange=onSeek,colors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=Color.White,inactiveTrackColor=Color.White.copy(alpha=.18f)))
                     buttons()
                 }
@@ -170,21 +169,22 @@ fun DesignerPlayerScreen(
             }
         } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     DesignerButton("expand_more","Закрыть плеер",onBack)
-                    Box {
-                        TextButton(onClick={modeMenu=true}) { Text("Дизайнерский ▾",color=Color.White.copy(alpha=.8f)) }
+                    Box(Modifier.weight(1f)) {
+                        TextButton(onClick={modeMenu=true}) { Text("Дизайнерский ▾",color=Color.White.copy(alpha=.8f),maxLines=1,overflow=TextOverflow.Ellipsis) }
                         DropdownMenu(expanded=modeMenu,onDismissRequest={modeMenu=false}) {
                             listOf("Обычный" to "MATERIAL","Как надо" to "EXPRESSIVE","Дизайнерский" to "DESIGNER").forEach { (name,id) ->
                                 DropdownMenuItem(text={Text(name)},onClick={modeMenu=false;onMode(id)})
                             }
                         }
                     }
-                    Spacer(Modifier.weight(1f))
+                    DesignerButton("fullscreen","На весь экран",{fullscreen=true;controls=true})
                     Box {
                         DesignerButton("more_vert","Ещё",{actionsMenu=true})
                         DropdownMenu(expanded=actionsMenu,onDismissRequest={actionsMenu=false}) {
                             DropdownMenuItem(text={Text("Очередь")},onClick={actionsMenu=false;onQueue()})
+                            DropdownMenuItem(text={Text("Загрузить текст песни")},onClick={actionsMenu=false;onPickLyricsFile()})
                             DropdownMenuItem(text={Text("Скачать в хранилище")},enabled=song!=null,onClick={
                                 actionsMenu=false
                                 song?.let { chromahub.rhythm.app.features.online.PublicSongExport.start(context,it) }
@@ -192,18 +192,15 @@ fun DesignerPlayerScreen(
                         }
                     }
                 }
-                Column(Modifier.weight(1f).fillMaxWidth(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
-                    DesignerStage(song,lines,index,position,synced,loadingLyrics,accent,canvasArtwork,isPlaying,motion,
-                        onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) },onRetryLyrics,
-                        Modifier.fillMaxWidth().aspectRatio(16f/9f))
-                    FilledTonalButton(onClick={fullscreen=true;controls=true},modifier=Modifier.padding(top=14.dp),colors=ButtonDefaults.filledTonalButtonColors(containerColor=Color(0xFF161A17),contentColor=Color.White)) {
-                        Icon(MaterialSymbolIcon("fullscreen"),null,modifier=Modifier.size(22.dp)); Spacer(Modifier.width(8.dp)); Text("На весь экран")
-                    }
-                }
+                DesignerSongHeading(song, Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=12.dp))
+                DesignerStage(song,lines,index,synced,loadingText,accent,isPlaying && isVisible,motion,
+                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) },onRetryLyrics,onPickLyricsFile,
+                    Modifier.weight(1f).fillMaxWidth())
                 Column(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp)) {
                     Slider(value=progress().coerceIn(0f,1f),onValueChange=onSeek,colors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=Color.White,inactiveTrackColor=Color.White.copy(alpha=.18f)))
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                        Text(stageTime(position),color=Color.Gray,fontSize=12.sp);Text(stageTime(durationMs),color=Color.Gray,fontSize=12.sp)
+                        Text(stageTime(position),color=Color.White.copy(alpha=.6f),fontSize=12.sp)
+                        Text(stageTime(durationMs),color=Color.White.copy(alpha=.6f),fontSize=12.sp)
                     }
                     Spacer(Modifier.height(10.dp)); buttons()
                 }
@@ -211,57 +208,99 @@ fun DesignerPlayerScreen(
         }
     }
 }
+
+@Composable private fun DesignerSongHeading(song: Song?, modifier: Modifier) {
+    Row(modifier,verticalAlignment=Alignment.CenterVertically) {
+        AsyncImage(song?.artworkUri,null,contentScale=ContentScale.Crop,
+            modifier=Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(song?.title ?: "Выберите песню",fontSize=18.sp,color=Color.White,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
+            Text(song?.artist.orEmpty(),fontSize=14.sp,color=Color.White.copy(alpha=.68f),maxLines=1,overflow=TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable private fun DesignerBackdrop(song: Song?, accent: Color, canvas: CanvasArtwork?, playing: Boolean, motion: Boolean) {
+    val context = LocalContext.current
+    var phase by remember { mutableFloatStateOf(0f) }
+    val drift by animateFloatAsState(if(playing && motion) 1f else 0f,tween(if(motion) 1400 else 0),label="background rest")
+    val currentDrift by rememberUpdatedState(drift)
+    LaunchedEffect(playing,motion) {
+        if(!motion) return@LaunchedEffect
+        var last=0L; var tail=0f
+        while(isActive) {
+            withFrameNanos { now ->
+                val dt=if(last==0L) 0f else ((now-last)/1e9f).coerceAtMost(.05f);last=now
+                phase+=dt*.12f*currentDrift
+                if(!playing) tail+=dt
+            }
+            if(!playing && tail>1.6f) break
+        }
+    }
+    Box(Modifier.fillMaxSize().clipToBounds()) {
+        Crossfade(targetState=song?.artworkUri,animationSpec=tween(if(motion) 1500 else 0),label="immersive song background") { uri ->
+            val request=remember(uri,context) { ImageRequest.Builder(context).data(uri).size(720).build() }
+            AsyncImage(request,null,contentScale=ContentScale.Crop,modifier=Modifier.fillMaxSize().graphicsLayer {
+                scaleX=1.18f;scaleY=1.18f
+                translationX=sin(phase)*size.width*.035f;translationY=cos(phase*.8f)*size.height*.025f
+            }.blur(24.dp))
+        }
+        if(canvas?.preferredAnimationUrl!=null) CanvasArtworkPlayer(primaryUrl=canvas.animated,fallbackUrl=canvas.videoUrl,isPlaying=playing,modifier=Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(accent.copy(alpha=.30f)))
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Brush.radialGradient(listOf(accent.copy(alpha=.32f),Color.Transparent),center=Offset(size.width*(.7f+.15f*sin(phase)),size.height*.28f),radius=size.maxDimension*.7f),radius=size.maxDimension*.7f,center=Offset(size.width*(.7f+.15f*sin(phase)),size.height*.28f))
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
+            Color(0xFF17101F).copy(alpha=.55f),Color(0xFF17101F).copy(alpha=.22f),lerp(Color(0xFF17101F),accent,.2f).copy(alpha=.88f)))))
+    }
+}
+
 private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:%02d".format(seconds/60,seconds%60) }
 @Composable private fun DesignerButton(icon:String,description:String,action:()->Unit,tint:Color=Color.White) {
     IconButton(onClick=action,modifier=Modifier.size(48.dp)) { Icon(MaterialSymbolIcon(icon),description,tint=tint,modifier=Modifier.size(26.dp)) }
 }
 
 @Composable private fun DesignerStage(
-    song:Song?,lines:List<StageLine>,index:Int,position:Long,synced:Boolean,loading:Boolean,accent:Color,canvas:CanvasArtwork?,playing:Boolean,motion:Boolean,
-    onSeek:(Long)->Unit,onRetry:()->Unit,modifier:Modifier
+    song:Song?,lines:List<StageLine>,index:Int,synced:Boolean,loading:Boolean,accent:Color,playing:Boolean,motion:Boolean,
+    onSeek:(Long)->Unit,onRetry:()->Unit,onPickLyricsFile:()->Unit,modifier:Modifier
 ) {
-    BoxWithConstraints(modifier.background(Color(0xFF17101E)).clipToBounds()) {
+    BoxWithConstraints(modifier.clipToBounds()) {
         val unit = maxWidth.value
         val stageHeight = maxHeight.value
-        Crossfade(targetState=song?.artworkUri,animationSpec=tween(if(motion) 1500 else 0),label="song background") { uri ->
-            AsyncImage(uri,null,contentScale=ContentScale.Crop,modifier=Modifier.fillMaxSize().graphicsLayer { scaleX=1.08f;scaleY=1.08f })
-        }
-        if(canvas?.preferredAnimationUrl!=null) CanvasArtworkPlayer(primaryUrl=canvas.animated,fallbackUrl=canvas.videoUrl,isPlaying=playing,modifier=Modifier.fillMaxSize())
-        Box(Modifier.fillMaxSize().background(accent.copy(alpha=.40f)))
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha=.57f),Color.Black.copy(alpha=.24f)))))
-        Row(Modifier.align(Alignment.TopStart).padding(start=(unit*.065f).dp,top=(maxHeight.value*.06f).dp),verticalAlignment=Alignment.CenterVertically) {
-            AsyncImage(song?.artworkUri,null,contentScale=ContentScale.Crop,modifier=Modifier.size((unit*.058f).coerceIn(24f,52f).dp).clip(RoundedCornerShape(7.dp)))
-            Spacer(Modifier.width((unit*.016f).dp))
-            Column(Modifier.widthIn(max=(unit*.65f).dp)) {
-                Text(song?.title ?: "Выберите песню",fontSize=(unit*.018f).coerceIn(10f,18f).sp,color=Color.White,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
-                Text(song?.artist.orEmpty(),fontSize=(unit*.015f).coerceIn(9f,15f).sp,color=Color.White.copy(alpha=.8f),maxLines=1,overflow=TextOverflow.Ellipsis)
-            }
-        }
-        val font=(unit*.045f).coerceIn(16f,48f).sp
+        val wide = maxWidth > maxHeight * 1.35f
+        val font = min(unit * (if(wide) .047f else .075f), stageHeight / 7f).coerceIn(16f,44f).sp
         val plainScroll = rememberScrollState()
         LaunchedEffect(song?.id) { plainScroll.scrollTo(0) }
         val frame = remember(song?.id, lines, index) { StageTextFrame(song?.id, lines, index) }
-        Box(Modifier.align(Alignment.CenterStart).padding(start=(unit*.065f).dp).fillMaxWidth(.57f)) {
+        Box(Modifier.align(Alignment.CenterStart).padding(start=24.dp).fillMaxWidth(.64f).heightIn(max=(stageHeight*.9f).dp)) {
             if(lines.isEmpty()) Column {
-                Text(if(loading) "Ищем текст…" else "Текст пока не найден",color=Color.White,fontSize=font,fontWeight=FontWeight.Bold)
-                if(!loading) TextButton(onClick=onRetry) {Text("Найти текст",color=Color.White.copy(alpha=.7f))}
-            } else if(!synced) Column(Modifier.heightIn(max=(stageHeight*.6f).dp).verticalScroll(plainScroll)) {
-                lines.forEach { Text(it.text,color=Color.White.copy(alpha=.8f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=4.dp)) }
+                if(loading) {
+                    CircularProgressIndicator(Modifier.padding(bottom=14.dp).size(22.dp),color=Color.White.copy(alpha=.8f),strokeWidth=2.dp)
+                    Text("Ищем текст песни…",color=Color.White,fontSize=font,fontWeight=FontWeight.SemiBold)
+                } else {
+                    Text("Текст пока недоступен",color=Color.White,fontSize=font,fontWeight=FontWeight.SemiBold)
+                    Text("Попробуйте поиск ещё раз или добавьте свой файл",color=Color.White.copy(alpha=.6f),fontSize=13.sp,modifier=Modifier.padding(top=10.dp))
+                    TextButton(onClick=onRetry) { Text("Повторить поиск",color=Color.White) }
+                    TextButton(onClick=onPickLyricsFile) { Text("Загрузить текст",color=Color.White.copy(alpha=.7f)) }
+                }
+            } else if(!synced) Column(Modifier.verticalScroll(plainScroll)) {
+                lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }
             } else AnimatedContent(targetState=frame,transitionSpec={ (fadeIn(tween(if(motion) 400 else 0))+slideInVertically(tween(if(motion) 500 else 0)){it/5}).togetherWith(fadeOut(tween(if(motion) 250 else 0))+slideOutVertically(tween(if(motion) 400 else 0)){-it/5}) },label="lyric progression") { textFrame ->
                 val selected = textFrame.index
-                Column(verticalArrangement=Arrangement.spacedBy((unit*.014f).dp)) {
+                Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     if(selected<0) Text("♪",color=Color.White.copy(alpha=.45f),fontSize=font)
-                    val start=selected.coerceAtLeast(0)
-                    textFrame.lines.drop(start).take(if(selected<0) 2 else 3).forEachIndexed { offset,line ->
+                    textFrame.lines.drop(selected.coerceAtLeast(0)).take(if(selected<0) 2 else 3).forEachIndexed { offset,line ->
                         val current=selected>=0 && offset==0
                         Text(line.text.ifBlank { "♪" },color=Color.White.copy(alpha=if(current) 1f else if(offset<=1) .48f else .25f),fontSize=font,fontWeight=FontWeight.Bold,
-                            lineHeight=(font.value*1.18f).sp,maxLines=if(current) 2 else 1,overflow=TextOverflow.Ellipsis,
+                            lineHeight=(font.value*1.2f).sp,maxLines=if(current) 3 else 1,overflow=TextOverflow.Ellipsis,
                             modifier=Modifier.clickable { line.time?.let(onSeek) })
                     }
                 }
             }
         }
-        MusicBlob(playing,motion,accent,Modifier.align(Alignment.CenterEnd).padding(end=(unit*.18f).dp).size((unit*.18f).dp))
+        val blobSize=min(unit*.25f,stageHeight*.6f).coerceIn(48f,180f)
+        MusicBlob(playing,motion,accent,Modifier.align(Alignment.CenterEnd).padding(end=(unit*.055f).dp).size(blobSize.dp))
     }
 }
 @Composable private fun MusicBlob(playing:Boolean,motion:Boolean,accent:Color,modifier:Modifier) {

@@ -243,14 +243,31 @@ fun PlayerScreen(
 
     if (playerThemeId == "DESIGNER") {
         val designerDuration by musicViewModel.duration.collectAsState()
+        val designerVisible = expansionFraction > 0.5f
+        var designerQueue by remember { mutableStateOf(false) }
+        val designerQueueState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
+        LaunchedEffect(song?.id, designerVisible) {
+            if (designerVisible && song != null) musicViewModel.ensureDesignerLyrics()
+        }
         DesignerPlayerScreen(song = song, isPlaying = isPlaying, progress = progress,
             durationMs = designerDuration.takeIf { it > 0 } ?: song?.duration ?: 0L,
             lyrics = lyrics, lyricsOffset = lyricsTimeOffset.toLong(), loadingLyrics = isLoadingLyrics,
             canvasArtwork = canvasArtwork, onBack = onBack, onPlayPause = onPlayPause,
             onNext = onSkipNext, onPrevious = onSkipPrevious, onSeek = onSeek,
             onLyricsSeek = onLyricsSeek, onRetryLyrics = onRetryLyrics,
-            onQueue = onQueueClick, shuffle = isShuffleEnabled, onShuffle = onToggleShuffle,
-            onMode = appSettings::setPlayerThemeId)
+            onQueue = { designerQueue = true }, shuffle = isShuffleEnabled, onShuffle = onToggleShuffle,
+            onMode = appSettings::setPlayerThemeId, isVisible = designerVisible, onPickLyricsFile = onPickLyricsFile)
+        if (designerQueue && song != null) {
+            QueueBottomSheet(currentSong = song, queue = queue, currentQueueIndex = queuePosition - 1,
+                isShuffleEnabled = isShuffleEnabled, repeatMode = repeatMode,
+                onSongClick = { onSongClick(it); designerQueue = false },
+                onSongClickAtIndex = { onSongClickAtIndex(it); designerQueue = false },
+                onDismiss = { designerQueue = false }, onRemoveSongAtIndex = onRemoveFromQueueAtIndex,
+                onMoveQueueItem = onMoveQueueItem,
+                onAddSongsClick = { designerQueue = false; onNavigateToLibrary(LibraryTab.SONGS) },
+                onClearQueue = onClearQueue, onToggleShuffle = onToggleShuffle, onToggleRepeat = onToggleRepeat,
+                sheetState = designerQueueState)
+        }
         return
     }
 

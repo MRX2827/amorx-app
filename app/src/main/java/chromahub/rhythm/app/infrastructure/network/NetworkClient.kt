@@ -303,6 +303,17 @@ object NetworkClient {
     val lrclibApiService: LRCLibApiService? by lazy {
         if (BuildConfig.ENABLE_LRCLIB) lrclibRetrofit.create(LRCLibApiService::class.java) else null
     }
+
+    // Selecting the lyrics player is an explicit request for lyrics, independent of optional metadata integrations.
+    val playerLyricsApiService: LRCLibApiService? by lazy {
+        if (!BuildConfig.ENABLE_LRCLIB) null else Retrofit.Builder()
+            .baseUrl(LRCLIB_BASE_URL)
+            .client(OkHttpClient.Builder()
+                .addInterceptor(appHeadersInterceptor("AmorX/${BuildConfig.VERSION_NAME} (https://github.com/MRX2827/amorx-app)"))
+                .connectTimeout(4, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
+                .callTimeout(10, TimeUnit.SECONDS).retryOnConnectionFailure(false).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(LRCLibApiService::class.java)
+    }
     
     val betterLyricsApiService: BetterLyricsApiService? by lazy {
         if (BuildConfig.ENABLE_BETTERLYRICS) betterlyricsRetrofit.create(BetterLyricsApiService::class.java) else null
@@ -333,7 +344,7 @@ object NetworkClient {
     
     private fun integrationsOn(): Boolean = appSettings?.integrationsEnabled?.value ?: false
     fun isDeezerApiEnabled(): Boolean = BuildConfig.ENABLE_DEEZER && integrationsOn() && (appSettings?.deezerApiEnabled?.value ?: false)
-    fun isLrcLibApiEnabled(): Boolean = BuildConfig.ENABLE_LRCLIB && integrationsOn() && (appSettings?.lrclibApiEnabled?.value ?: false)
+    fun isLrcLibApiEnabled(): Boolean = BuildConfig.ENABLE_LRCLIB && chromahub.rhythm.app.util.PlayerLyricsLookup.canSearch() && integrationsOn() && (appSettings?.lrclibApiEnabled?.value ?: false)
     fun isBetterLyricsApiEnabled(): Boolean = BuildConfig.ENABLE_BETTERLYRICS && integrationsOn() && (appSettings?.betterLyricsApiEnabled?.value ?: false)
     fun isYTMusicApiEnabled(): Boolean = BuildConfig.ENABLE_YOUTUBE_MUSIC && integrationsOn() && (appSettings?.ytMusicApiEnabled?.value ?: false)
     fun isSpotifyApiEnabled(): Boolean = BuildConfig.ENABLE_SPOTIFY_SEARCH && integrationsOn() && (appSettings?.spotifyApiEnabled?.value ?: false)

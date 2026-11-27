@@ -253,7 +253,7 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
 
             if(playerThemeId == "DESIGNER") {
                 item {
-                    Text("Текст песни слева, музыкальное пятно справа. Фон меняется вместе с песней. Кнопка «На весь экран» разворачивает плеер горизонтально.", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Фон песни заполняет весь экран и мягко движется. Слева — текст, справа — музыкальное пятно. Тексты ищутся автоматически; кнопка разворота открывает горизонтальный режим.", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
             // Player Controls Section — only shown for Rhythm (Material) theme; Expressive has no chips
