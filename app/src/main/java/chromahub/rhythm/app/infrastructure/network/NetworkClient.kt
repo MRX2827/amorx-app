@@ -304,17 +304,25 @@ object NetworkClient {
         if (BuildConfig.ENABLE_LRCLIB) lrclibRetrofit.create(LRCLibApiService::class.java) else null
     }
 
-    // Selecting the lyrics player is an explicit request for lyrics, independent of optional metadata integrations.
+    private val playerLyricsHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(appHeadersInterceptor("AmorX/${BuildConfig.VERSION_NAME} (https://github.com/MRX2827/amorx-app)"))
+            .connectTimeout(4, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(10, TimeUnit.SECONDS).retryOnConnectionFailure(false).build()
+    }
+
+    // Lyrics requested by the user work independently of optional metadata integrations.
     val playerLyricsApiService: LRCLibApiService? by lazy {
         if (!BuildConfig.ENABLE_LRCLIB) null else Retrofit.Builder()
-            .baseUrl(LRCLIB_BASE_URL)
-            .client(OkHttpClient.Builder()
-                .addInterceptor(appHeadersInterceptor("AmorX/${BuildConfig.VERSION_NAME} (https://github.com/MRX2827/amorx-app)"))
-                .connectTimeout(4, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS)
-                .callTimeout(10, TimeUnit.SECONDS).retryOnConnectionFailure(false).build())
+            .baseUrl(LRCLIB_BASE_URL).client(playerLyricsHttpClient)
             .addConverterFactory(GsonConverterFactory.create()).build().create(LRCLibApiService::class.java)
     }
-    
+    val playerPlainLyricsApiService: PlainLyricsApiService? by lazy {
+        if (!BuildConfig.ENABLE_LRCLIB) null else Retrofit.Builder()
+            .baseUrl("https://api.lyrics.ovh/").client(playerLyricsHttpClient)
+            .addConverterFactory(GsonConverterFactory.create()).build().create(PlainLyricsApiService::class.java)
+    }
+
     val betterLyricsApiService: BetterLyricsApiService? by lazy {
         if (BuildConfig.ENABLE_BETTERLYRICS) betterlyricsRetrofit.create(BetterLyricsApiService::class.java) else null
     }

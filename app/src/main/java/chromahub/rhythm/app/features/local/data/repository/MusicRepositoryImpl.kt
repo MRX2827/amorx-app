@@ -4461,11 +4461,14 @@ class MusicRepository(context: Context) {
     ): LyricsData? = withContext(Dispatchers.IO) {
         val appSettings = AppSettings.getInstance(context)
         val songSpecificPreference = songId?.let { appSettings.getSongLyricsPreference(it) }
-        val finalSourcePreference = when (songSpecificPreference) {
-            "online" -> LyricsSourcePreference.API_FIRST
-            "embedded" -> LyricsSourcePreference.EMBEDDED_FIRST
-            "lrc" -> LyricsSourcePreference.LOCAL_FIRST
-            else -> sourcePreference
+        val finalSourcePreference = when {
+            songId?.let(appSettings::getSongLyricsSearch) != null -> LyricsSourcePreference.API_FIRST
+            else -> when (songSpecificPreference) {
+                "online" -> LyricsSourcePreference.API_FIRST
+                "embedded" -> LyricsSourcePreference.EMBEDDED_FIRST
+                "lrc" -> LyricsSourcePreference.LOCAL_FIRST
+                else -> sourcePreference
+            }
         }
 
         Log.d(TAG, "===== FETCH LYRICS START: $artist - $title (songId=$songId, forceRefresh=$forceRefresh, source=$finalSourcePreference, songSpecificPreference=$songSpecificPreference) =====")
@@ -4541,17 +4544,21 @@ class MusicRepository(context: Context) {
         
         val fetchFromAPI: suspend () -> LyricsData? = {
             if (isNetworkAvailable()) {
-                val playerLyrics = if (appSettings.playerThemeId.value == "DESIGNER") {
+                val corrected = songId?.let(appSettings::getSongLyricsSearch)
+                val searchArtist = corrected?.first ?: artist
+                val searchTitle = corrected?.second ?: title
+                val video = corrected == null && (songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true)
+                val playerLyrics = if (appSettings.showLyrics.value || appSettings.playerThemeId.value == "DESIGNER") {
                     chromahub.rhythm.app.util.PlayerLyricsLookup.find(
-                        NetworkClient.playerLyricsApiService, artist, title,
-                        songId?.startsWith("online_") == true || songUri?.fragment?.startsWith("ytm=") == true,
-                        durationMs
+                        NetworkClient.playerLyricsApiService, searchArtist, searchTitle, video, durationMs
+                    ) ?: chromahub.rhythm.app.util.PlayerLyricsLookup.findPlain(
+                        NetworkClient.playerPlainLyricsApiService, searchArtist, searchTitle, video
                     )
                 } else null
-                playerLyrics ?: fetchLyricsFromAPIs(artist, title)
+                playerLyrics ?: fetchLyricsFromAPIs(searchArtist, searchTitle)
             } else null
         }
-        
+
         // Try sources in order based on preference, with fallback to others
         val sourceFetchers = when (finalSourcePreference) {
             LyricsSourcePreference.API_FIRST -> listOf(fetchFromAPI, fetchFromEmbedded, fetchFromLocal)
@@ -4582,7 +4589,7 @@ class MusicRepository(context: Context) {
                     lyricsCache[cacheKey] = lyricsWithSource
                     if (sourceName == "API") {
                         // Only save API-fetched lyrics to local cache
-                        saveLocalLyrics(artist, title, lyricsWithSource)
+                        saveLocalLyrics(artist, title, lyricsWithSource, songId)
                     }
                     return@withContext lyricsWithSource
                 }
@@ -4594,6 +4601,11 @@ class MusicRepository(context: Context) {
             }
         }
 
+        // A temporary provider failure must not hide a previously cached text.
+        if (songId?.let(appSettings::getSongLyricsSearch) == null) {
+            val cached = findLocalLyrics(artist, title, songId, songUri, refreshLegacyApiCache = false)
+            if (cached != null && cached.hasLyrics() && !cached.isErrorMessage()) return@withContext cached
+        }
         // No lyrics found from any source
         Log.d(TAG, "No lyrics found from any source for: $artist - $title")
         return@withContext LyricsData("No lyrics found for this song", null, null)
@@ -4943,7 +4955,7 @@ class MusicRepository(context: Context) {
      * Finds local lyrics file in app's files directory OR next to the music file
      * Supports both .lrc/.ttml/.srt files (in music folder) and .json cache files (in app folder)
      */
-    private fun findLocalLyrics(artist: String, title: String, songId: String? = null, songUri: Uri? = null): LyricsData? {
+    private fun findLocalLyrics(artist: String, title: String, songId: String? = null, songUri: Uri? = null, refreshLegacyApiCache: Boolean = true): LyricsData? {
         Log.d(TAG, "===== findLocalLyrics START: $artist - $title (songId=$songId, songUri=$songUri) =====")
         
         // First, check for .lrc / .ttml / .srt file next to the music file
@@ -4958,13 +4970,18 @@ class MusicRepository(context: Context) {
         }
         
         // Second, check for cached JSON lyrics in app's files directory
-        val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
-        val file = File(context.filesDir, "lyrics/$fileName")
+        val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, songId)
+        val preferredFile = File(context.filesDir, "lyrics/$fileName")
+        val legacyName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val file = if(preferredFile.exists()) preferredFile else File(context.filesDir, "lyrics/$legacyName")
         Log.d(TAG, "===== Checking for saved JSON file: $fileName (exists=${file.exists()}) =====")
         return try {
             if (file.exists()) {
                 val json = file.readText()
                 var data = Gson().fromJson(json, LyricsData::class.java)
+                val downloaded = data.source?.let { source -> listOf("API", "LRCLib", "lyrics.ovh", "Lyrically", "Better Lyrics").any { source.startsWith(it) } } == true
+                // Refresh legacy API caches online; never remove imported/embedded lyrics or offline fallbacks.
+                if (refreshLegacyApiCache && file != preferredFile && downloaded && isNetworkAvailable()) return null
                 Log.d(TAG, "===== LOADED LYRICS FROM SAVED JSON FILE =====")
                 
                 // Self-healing migration for old cached Lyrically lyrics containing the shift bug
@@ -5005,7 +5022,7 @@ class MusicRepository(context: Context) {
                         )
                         
                         // Save the corrected version back to cache
-                        saveLocalLyrics(artist, title, data)
+                        saveLocalLyrics(artist, title, data, songId)
                         Log.d(TAG, "===== SUCCESSFULLY CORRECTED AND RESAVED CACHED LYRICS =====")
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to correct cached Lyrically lyrics", e)
@@ -5342,9 +5359,9 @@ class MusicRepository(context: Context) {
 
      * Saves lyrics to a local file
      */
-    private fun saveLocalLyrics(artist: String, title: String, lyricsData: LyricsData) {
+    private fun saveLocalLyrics(artist: String, title: String, lyricsData: LyricsData, songId: String? = null) {
         try {
-            val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, songId)
             val lyricsDir = File(context.filesDir, "lyrics")
             lyricsDir.mkdirs()
 
@@ -6211,9 +6228,11 @@ class MusicRepository(context: Context) {
             }
 
             try {
-                val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, songId)
                 val lyricsDir = File(context.filesDir, "lyrics")
                 val file = File(lyricsDir, fileName)
+                val legacyName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                File(lyricsDir, legacyName).delete()
                 if (file.exists()) {
                     val deleted = file.delete()
                     Log.d(TAG, "===== DELETED SAVED LYRICS FILE ($fileName): $deleted =====")

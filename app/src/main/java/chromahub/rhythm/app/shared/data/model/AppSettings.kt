@@ -2482,6 +2482,27 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     }
     
     // Lyrics Settings Methods
+    fun getSongLyricsSearch(songId: String): Pair<String, String>? = runCatching {
+        val item = org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}").optJSONObject(songId)
+            ?: return@runCatching null
+        val artist = item.optString("artist"); val title = item.optString("title")
+        if(artist.isBlank() || title.isBlank()) null else artist to title
+    }.getOrNull()
+
+    fun clearSongLyricsSearch(songId: String) {
+        val searches = runCatching { org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}") }
+            .getOrElse { org.json.JSONObject() }
+        searches.remove(songId)
+        prefs.edit { putString("song_lyrics_searches", searches.toString()) }
+    }
+
+    fun setSongLyricsSearch(songId: String, artist: String, title: String) {
+        val searches = runCatching { org.json.JSONObject(prefs.getString("song_lyrics_searches", "{}") ?: "{}") }
+            .getOrElse { org.json.JSONObject() }
+        searches.put(songId, org.json.JSONObject().put("artist", artist).put("title", title))
+        prefs.edit { putString("song_lyrics_searches", searches.toString()) }
+    }
+
     fun setShowLyrics(show: Boolean) {
         prefs.edit { putBoolean(KEY_SHOW_LYRICS, show) }
         _showLyrics.value = show

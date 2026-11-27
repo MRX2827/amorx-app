@@ -51,7 +51,8 @@ fun DesignerPlayerScreen(
     onBack: () -> Unit, onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit,
     onSeek: (Float) -> Unit, onLyricsSeek: ((Long) -> Unit)?, onRetryLyrics: () -> Unit,
     onQueue: () -> Unit, shuffle: Boolean, onShuffle: () -> Unit, onMode: (String) -> Unit,
-    isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {}
+    isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {},
+    onSearchLyrics: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -60,6 +61,17 @@ fun DesignerPlayerScreen(
     var controls by remember { mutableStateOf(true) }
     var modeMenu by remember { mutableStateOf(false) }
     var actionsMenu by remember { mutableStateOf(false) }
+    var lyricsSearchDialog by remember(song?.id) { mutableStateOf(false) }
+    var searchArtist by remember(song?.id) { mutableStateOf("") }
+    var searchTitle by remember(song?.id) { mutableStateOf("") }
+    fun openLyricsSearch() {
+        val track = song ?: return
+        val saved = chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).getSongLyricsSearch(track.id)
+        val parsed = chromahub.rhythm.app.util.PlayerLyricsLookup.queries(track.artist, track.title, track.id.startsWith("online_")).firstOrNull()
+        searchArtist = saved?.first ?: parsed?.artist ?: track.artist
+        searchTitle = saved?.second ?: parsed?.let { it.title + when(it.edition) { "explicit" -> " (Dirty)"; "clean" -> " (Clean)"; else -> "" } } ?: track.title
+        lyricsSearchDialog = true
+    }
     val motion = ValueAnimator.areAnimatorsEnabled()
     DisposableEffect(activity, view, isVisible) {
         val bars = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
@@ -155,7 +167,7 @@ fun DesignerPlayerScreen(
             Box(Modifier.fillMaxSize().clickable { controls = !controls }) {
                 DesignerSongHeading(song, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(24.dp).fillMaxWidth(.75f))
                 DesignerStage(song, lines, index, synced, loadingText, accent, isPlaying && isVisible, motion,
-                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) }, onRetryLyrics, onPickLyricsFile,
+                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) }, onRetryLyrics, ::openLyricsSearch,
                     Modifier.fillMaxSize().padding(top=90.dp, bottom=80.dp))
             }
             AnimatedVisibility(controls, enter=fadeIn(tween(if(motion) 250 else 0)), exit=fadeOut(tween(if(motion) 400 else 0)), modifier=Modifier.align(Alignment.BottomCenter)) {
@@ -184,6 +196,7 @@ fun DesignerPlayerScreen(
                         DesignerButton("more_vert","Ещё",{actionsMenu=true})
                         DropdownMenu(expanded=actionsMenu,onDismissRequest={actionsMenu=false}) {
                             DropdownMenuItem(text={Text("Очередь")},onClick={actionsMenu=false;onQueue()})
+                            DropdownMenuItem(text={Text("Уточнить поиск текста")},onClick={actionsMenu=false;openLyricsSearch()})
                             DropdownMenuItem(text={Text("Загрузить текст песни")},onClick={actionsMenu=false;onPickLyricsFile()})
                             DropdownMenuItem(text={Text("Скачать в хранилище")},enabled=song!=null,onClick={
                                 actionsMenu=false
@@ -194,7 +207,7 @@ fun DesignerPlayerScreen(
                 }
                 DesignerSongHeading(song, Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=12.dp))
                 DesignerStage(song,lines,index,synced,loadingText,accent,isPlaying && isVisible,motion,
-                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) },onRetryLyrics,onPickLyricsFile,
+                    onLyricsSeek ?: { time -> if(durationMs>0) onSeek(time.toFloat()/durationMs) },onRetryLyrics,::openLyricsSearch,
                     Modifier.weight(1f).fillMaxWidth())
                 Column(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp)) {
                     Slider(value=progress().coerceIn(0f,1f),onValueChange=onSeek,colors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=Color.White,inactiveTrackColor=Color.White.copy(alpha=.18f)))
@@ -207,6 +220,19 @@ fun DesignerPlayerScreen(
             }
         }
     }
+    if (lyricsSearchDialog) AlertDialog(
+        onDismissRequest={lyricsSearchDialog=false},
+        title={Text("Поиск текста песни")},
+        text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            TextField(value=searchArtist,onValueChange={searchArtist=it},label={Text("Исполнитель")},singleLine=true)
+            TextField(value=searchTitle,onValueChange={searchTitle=it},label={Text("Название песни")},singleLine=true)
+            Text("Уточнение сохранится для этой песни.",fontSize=13.sp)
+        }},
+        confirmButton={TextButton(enabled=searchArtist.isNotBlank() && searchTitle.isNotBlank(),onClick={
+            lyricsSearchDialog=false;onSearchLyrics(searchArtist.trim(),searchTitle.trim())
+        }) {Text("Найти")}},
+        dismissButton={TextButton(onClick={lyricsSearchDialog=false}) {Text("Отмена")}}
+    )
 }
 
 @Composable private fun DesignerSongHeading(song: Song?, modifier: Modifier) {
@@ -263,7 +289,7 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
 
 @Composable private fun DesignerStage(
     song:Song?,lines:List<StageLine>,index:Int,synced:Boolean,loading:Boolean,accent:Color,playing:Boolean,motion:Boolean,
-    onSeek:(Long)->Unit,onRetry:()->Unit,onPickLyricsFile:()->Unit,modifier:Modifier
+    onSeek:(Long)->Unit,onRetry:()->Unit,onManualSearch:()->Unit,modifier:Modifier
 ) {
     BoxWithConstraints(modifier.clipToBounds()) {
         val unit = maxWidth.value
@@ -280,9 +306,9 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
                     Text("Ищем текст песни…",color=Color.White,fontSize=font,fontWeight=FontWeight.SemiBold)
                 } else {
                     Text("Текст пока недоступен",color=Color.White,fontSize=font,fontWeight=FontWeight.SemiBold)
-                    Text("Попробуйте поиск ещё раз или добавьте свой файл",color=Color.White.copy(alpha=.6f),fontSize=13.sp,modifier=Modifier.padding(top=10.dp))
+                    Text("Повторите поиск или уточните название песни",color=Color.White.copy(alpha=.6f),fontSize=13.sp,modifier=Modifier.padding(top=10.dp))
                     TextButton(onClick=onRetry) { Text("Повторить поиск",color=Color.White) }
-                    TextButton(onClick=onPickLyricsFile) { Text("Загрузить текст",color=Color.White.copy(alpha=.7f)) }
+                    TextButton(onClick=onManualSearch) { Text("Уточнить название",color=Color.White.copy(alpha=.7f)) }
                 }
             } else if(!synced) Column(Modifier.verticalScroll(plainScroll)) {
                 lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }

@@ -256,7 +256,8 @@ fun PlayerScreen(
             onNext = onSkipNext, onPrevious = onSkipPrevious, onSeek = onSeek,
             onLyricsSeek = onLyricsSeek, onRetryLyrics = onRetryLyrics,
             onQueue = { designerQueue = true }, shuffle = isShuffleEnabled, onShuffle = onToggleShuffle,
-            onMode = appSettings::setPlayerThemeId, isVisible = designerVisible, onPickLyricsFile = onPickLyricsFile)
+            onMode = appSettings::setPlayerThemeId, isVisible = designerVisible, onPickLyricsFile = onPickLyricsFile,
+            onSearchLyrics = { artist, title -> musicViewModel.searchLyricsByMetadata(artist, title, song?.id) })
         if (designerQueue && song != null) {
             QueueBottomSheet(currentSong = song, queue = queue, currentQueueIndex = queuePosition - 1,
                 isShuffleEnabled = isShuffleEnabled, repeatMode = repeatMode,

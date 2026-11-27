@@ -8215,6 +8215,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         fetchLyricsForCurrentSong(forceRefresh = true)
     }
 
+    fun searchLyricsByMetadata(artist: String, title: String, expectedSongId: String? = null) {
+        val song = currentSong.value ?: return
+        if (expectedSongId != null && song.id != expectedSongId) return
+        if (artist.isBlank() || title.isBlank()) return
+        val corrected = artist.trim() to title.trim()
+        appSettings.setSongLyricsSearch(song.id, corrected.first, corrected.second)
+        lyricsFetchJob?.cancel()
+        _currentLyrics.value = null
+        _isLoadingLyrics.value = true
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { repository.clearLyricsCacheForSong(song.artist, song.title, song.id) }
+            if(currentSong.value?.id == song.id && appSettings.getSongLyricsSearch(song.id) == corrected)
+                fetchLyricsForCurrentSong(forceRefresh = true)
+        }
+    }
+
     fun retryFetchLyrics() {
         Log.d(TAG, "Manual retry of lyrics fetch requested")
         fetchLyricsForCurrentSong(retryCount = 0, forceRefresh = true)
@@ -8394,16 +8410,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         (!isWordByWord && !isTtml && sanitizedLyrics.contains(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}]")))
                     
                     // Load existing cache if exists to preserve other formats
-                    val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    val fileName = chromahub.rhythm.app.util.PlayerLyricsLookup.cacheFileName(artist, title, song.id)
                     val lyricsDir = File(getApplication<Application>().filesDir, "lyrics")
                     if (!lyricsDir.exists()) {
                         lyricsDir.mkdirs()
                     }
                     val file = File(lyricsDir, fileName)
                     
-                    val existingLyricsData = if (file.exists()) {
+                    val legacyName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    val existingFile = if(file.exists()) file else File(lyricsDir, legacyName)
+                    val existingLyricsData = if (existingFile.exists()) {
                         try {
-                            val cachedJson = file.readText()
+                            val cachedJson = existingFile.readText()
                             Gson().fromJson(cachedJson, LyricsData::class.java)
                         } catch (e: Exception) {
                             null
@@ -8524,6 +8542,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     
+                    // The user's imported/edited text supersedes an older search correction.
+                    appSettings.clearSongLyricsSearch(song.id)
+                    appSettings.setSongLyricsPreference(song.id, "lrc")
                     // Save to cache (internal storage)
                     val json = Gson().toJson(lyricsData)
                     file.writeText(json)
