@@ -46,7 +46,6 @@ import chromahub.rhythm.app.shared.presentation.components.player.CanvasArtworkP
 import kotlinx.coroutines.*
 import kotlin.math.*
 
-private data class StageTextFrame(val song: String?, val lines: List<StageLine>, val index: Int)
 private fun Context.activity(): Activity? = when(this) { is Activity -> this; is ContextWrapper -> baseContext.activity(); else -> null }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +58,8 @@ fun DesignerPlayerScreen(
     onQueue: () -> Unit, shuffle: Boolean, onShuffle: () -> Unit, onMode: (String) -> Unit,
     isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {},
     onSearchLyrics: (String, String) -> Unit = { _, _ -> },
-    playbackPosition: () -> Long? = { null }, onLyricsOffset: (Int) -> Unit = {}
+    playbackPosition: () -> Long? = { null }, playbackDiscontinuity: () -> Long = { 0L },
+    onLyricsOffset: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -140,23 +140,24 @@ fun DesignerPlayerScreen(
         value = Triple(song?.id, lyrics, withContext(Dispatchers.Default) { stageLines(lyrics) })
     }
     val actualPosition = playbackPosition()
-    val lines = if(parsed.first == song?.id && parsed.second == lyrics && actualPosition != null) parsed.third else emptyList()
-    val loadingText = loadingLyrics || (song != null && lyrics == null) || parsed.first != song?.id || parsed.second != lyrics || actualPosition == null
+    val lines = if(parsed.first == song?.id && parsed.second == lyrics) parsed.third else emptyList()
+    val loadingText = loadingLyrics || (song != null && lyrics == null) || parsed.first != song?.id || parsed.second != lyrics
     val position = actualPosition ?: 0L
     val synced = lines.firstOrNull()?.time != null
-    val timestamps = remember(lines) { lines.map { it.time ?: 0L }.toLongArray() }
-    val ends = remember(lines) { lines.map { if(it.text.isBlank()) it.time ?: 0L else it.endTime ?: Long.MAX_VALUE }.toLongArray() }
+    val timeline = remember(lines) { StageTimeline(lines) }
     val positionReader by rememberUpdatedState(playbackPosition)
-    // produceState retains its previous value when its keys change. Never carry an old
-    // song's selected verse into a newly parsed timeline, even for a single frame.
-    var index by remember(song?.id, lines, lyricsOffset) { mutableIntStateOf(-1) }
+    val discontinuityReader by rememberUpdatedState(playbackDiscontinuity)
+    val lyricClock = remember(song?.id) { chromahub.rhythm.app.util.LyricPositionTracker() }
+    var cue by remember(song?.id, lines, lyricsOffset) { mutableStateOf(StageCue()) }
     LaunchedEffect(song?.id, lines, lyricsOffset, isVisible) {
-        index = -1
         if(!synced) return@LaunchedEffect
         if(isVisible) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while(isActive) {
-                index=positionReader()?.let { chromahub.rhythm.app.util.LyricClock.activeIndex(timestamps,ends,it,lyricsOffset) } ?: -1
-                delay(50)
+                // A temporary unavailable session does not erase an already visible verse.
+                positionReader()?.let { raw ->
+                    cue = timeline.cue(lyricClock.sample(raw, discontinuityReader()), lyricsOffset)
+                }
+                withFrameNanos { }
             }
         }
     }
@@ -197,7 +198,7 @@ fun DesignerPlayerScreen(
         if (fullscreen) {
             Box(Modifier.fillMaxSize().clickable { controls = !controls }) {
                 DesignerSongHeading(song, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(24.dp).fillMaxWidth(.75f))
-                DesignerStage(song, lines, index, synced, loadingText, accent, isPlaying && isVisible, motion,
+                DesignerStage(song, lines, cue, synced, loadingText, accent, isPlaying && isVisible, motion,
                     seekLine, onRetryLyrics, ::openLyricsSearch,
                     Modifier.fillMaxSize().padding(top=90.dp, bottom=80.dp))
             }
@@ -226,7 +227,7 @@ fun DesignerPlayerScreen(
                     DesignerButton("more_vert","Ещё",{actionsMenu=true})
                 }
                 DesignerSongHeading(song, Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=12.dp))
-                DesignerStage(song,lines,index,synced,loadingText,accent,isPlaying && isVisible,motion,
+                DesignerStage(song,lines,cue,synced,loadingText,accent,isPlaying && isVisible,motion,
                     seekLine,onRetryLyrics,::openLyricsSearch,
                     Modifier.weight(1f).fillMaxWidth())
                 Column(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp)) {
@@ -365,7 +366,7 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
 }
 
 @Composable private fun DesignerStage(
-    song:Song?,lines:List<StageLine>,index:Int,synced:Boolean,loading:Boolean,accent:Color,playing:Boolean,motion:Boolean,
+    song:Song?,lines:List<StageLine>,cue:StageCue,synced:Boolean,loading:Boolean,accent:Color,playing:Boolean,motion:Boolean,
     onSeek:(Long)->Unit,onRetry:()->Unit,onManualSearch:()->Unit,modifier:Modifier
 ) {
     BoxWithConstraints(modifier.clipToBounds()) {
@@ -375,7 +376,6 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
         val font = min(unit * (if(wide) .047f else .075f), stageHeight / 10f).coerceIn(16f,44f).sp
         val plainScroll = rememberScrollState()
         LaunchedEffect(song?.id) { plainScroll.scrollTo(0) }
-        val frame = remember(song?.id, lines, index) { StageTextFrame(song?.id, lines, index) }
         Box(Modifier.align(Alignment.CenterStart).padding(start=24.dp).fillMaxWidth(.64f).height((stageHeight*.75f).dp)) {
             if(lines.isEmpty()) Column {
                 if(loading) {
@@ -394,18 +394,37 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
             } else if(!synced) Column(Modifier.verticalScroll(plainScroll)) {
                 Text("Без синхронизации · прокрутка вручную",color=Color.White.copy(alpha=.55f),fontSize=12.sp,modifier=Modifier.padding(bottom=14.dp))
                 lines.forEach { Text(it.text,color=Color.White.copy(alpha=.88f),fontSize=font,fontWeight=FontWeight.Bold,modifier=Modifier.padding(vertical=6.dp)) }
-            } else AnimatedContent(targetState=frame,transitionSpec={ (fadeIn(tween(if(motion) 100 else 0))+slideInVertically(tween(if(motion) 160 else 0)){it/12}).togetherWith(fadeOut(tween(if(motion) 80 else 0))).using(SizeTransform(clip=false,sizeAnimationSpec={_,_->snap()})) },label="lyric progression") { textFrame ->
-                val selected = textFrame.index
-                Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    if(selected<0) {
+            } else {
+                val selected = lines.getOrNull(cue.index)
+                val timeline = remember(lines) { StageTimeline(lines) }
+                val history = remember(lines, cue.index) { timeline.history(cue) }
+                val movement = remember(song?.id, lines) { Animatable(0f) }
+                LaunchedEffect(song?.id, lines, cue.index, motion) {
+                    // Text changes on the audio frame. Animate only its placement, never
+                    // crossfade complete old/new verses or delay the new line's visibility.
+                    movement.snapTo(if(motion && cue.index >= 0) 8f else 0f)
+                    movement.animateTo(0f, tween(if(motion) 160 else 0))
+                }
+                val emphasis by animateFloatAsState(if(cue.active) 1f else .65f,
+                    tween(if(motion) 120 else 0), label="lyric emphasis")
+                Column(Modifier.graphicsLayer { translationY = movement.value.dp.toPx() },
+                    verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    if(selected == null) {
                         Text("♪",color=Color.White.copy(alpha=.65f),fontSize=font)
                         Text("Музыка",color=Color.White.copy(alpha=.45f),fontSize=14.sp)
-                    }
-                    if(selected>=0) textFrame.lines.drop(selected).takeWhile { it.text.isNotBlank() }.take(3).forEachIndexed { offset,line ->
-                        val current=selected>=0 && offset==0
-                        Text(line.text.ifBlank { "♪" },color=Color.White.copy(alpha=if(current) 1f else if(offset<=1) .48f else .25f),fontSize=font,fontWeight=FontWeight.Bold,
-                            lineHeight=(font.value*1.2f).sp,maxLines=if(current) 3 else 1,overflow=TextOverflow.Ellipsis,
-                            modifier=Modifier.clickable { line.time?.let(onSeek) })
+                    } else {
+                        // Only already sung context is visible. Future lyrics used to flash
+                        // here and looked like the player was advancing ahead of the vocal.
+                        for(slot in 0..1) {
+                            val previous = history.getOrNull(slot - (2 - history.size))
+                            Text(previous?.text.orEmpty(),color=Color.White.copy(alpha=if(slot==0) .22f else .40f),
+                                fontSize=(font.value*.8f).sp,fontWeight=FontWeight.Bold,
+                                minLines=1,maxLines=1,overflow=TextOverflow.Ellipsis,
+                                modifier=Modifier.clickable(enabled=previous?.time!=null) { previous?.time?.let(onSeek) })
+                        }
+                        Text(selected.text,color=Color.White.copy(alpha=emphasis),fontSize=font,fontWeight=FontWeight.Bold,
+                            lineHeight=(font.value*1.2f).sp,maxLines=3,overflow=TextOverflow.Ellipsis,
+                            modifier=Modifier.clickable { selected.time?.let(onSeek) })
                     }
                 }
             }

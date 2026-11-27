@@ -334,6 +334,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Track lyrics adjustment offset
     private val _lyricsTimeOffset = MutableStateFlow(0)
     val lyricsTimeOffset: StateFlow<Int> = _lyricsTimeOffset.asStateFlow()
+    private var lyricsPlaybackDiscontinuity = 0L
+    fun playbackDiscontinuityId(): Long = lyricsPlaybackDiscontinuity
 
     // New helper methods
     private val _serviceConnected = MutableStateFlow(false)
@@ -4088,6 +4090,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             controllerFuture?.addListener({
                 try {
                     mediaController = controllerFuture?.get()
+                    lyricsPlaybackDiscontinuity++
                     Log.d(TAG, "Media controller initialized: $mediaController")
 
                     if (mediaController != null) {
@@ -4342,6 +4345,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingMissingItemQueueSync = false
 
     private val playerListener = object : Player.Listener {
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            if(reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT ||
+                reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) lyricsPlaybackDiscontinuity++
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             if (error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND &&
                 MissingLocalMediaClassifier.isLocalScheme(_currentSong.value?.uri?.scheme)
@@ -4434,6 +4442,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            lyricsPlaybackDiscontinuity++
             Log.d(TAG, "Media item transition: ${mediaItem?.mediaId}, reason: $reason")
 
             if (isRestoringQueue) {

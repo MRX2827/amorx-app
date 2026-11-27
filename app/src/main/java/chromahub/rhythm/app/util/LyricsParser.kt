@@ -411,7 +411,10 @@ object LyricsParser {
         if (parsed is SemanticLyrics.SyncedLyrics) {
             val grouped = parsed.text.groupBy { it.start }
             return grouped.map { (start, lines) ->
-                val mainLine = lines.firstOrNull { !it.isTranslated } ?: lines.first()
+                // A gap end can share a timestamp with the next vocal cue. The blank
+                // marker must not swallow that sung line when grouping equal timestamps.
+                val mainLine = lines.firstOrNull { !it.isTranslated && it.text.isNotBlank() }
+                    ?: lines.firstOrNull { it.text.isNotBlank() } ?: lines.first()
                 val mainText = mainLine.text.trim()
                 
                 var translation: String? = null

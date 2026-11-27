@@ -22,3 +22,19 @@ internal object LyricClock {
         return if (positionMs.coerceAtLeast(0) + offsetMs < end) index else -1
     }
 }
+
+/** Session estimates can move slightly backwards when a fresh service update arrives.
+ * Only a real player discontinuity (seek, repeat, transition, reconnect) starts a new clock.
+ * Never extrapolate here: paused or buffering audio must not advance the lyrics.
+ */
+internal class LyricPositionTracker {
+    private var epoch: Long? = null
+    private var position = 0L
+
+    fun sample(positionMs: Long, discontinuity: Long): Long {
+        val incoming = positionMs.coerceAtLeast(0)
+        position = if(epoch != discontinuity) incoming else maxOf(position, incoming)
+        epoch = discontinuity
+        return position
+    }
+}
