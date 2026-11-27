@@ -20,13 +20,22 @@ object DesignerSpectrum {
         if (!_visible.value || format.channelCount < 1 || format.sampleRate < 1) return
         val now = System.nanoTime()
         if (now - updatedNanos < 33_000_000L) return
-        val bytes = when(format.pcmEncoding) { C.ENCODING_PCM_16BIT -> 2; C.ENCODING_PCM_FLOAT -> 4; else -> return }
+        val bytes = when(format.pcmEncoding) {
+            C.ENCODING_PCM_8BIT -> 1; C.ENCODING_PCM_16BIT -> 2; C.ENCODING_PCM_24BIT -> 3
+            C.ENCODING_PCM_FLOAT, C.ENCODING_PCM_32BIT -> 4; else -> return
+        }
         val frames = min(1024, buffer.remaining() / (bytes * format.channelCount))
         if (frames < 128) return
         val input = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
         val samples = FloatArray(frames)
         for (i in samples.indices) {
-            samples[i] = if(bytes == 2) input.short / 32768f else input.float.coerceIn(-1f, 1f)
+            samples[i] = when(format.pcmEncoding) {
+                C.ENCODING_PCM_8BIT -> ((input.get().toInt() and 255) - 128) / 128f
+                C.ENCODING_PCM_16BIT -> input.short / 32768f
+                C.ENCODING_PCM_24BIT -> ((input.get().toInt() and 255) or ((input.get().toInt() and 255) shl 8) or (input.get().toInt() shl 16)) / 8388608f
+                C.ENCODING_PCM_32BIT -> input.int / 2147483648f
+                else -> input.float.takeIf { it.isFinite() }?.coerceIn(-1f,1f) ?: 0f
+            }
             input.position(input.position() + bytes * (format.channelCount - 1))
         }
         levels = analyze(samples, format.sampleRate); updatedNanos = now

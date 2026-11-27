@@ -68,7 +68,18 @@ fun DesignerPlayerScreen(
     var fullscreen by remember { mutableStateOf(false) }
     var controls by remember { mutableStateOf(true) }
     var modeMenu by remember { mutableStateOf(false) }
+    var actionsMenu by remember { mutableStateOf(false) }
     val motion = ValueAnimator.areAnimatorsEnabled()
+    DisposableEffect(activity, view) {
+        val bars = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
+        val lightStatus = bars?.isAppearanceLightStatusBars
+        val lightNavigation = bars?.isAppearanceLightNavigationBars
+        bars?.isAppearanceLightStatusBars = false; bars?.isAppearanceLightNavigationBars = false
+        onDispose {
+            if(lightStatus != null) bars?.isAppearanceLightStatusBars = lightStatus
+            if(lightNavigation != null) bars?.isAppearanceLightNavigationBars = lightNavigation
+        }
+    }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -160,7 +171,17 @@ fun DesignerPlayerScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.weight(1f)); DesignerButton("queue_music","Очередь",onQueue)
+                    Spacer(Modifier.weight(1f))
+                    Box {
+                        DesignerButton("more_vert","Ещё",{actionsMenu=true})
+                        DropdownMenu(expanded=actionsMenu,onDismissRequest={actionsMenu=false}) {
+                            DropdownMenuItem(text={Text("Очередь")},onClick={actionsMenu=false;onQueue()})
+                            DropdownMenuItem(text={Text("Скачать в хранилище")},enabled=song!=null,onClick={
+                                actionsMenu=false
+                                song?.let { chromahub.rhythm.app.features.online.PublicSongExport.start(context,it) }
+                            })
+                        }
+                    }
                 }
                 Column(Modifier.weight(1f).fillMaxWidth(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
                     DesignerStage(song,lines,index,position,synced,loadingLyrics,accent,canvasArtwork,isPlaying,motion,
