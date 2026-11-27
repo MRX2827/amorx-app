@@ -80,6 +80,15 @@ fun DesignerPlayerScreen(
             if(lightNavigation != null) bars?.isAppearanceLightNavigationBars = lightNavigation
         }
     }
+    SideEffect {
+        // Apply after the app theme's system-bar effect, which may run again on a song change.
+        activity?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+            }
+        }
+    }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event ->
