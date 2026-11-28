@@ -7,6 +7,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -37,6 +38,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import chromahub.rhythm.app.infrastructure.audio.DesignerSpectrum
+import chromahub.rhythm.app.infrastructure.audio.DesignerAudioFrame
+import chromahub.rhythm.app.infrastructure.audio.DesignerBlobMotion
 import chromahub.rhythm.app.network.CanvasArtwork
 import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.shared.data.model.LyricsData
@@ -59,6 +62,7 @@ fun DesignerPlayerScreen(
     isVisible: Boolean = true, onPickLyricsFile: () -> Unit = {},
     onSearchLyrics: (String, String) -> Unit = { _, _ -> },
     playbackPosition: () -> Long? = { null }, playbackDiscontinuity: () -> Long = { 0L },
+    audioAudible: () -> Boolean = { true },
     onLyricsOffset: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -198,7 +202,7 @@ fun DesignerPlayerScreen(
         if (fullscreen) {
             Box(Modifier.fillMaxSize().clickable { controls = !controls }) {
                 DesignerSongHeading(song, Modifier.align(Alignment.TopStart).statusBarsPadding().padding(24.dp).fillMaxWidth(.75f))
-                DesignerStage(song, lines, cue, synced, loadingText, accent, isPlaying && isVisible, motion,
+                DesignerStage(song, lines, cue, synced, loadingText, accent, isPlaying && isVisible, motion, audioAudible,
                     seekLine, onRetryLyrics, ::openLyricsSearch,
                     Modifier.fillMaxSize().padding(top=90.dp, bottom=80.dp))
             }
@@ -227,7 +231,7 @@ fun DesignerPlayerScreen(
                     DesignerButton("more_vert","Ещё",{actionsMenu=true})
                 }
                 DesignerSongHeading(song, Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=12.dp))
-                DesignerStage(song,lines,cue,synced,loadingText,accent,isPlaying && isVisible,motion,
+                DesignerStage(song,lines,cue,synced,loadingText,accent,isPlaying && isVisible,motion,audioAudible,
                     seekLine,onRetryLyrics,::openLyricsSearch,
                     Modifier.weight(1f).fillMaxWidth())
                 Column(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp)) {
@@ -368,6 +372,7 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
 
 @Composable private fun DesignerStage(
     song:Song?,lines:List<StageLine>,cue:StageCue,synced:Boolean,loading:Boolean,accent:Color,playing:Boolean,motion:Boolean,
+    audioAudible:()->Boolean,
     onSeek:(Long)->Unit,onRetry:()->Unit,onManualSearch:()->Unit,modifier:Modifier
 ) {
     BoxWithConstraints(modifier.clipToBounds()) {
@@ -432,33 +437,42 @@ private fun stageTime(ms: Long): String { val seconds=max(0,ms)/1000;return "%d:
             }
         }
         val blobSize=min(unit*.24f,stageHeight*.6f).coerceIn(48f,180f)
-        MusicBlob(playing,motion,accent,Modifier.align(Alignment.CenterEnd).padding(end=(unit*.055f).dp).size(blobSize.dp))
+        MusicBlob(playing,motion,accent,Modifier.align(Alignment.CenterEnd).padding(end=(unit*.055f).dp).size(blobSize.dp),audioAudible)
     }
 }
-@Composable private fun MusicBlob(playing:Boolean,motion:Boolean,accent:Color,modifier:Modifier) {
+@Composable private fun MusicBlob(playing:Boolean,motion:Boolean,accent:Color,modifier:Modifier,audioAudible:()->Boolean) {
+    val context = LocalContext.current
+    val audioManager = remember(context) { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+    val audibleReader by rememberUpdatedState(audioAudible)
     var phase by remember { mutableFloatStateOf(0f) }
     var bands by remember { mutableStateOf(FloatArray(7)) }
     var energy by remember { mutableFloatStateOf(0f) }
     var bass by remember { mutableFloatStateOf(0f) }
-    val drift by animateFloatAsState(if(playing && motion) 1f else 0f,tween(if(motion) 900 else 0),label="soft music rest")
-    val currentDrift by rememberUpdatedState(drift)
     LaunchedEffect(playing,motion) {
         var previous=0L;var tail=0f
+        var volumeCheck=0L; var systemAudible=true
         while(isActive) {
             withFrameNanos { now ->
                 val dt=if(previous==0L) 0f else ((now-previous)/1e9f).coerceAtMost(.05f);previous=now
                 if(!playing) tail+=dt
-                val live=playing && now-DesignerSpectrum.updatedNanos<250_000_000L
-                val target=if(live) DesignerSpectrum.levels else FloatArray(7)
-                val targetEnergy=if(live) DesignerSpectrum.energy else 0f
-                val targetBass=if(live) DesignerSpectrum.bass else 0f
-                energy+=(targetEnergy-energy)*(1-exp(-dt*(if(targetEnergy>energy) 28f else 8f)))
-                bass+=(targetBass-bass)*(1-exp(-dt*(if(targetBass>bass) 36f else 9f)))
-                bands=FloatArray(7) { i ->
-                    val sensitive=target[i].coerceIn(0f,1f).pow(.75f)
-                    bands[i]+(sensitive-bands[i])*(1-exp(-dt*(if(sensitive>bands[i]) 30f else 9f)))
+                if(playing && now-volumeCheck>=200_000_000L) {
+                    systemAudible=runCatching { audioManager?.let {
+                        it.getStreamVolume(AudioManager.STREAM_MUSIC)>0 && !it.isStreamMute(AudioManager.STREAM_MUSIC)
+                    } ?: true }.getOrDefault(true)
+                    volumeCheck=now
                 }
-                if(motion) phase+=dt*(.7f+energy*.9f+bass*.8f)*currentDrift
+                val frame=DesignerBlobMotion.audibleFrame(
+                    DesignerAudioFrame(DesignerSpectrum.levels,DesignerSpectrum.energy,DesignerSpectrum.bass),
+                    playing,if(playing) audibleReader() else false,systemAudible,now-DesignerSpectrum.updatedNanos)
+                val target=frame?.bands ?: FloatArray(7)
+                energy=DesignerBlobMotion.settle(energy,frame?.energy ?: 0f,dt,28f,8f)
+                bass=DesignerBlobMotion.settle(bass,frame?.bass ?: 0f,dt,36f,9f)
+                val nextBands=FloatArray(7) { i ->
+                    val sensitive=target[i].coerceIn(0f,1f).pow(.75f)
+                    DesignerBlobMotion.settle(bands[i],sensitive,dt,30f,9f)
+                }
+                if(!nextBands.contentEquals(bands)) bands=nextBands
+                phase+=DesignerBlobMotion.phaseStep(frame,dt,motion)
             }
             if(!playing && tail>1.6f) break
             if(!motion) delay(100)

@@ -23,7 +23,8 @@ internal object DesignerSpectrumAnalysis {
             real[i] = (centered*window).toFloat()
         }
         val rms = sqrt(power/size)
-        if(rms < 1e-7) return silence()
+        // Ignore digital dither / a practically silent signal before applying visual gain.
+        if(rms < 1e-4) return silence()
 
         var reversed = 0
         for(i in 1 until size) {

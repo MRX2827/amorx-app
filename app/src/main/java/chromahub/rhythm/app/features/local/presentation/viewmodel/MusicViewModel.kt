@@ -4635,6 +4635,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         return controller.currentPosition.coerceAtLeast(0L)
     }
 
+    fun playbackAudible(expectedSongId: String?): Boolean {
+        val controller = mediaController ?: return false
+        return controller.currentMediaItem?.mediaId == expectedSongId && controller.isPlaying && controller.volume > .0001f
+    }
+
     fun designerLyrics(expectedSongId: String?): LyricsData? =
         if(currentLoadedLyricsSongId == expectedSongId) _currentLyrics.value else null
 
